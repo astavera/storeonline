@@ -1,0 +1,293 @@
+@import "../design/tokens/colors.css";
+@import "../design/tokens/typography.css";
+@import "../design/tokens/spacing.css";
+@import "../design/tokens/radius.css";
+@import "../design/tokens/shadows.css";
+@import "../design/tokens/breakpoints.css";
+@import "../design/themes/default.theme.css";
+@import "../design/themes/balloons.theme.css";
+@import "../design/themes/holiday.theme.css";
+@import "../design/themes/premium.theme.css";
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  color: var(--color-text-primary);
+  background: var(--color-background);
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background: var(--color-background);
+  color: var(--color-text-primary);
+  font-family: var(--font-body);
+  line-height: var(--line-height-body);
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+img {
+  max-width: 100%;
+  display: block;
+}
+
+:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 3px;
+}
+
+.container-shell {
+  width: min(100% - 2rem, var(--container-width));
+  margin-inline: auto;
+}
+
+.surface-card {
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-card);
+}
+
+.modern-state-top-stripe {
+  min-height: 34px;
+  width: 100%;
+  background-color: var(--color-legacy-cyan);
+  background-image: url("/assets/modern_state_top_stripe_1920x34.svg?v=20260709");
+  background-repeat: no-repeat;
+  background-size: 100% 100%;
+}
+
+.homepage-full-hero {
+  background: var(--color-legacy-blue);
+}
+
+.homepage-full-hero[data-store-variant="back-to-school"] {
+  background:
+    linear-gradient(135deg, #0c3e91, #08255f 58%, #071a44);
+}
+
+.homepage-full-hero[data-store-variant="back-to-school"]::before {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  content: "";
+  background:
+    linear-gradient(rgba(255, 255, 255, 0.08) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.08) 1px, transparent 1px);
+  background-size: 48px 48px;
+  opacity: 0.34;
+}
+
+.homepage-full-hero--has-image[data-store-variant="back-to-school"]::before {
+  opacity: 0.08;
+}
+
+.homepage-full-hero::after {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  content: "";
+  background:
+    radial-gradient(ellipse at 50% 44%, rgba(10, 20, 39, 0.74), rgba(10, 20, 39, 0.48) 42%, rgba(10, 20, 39, 0.24) 68%),
+    linear-gradient(90deg, rgba(17, 24, 39, 0.86), rgba(17, 24, 39, 0.46) 50%, rgba(17, 24, 39, 0.3));
+}
+
+.homepage-full-hero[data-store-variant="back-to-school"]::after {
+  background:
+    radial-gradient(ellipse at 50% 44%, rgba(5, 18, 48, 0.16), rgba(5, 18, 48, 0.66) 64%),
+    linear-gradient(90deg, rgba(4, 19, 55, 0.8), rgba(4, 19, 55, 0.28) 48%, rgba(4, 19, 55, 0.72));
+}
+
+.homepage-full-hero--has-image[data-store-variant="back-to-school"]::after {
+  background:
+    radial-gradient(ellipse at 50% 44%, rgba(5, 18, 48, 0.08), rgba(5, 18, 48, 0.34) 68%),
+    linear-gradient(90deg, rgba(4, 19, 55, 0.5), rgba(4, 19, 55, 0.1) 48%, rgba(4, 19, 55, 0.48));
+}
+
+.homepage-hero-copy h1,
+.homepage-hero-body {
+  text-shadow:
+    0 2px 8px rgba(0, 0, 0, 0.78),
+    0 8px 24px rgba(0, 0, 0, 0.46);
+}
+
+.homepage-hero-bg {
+  position: absolute;
+  inset: -6%;
+  z-index: 0;
+  background-position: center;
+  background-size: cover;
+  filter: saturate(0.95);
+  transform: scale(1.04);
+}
+
+.homepage-full-hero--has-image[data-store-variant="back-to-school"] .homepage-hero-bg {
+  filter: saturate(1.08);
+  transform: scale(1.02);
+}
+
+.homepage-back-to-school-shapes {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.homepage-school-paper,
+.homepage-school-pencil,
+.homepage-school-ruler,
+.homepage-school-eraser {
+  position: absolute;
+  display: block;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.32);
+}
+
+.homepage-school-paper {
+  right: 5%;
+  top: 12%;
+  width: min(34vw, 430px);
+  height: 360px;
+  border-radius: 6px;
+  background:
+    linear-gradient(90deg, transparent 58px, rgba(239, 49, 80, 0.62) 60px, transparent 62px),
+    repeating-linear-gradient(0deg, transparent 0 38px, rgba(20, 94, 196, 0.18) 39px 41px),
+    #fff9e8;
+  transform: rotate(5deg);
+}
+
+.homepage-school-pencil {
+  left: 6%;
+  top: 24%;
+  width: 360px;
+  height: 34px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #ffd129 0 78%, #f7b048 78% 88%, #f7d9c2 88% 96%, #173052 96%);
+  transform: rotate(-18deg);
+}
+
+.homepage-school-ruler {
+  right: 18%;
+  bottom: 14%;
+  width: 420px;
+  height: 42px;
+  border-radius: 5px;
+  background:
+    repeating-linear-gradient(90deg, rgba(7, 31, 79, 0.55) 0 3px, transparent 3px 26px),
+    #ffd129;
+  transform: rotate(-13deg);
+}
+
+.homepage-school-eraser {
+  left: 15%;
+  bottom: 18%;
+  width: 180px;
+  height: 82px;
+  border-radius: 14px;
+  background: linear-gradient(90deg, #ef3150 0 58%, #f5c0cb 58%);
+  transform: rotate(10deg);
+}
+
+.homepage-hero-copy,
+.homepage-hero-bg,
+.homepage-hero-visual {
+  will-change: transform;
+}
+
+@supports (animation-timeline: scroll()) {
+  .homepage-hero-copy {
+    animation: homepage-hero-copy-scroll linear both;
+    animation-timeline: scroll(root block);
+    animation-range: 0 860px;
+  }
+
+  .homepage-hero-bg {
+    animation: homepage-hero-bg-scroll linear both;
+    animation-timeline: scroll(root block);
+    animation-range: 0 980px;
+  }
+
+  .homepage-hero-visual {
+    animation: homepage-hero-visual-scroll linear both;
+    animation-timeline: scroll(root block);
+    animation-range: 0 860px;
+    transform-origin: center;
+  }
+}
+
+@keyframes homepage-hero-copy-scroll {
+  from {
+    transform: translateY(0);
+  }
+
+  to {
+    transform: translateY(-44px);
+  }
+}
+
+@keyframes homepage-hero-bg-scroll {
+  from {
+    transform: translateY(0) scale(1.04);
+  }
+
+  to {
+    transform: translateY(86px) scale(1.11);
+  }
+}
+
+@keyframes homepage-hero-visual-scroll {
+  from {
+    transform: translateY(0);
+  }
+
+  to {
+    transform: translateY(48px);
+  }
+}
+
+@media (max-width: 1023px) {
+  .homepage-full-hero {
+    background: var(--color-legacy-blue);
+  }
+
+  .homepage-hero-copy,
+  .homepage-hero-bg,
+  .homepage-hero-visual {
+    animation: none;
+  }
+
+  .homepage-hero-bg {
+    transform: scale(1.04);
+  }
+
+  .homepage-back-to-school-shapes {
+    opacity: 0.58;
+  }
+
+  .homepage-school-paper {
+    right: -18%;
+    top: 24%;
+    width: 360px;
+    height: 360px;
+  }
+
+  .homepage-school-pencil {
+    left: -28%;
+    top: 42%;
+  }
+
+  .homepage-school-ruler,
+  .homepage-school-eraser {
+    display: none;
+  }
+}

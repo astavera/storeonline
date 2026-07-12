@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="600" height="600" viewBox="0 0 600 600" role="img" aria-labelledby="title">
+  <title id="title">Stationery category artwork</title>
+  <rect width="600" height="600" rx="36" fill="#F5F7FA"/>
+  <rect x="135" y="115" width="250" height="350" rx="28" fill="#FFFFFF" stroke="#155BC2" stroke-width="18"/>
+  <path d="M185 205h150M185 270h150M185 335h120" stroke="#DEE4EC" stroke-width="18" stroke-linecap="round"/>
+  <path d="m360 450 110-265 48 20-110 265z" fill="#FFCF24"/>
+  <path d="m470 185 20-47 48 20-20 47z" fill="#E50046"/>
+  <circle cx="420" cy="120" r="34" fill="#75DCEB"/>
+</svg>

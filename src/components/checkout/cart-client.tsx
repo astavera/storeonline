@@ -1,0 +1,195 @@
+"use client";
+
+import { Minus, Plus, ShoppingBag, Trash2 } from "lucide-react";
+import Link from "next/link";
+import { useEffect, useState } from "react";
+import { readCartItems, writeCartItems, type StoredCartItem } from "@/components/commerce/add-to-cart-button";
+import { Button } from "@/components/ui/button";
+import { formatMoney } from "@/lib/utils";
+
+type CartQuoteLine = {
+  squareVariationId: string;
+  slug: string;
+  name: string;
+  department: string;
+  imageUrl: string;
+  unitPriceCents: number;
+  quantity: number;
+  lineTotalCents: number;
+};
+
+type CartQuote = {
+  lines: CartQuoteLine[];
+  itemCount: number;
+  subtotalCents: number;
+  estimatedTaxCents: number;
+  totalCents: number;
+  compatibleFulfillmentModes: string[];
+  fulfillmentLabel: string;
+  errors: string[];
+};
+
+const emptyQuote: CartQuote = {
+  lines: [],
+  itemCount: 0,
+  subtotalCents: 0,
+  estimatedTaxCents: 0,
+  totalCents: 0,
+  compatibleFulfillmentModes: [],
+  fulfillmentLabel: "",
+  errors: []
+};
+
+export function CartClient({ mode = "cart" }: { mode?: "cart" | "summary" }) {
+  const [items, setItems] = useState<StoredCartItem[]>([]);
+  const [quote, setQuote] = useState<CartQuote>(emptyQuote);
+  const [isLoading, setIsLoading] = useState(true);
+  const canCheckout = quote.lines.length > 0 && quote.errors.length === 0;
+
+  useEffect(() => {
+    setItems(readCartItems());
+
+    function handleCartUpdate() {
+      setItems(readCartItems());
+    }
+
+    window.addEventListener("modern-state-cart-updated", handleCartUpdate);
+    window.addEventListener("storage", handleCartUpdate);
+
+    return () => {
+      window.removeEventListener("modern-state-cart-updated", handleCartUpdate);
+      window.removeEventListener("storage", handleCartUpdate);
+    };
+  }, []);
+
+  useEffect(() => {
+    let ignore = false;
+    setIsLoading(true);
+
+    fetch("/api/cart", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json"
+      },
+      body: JSON.stringify({ items })
+    })
+      .then((response) => response.json())
+      .then((result) => {
+        if (!ignore) {
+          setQuote(result.quote ?? emptyQuote);
+        }
+      })
+      .catch(() => {
+        if (!ignore) {
+          setQuote({ ...emptyQuote, errors: ["Cart could not be validated."] });
+        }
+      })
+      .finally(() => {
+        if (!ignore) {
+          setIsLoading(false);
+        }
+      });
+
+    return () => {
+      ignore = true;
+    };
+  }, [items]);
+
+  function updateQuantity(squareVariationId: string, quantity: number) {
+    const nextItems = items
+      .map((item) => (item.squareVariationId === squareVariationId ? { ...item, quantity: Math.max(0, Math.min(99, quantity)) } : item))
+      .filter((item) => item.quantity > 0);
+    writeCartItems(nextItems);
+    setItems(nextItems);
+    window.dispatchEvent(new CustomEvent("modern-state-cart-updated"));
+  }
+
+  if (!isLoading && quote.lines.length === 0) {
+    return (
+      <div className="surface-card p-6 text-center">
+        <ShoppingBag aria-hidden="true" className="mx-auto text-secondary" size={32} />
+        <h2 className="mt-4 font-display text-2xl font-semibold">Your cart is empty</h2>
+        <p className="mt-2 text-secondary">Add toys, balloons, gifts, stationery, or party supplies to start an order.</p>
+        <Link className="mt-5 inline-flex min-h-11 items-center justify-center rounded-md bg-[var(--theme-action)] px-5 py-2.5 text-sm font-semibold text-[var(--theme-action-foreground)]" href="/shop">
+          Shop products
+        </Link>
+      </div>
+    );
+  }
+
+  return (
+    <div className={mode === "summary" ? "grid gap-4" : "grid gap-6 lg:grid-cols-[1fr_360px]"}>
+      {mode === "cart" ? (
+        <div className="grid gap-4">
+          {quote.lines.map((line) => (
+            <article className="surface-card grid gap-4 p-4 sm:grid-cols-[120px_minmax(0,1fr)]" key={line.squareVariationId}>
+              <Link className="block overflow-hidden rounded-md bg-surface-muted" href={`/products/${line.slug}`}>
+                <img alt={line.name} className="aspect-square h-full w-full object-cover" src={line.imageUrl} />
+              </Link>
+              <div className="grid gap-3">
+                <div className="flex flex-wrap justify-between gap-3">
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-[0.12em] text-secondary">{line.department}</p>
+                    <h2 className="mt-1 font-display text-xl font-semibold">
+                      <Link className="hover:text-blue" href={`/products/${line.slug}`}>
+                        {line.name}
+                      </Link>
+                    </h2>
+                  </div>
+                  <p className="font-semibold">{formatMoney(line.lineTotalCents)}</p>
+                </div>
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div className="inline-flex items-center rounded-md border border-border bg-surface">
+                    <Button className="h-9 w-9 px-0" onClick={() => updateQuantity(line.squareVariationId, line.quantity - 1)} title="Decrease quantity" type="button" variant="quiet">
+                      <Minus aria-hidden="true" size={15} />
+                    </Button>
+                    <span className="w-10 text-center text-sm font-semibold">{line.quantity}</span>
+                    <Button className="h-9 w-9 px-0" onClick={() => updateQuantity(line.squareVariationId, line.quantity + 1)} title="Increase quantity" type="button" variant="quiet">
+                      <Plus aria-hidden="true" size={15} />
+                    </Button>
+                  </div>
+                  <Button className="h-9 gap-2 px-3" onClick={() => updateQuantity(line.squareVariationId, 0)} type="button" variant="quiet">
+                    <Trash2 aria-hidden="true" size={15} />
+                    Remove
+                  </Button>
+                </div>
+              </div>
+            </article>
+          ))}
+        </div>
+      ) : null}
+
+      <CartSummary canCheckout={canCheckout} quote={quote} />
+    </div>
+  );
+}
+
+function CartSummary({ canCheckout, quote }: { canCheckout: boolean; quote: CartQuote }) {
+  return (
+    <section className="surface-card h-fit p-6" data-store-area="Cart" data-store-component="CartOrderSummarySection" data-store-section="cart.order-summary" data-store-variant="summary">
+      <h2 className="font-display text-2xl font-semibold">Order summary</h2>
+      <div className="mt-5 grid gap-3 text-sm">
+        <SummaryRow label="Items" value={String(quote.itemCount)} />
+        <SummaryRow label="Subtotal" value={formatMoney(quote.subtotalCents)} />
+        <SummaryRow label="Estimated tax" value={formatMoney(quote.estimatedTaxCents)} />
+        <SummaryRow label="Fulfillment" value={quote.fulfillmentLabel || "Select at checkout"} />
+        <div className="border-t border-border pt-3">
+          <SummaryRow label="Estimated total" value={formatMoney(quote.totalCents)} strong />
+        </div>
+      </div>
+      {quote.errors.length > 0 ? <p className="mt-4 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-900">{quote.errors.join(" ")}</p> : null}
+      <Link className={`mt-6 inline-flex min-h-11 w-full items-center justify-center rounded-md px-5 py-2.5 text-sm font-semibold ${canCheckout ? "bg-[var(--theme-action)] text-[var(--theme-action-foreground)]" : "pointer-events-none border border-border bg-surface-muted text-secondary"}`} href="/checkout">
+        Checkout
+      </Link>
+    </section>
+  );
+}
+
+function SummaryRow({ label, value, strong = false }: { label: string; value: string; strong?: boolean }) {
+  return (
+    <div className={`flex items-center justify-between gap-3 ${strong ? "text-base font-semibold" : ""}`}>
+      <span className="text-secondary">{label}</span>
+      <span>{value}</span>
+    </div>
+  );
+}

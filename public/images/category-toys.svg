@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="600" height="600" viewBox="0 0 600 600" role="img" aria-labelledby="title">
+  <title id="title">Toy blocks category artwork</title>
+  <rect width="600" height="600" rx="36" fill="#75DCEB"/>
+  <rect x="90" y="285" width="120" height="120" rx="18" fill="#155BC2"/>
+  <rect x="235" y="210" width="130" height="130" rx="20" fill="#FFCF24"/>
+  <rect x="390" y="300" width="120" height="120" rx="18" fill="#63C43F"/>
+  <circle cx="150" cy="240" r="54" fill="#E50046"/>
+  <circle cx="455" cy="230" r="46" fill="#FFFFFF" opacity="0.85"/>
+  <path d="M115 410h370" stroke="#062C68" stroke-width="24" stroke-linecap="round" opacity="0.18"/>
+</svg>

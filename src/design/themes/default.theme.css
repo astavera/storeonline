@@ -1,0 +1,6 @@
+:root {
+  --theme-action: var(--color-legacy-blue);
+  --theme-action-foreground: #FFFFFF;
+  --theme-accent: var(--color-legacy-green);
+  --theme-accent-soft: rgba(21, 91, 194, 0.12);
+}

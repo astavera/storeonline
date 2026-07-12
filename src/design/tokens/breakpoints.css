@@ -1,0 +1,13 @@
+:root {
+  --breakpoint-sm: 640px;
+  --breakpoint-md: 768px;
+  --breakpoint-lg: 1024px;
+  --breakpoint-xl: 1280px;
+  --z-header: 50;
+  --z-overlay: 80;
+  --z-modal: 100;
+  --product-image-ratio: 4 / 5;
+  --motion-fast: 120ms;
+  --motion-base: 180ms;
+  --motion-slow: 280ms;
+}

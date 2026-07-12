@@ -1,0 +1,517 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum FulfillmentMode {
+  PICKUP
+  LOCAL_DELIVERY
+  SHIPPING
+}
+
+enum FulfillmentStatus {
+  NEW
+  PAID
+  ACCEPTED
+  PREPARING
+  READY_FOR_PICKUP
+  PICKED_UP
+  READY_FOR_DELIVERY
+  OUT_FOR_DELIVERY
+  DELIVERED
+  WAREHOUSE_PICKING
+  PACKED
+  LABEL_CREATED
+  SHIPPED
+  CANCELLED
+  FAILED
+}
+
+enum AdminRole {
+  OWNER
+  MANAGER
+  STORE_STAFF
+  DELIVERY_STAFF
+  WAREHOUSE_STAFF
+  VIEWER
+}
+
+enum CmsPublishStatus {
+  DRAFT
+  PREVIEW
+  SCHEDULED
+  PUBLISHED
+  UNPUBLISHED
+  ARCHIVED
+}
+
+enum ProductWebStatus {
+  DRAFT
+  NEEDS_REVIEW
+  NEEDS_PLACEMENT
+  PUBLISHED
+  HIDDEN
+  ARCHIVED_WEB_ONLY
+}
+
+enum ProductPlacementType {
+  DEPARTMENT
+  HOLIDAY
+  BALLOON_SECTION
+  HOMEPAGE_SECTION
+  PRODUCT_GROUP
+  SEARCH_GROUP
+  PROMO_SECTION
+}
+
+enum DescriptionSource {
+  SQUARE
+  WEBSITE_OVERRIDE
+  GENERATED_DRAFT
+  ADMIN_APPROVED
+  EMPTY
+}
+
+enum DescriptionStatus {
+  READY
+  NEEDS_REVIEW
+  MISSING
+  OUTDATED_SQUARE_CHANGED
+}
+
+model StoreLocation {
+  id                         String             @id @default(cuid())
+  squareLocationId           String?            @unique
+  slug                       String             @unique
+  name                       String
+  address                    String
+  phone                      String?
+  pickupEnabled              Boolean            @default(true)
+  localDeliveryEnabled       Boolean            @default(true)
+  shippingFulfillmentEnabled Boolean            @default(false)
+  createdAt                  DateTime           @default(now())
+  updatedAt                  DateTime           @updatedAt
+  deliveryZones              DeliveryZone[]
+  slotTemplates              SlotTemplate[]
+  fulfillmentTasks           FulfillmentTask[]
+}
+
+model SquareCatalogObject {
+  id              String    @id
+  type            String
+  version         BigInt?
+  reportingCategoryId String?
+  categoryIds     String[]
+  name            String?
+  descriptionHtml String?
+  descriptionPlaintext String?
+  squareDescriptionHash String?
+  lastDescriptionSyncedAt DateTime?
+  raw             Json
+  syncedAt        DateTime  @default(now())
+  deletedAt       DateTime?
+  itemVariations  SquareItemVariation[]
+  images          ProductImagePreference[]
+}
+
+model SquareItemVariation {
+  id              String   @id
+  itemId          String
+  name            String
+  sku             String?
+  upc             String?
+  priceMoney      Json?
+  raw             Json
+  syncedAt        DateTime @default(now())
+  item            SquareCatalogObject @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  inventoryCounts SquareInventoryCount[]
+  cartItems       CartItem[]
+  orderItems      OrderItemMirror[]
+}
+
+model SquareInventoryCount {
+  id                  String   @id @default(cuid())
+  variationId         String
+  squareLocationId    String
+  quantity            Decimal
+  state               String
+  calculatedAt        DateTime
+  syncedAt            DateTime @default(now())
+  variation           SquareItemVariation @relation(fields: [variationId], references: [id], onDelete: Cascade)
+
+  @@unique([variationId, squareLocationId, state])
+}
+
+model Department {
+  id                 String   @id @default(cuid())
+  slug               String   @unique
+  titleEn            String
+  shortTitleEn       String
+  descriptionEn      String
+  heroTitleEn        String
+  heroSubtitleEn     String
+  seoTitleEn         String
+  seoDescriptionEn   String
+  heroImageUrl       String?
+  mobileHeroImageUrl String?
+  accentColorToken   String
+  sortOrder          Int
+  navigationPriority String
+  isPrimaryNav       Boolean  @default(false)
+  isVisible          Boolean  @default(true)
+  layoutPreset       String
+  productGridPreset  String
+  productCardVariant String
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+  products           ProductDepartmentAssignment[]
+}
+
+model Holiday {
+  id                 String   @id @default(cuid())
+  slug               String   @unique
+  titleEn            String
+  shortTitleEn       String
+  descriptionEn      String
+  heroTitleEn        String
+  heroSubtitleEn     String
+  seoTitleEn         String
+  seoDescriptionEn   String
+  heroImageUrl       String?
+  mobileHeroImageUrl String?
+  accentColorToken   String
+  customAccentColor  String?
+  startDate          DateTime
+  endDate            DateTime
+  isActive           Boolean  @default(false)
+  isVisible          Boolean  @default(true)
+  sortOrder          Int
+  layoutPreset       String
+  productGridPreset  String
+  productCardVariant String
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+  products           ProductHolidayAssignment[]
+}
+
+model ProductDepartmentAssignment {
+  id               String     @id @default(cuid())
+  departmentId     String
+  squareVariationId String
+  sortOrder        Int        @default(0)
+  isFeatured       Boolean    @default(false)
+  createdAt        DateTime   @default(now())
+  department       Department @relation(fields: [departmentId], references: [id], onDelete: Cascade)
+
+  @@unique([departmentId, squareVariationId])
+}
+
+model ProductHolidayAssignment {
+  id                String  @id @default(cuid())
+  holidayId         String
+  squareVariationId String
+  sortOrder         Int     @default(0)
+  badge             String?
+  createdAt         DateTime @default(now())
+  holiday           Holiday @relation(fields: [holidayId], references: [id], onDelete: Cascade)
+
+  @@unique([holidayId, squareVariationId])
+}
+
+model ProductOverride {
+  id                String   @id @default(cuid())
+  squareVariationId String   @unique
+  squareItemId      String?
+  webVisible        Boolean  @default(true)
+  webStatus         ProductWebStatus @default(NEEDS_PLACEMENT)
+  seoTitleEn        String?
+  seoDescriptionEn  String?
+  slug              String?  @unique
+  displayNameEn     String?
+  webShortDescriptionEn String?
+  webDescriptionEn  String?
+  badgeEn           String?
+  featured          Boolean  @default(false)
+  productCardStyle  String?
+  fulfillmentModes  FulfillmentMode[]
+  pickupAllowed     Boolean  @default(false)
+  localDeliveryAllowed Boolean @default(false)
+  shippingAllowed   Boolean  @default(false)
+  allowedLocationIds String[]
+  warehouseRequired Boolean @default(false)
+  inflated          Boolean @default(false)
+  fragile           Boolean @default(false)
+  requiresBalloonPrep Boolean @default(false)
+  prepTimeMinutes   Int?
+  capacityPoints    Int?
+  descriptionSource DescriptionSource @default(EMPTY)
+  descriptionStatus DescriptionStatus @default(MISSING)
+  useSquareDescription Boolean @default(true)
+  lockWebDescription Boolean @default(false)
+  squareDescriptionHash String?
+  lastSquareDescriptionSyncedAt DateTime?
+  isBalloonComponent Boolean @default(false)
+  isShippable       Boolean @default(true)
+  publishedAt       DateTime?
+  unpublishedAt     DateTime?
+  scheduledPublishAt DateTime?
+  scheduledUnpublishAt DateTime?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  placements        WebsiteProductPlacement[]
+}
+
+model WebsiteProductPlacement {
+  id                  String               @id @default(cuid())
+  squareItemId         String
+  squareVariationId    String
+  placementType        ProductPlacementType
+  placementTargetId    String?
+  placementTargetSlug  String
+  sectionId            String
+  sortOrder            Int                  @default(0)
+  isFeatured           Boolean              @default(false)
+  isPrimary            Boolean              @default(false)
+  visible              Boolean              @default(false)
+  startsAt             DateTime?
+  endsAt               DateTime?
+  createdAt            DateTime             @default(now())
+  updatedAt            DateTime             @updatedAt
+  productOverride      ProductOverride      @relation(fields: [squareVariationId], references: [squareVariationId], onDelete: Cascade)
+
+  @@index([placementType, placementTargetSlug])
+  @@index([squareVariationId])
+}
+
+model ProductPlacementRule {
+  id              String               @id @default(cuid())
+  name            String
+  active          Boolean              @default(true)
+  suggestOnly     Boolean              @default(true)
+  matchField      String
+  matchOperator   String
+  matchValue      String
+  placementType   ProductPlacementType
+  placementTargetSlug String
+  fulfillmentSuggestion Json?
+  createdAt       DateTime             @default(now())
+  updatedAt       DateTime             @updatedAt
+}
+
+model CmsContentVersion {
+  id              String           @id @default(cuid())
+  entityType      String
+  entityId        String
+  versionNumber   Int
+  status          CmsPublishStatus @default(DRAFT)
+  title           String?
+  payload         Json
+  createdById     String?
+  publishedById   String?
+  publishedAt     DateTime?
+  scheduledPublishAt DateTime?
+  scheduledUnpublishAt DateTime?
+  rollbackOfVersionId String?
+  createdAt       DateTime         @default(now())
+  createdBy        AdminUser?       @relation("CmsVersionCreatedBy", fields: [createdById], references: [id])
+  publishedBy      AdminUser?       @relation("CmsVersionPublishedBy", fields: [publishedById], references: [id])
+
+  @@unique([entityType, entityId, versionNumber])
+  @@index([entityType, entityId, status])
+}
+
+model MediaAsset {
+  id              String   @id @default(cuid())
+  source          String
+  sourceId        String?
+  url             String
+  altTextEn       String?
+  mimeType        String?
+  width           Int?
+  height          Int?
+  hiddenFromWebsite Boolean @default(false)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+model ProductImagePreference {
+  id              String   @id @default(cuid())
+  catalogObjectId String
+  imageUrl        String
+  altTextEn       String?
+  sortOrder       Int      @default(0)
+  isPrimary       Boolean  @default(false)
+  cropPreset      String?
+  createdAt       DateTime @default(now())
+  catalogObject   SquareCatalogObject @relation(fields: [catalogObjectId], references: [id], onDelete: Cascade)
+}
+
+model Cart {
+  id        String     @id @default(cuid())
+  sessionId String     @unique
+  currency  String     @default("USD")
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+  items     CartItem[]
+}
+
+model CartItem {
+  id                String   @id @default(cuid())
+  cartId            String
+  squareVariationId String
+  quantity          Int
+  fulfillmentMode   FulfillmentMode?
+  metadata          Json?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  cart              Cart @relation(fields: [cartId], references: [id], onDelete: Cascade)
+  variation         SquareItemVariation @relation(fields: [squareVariationId], references: [id])
+}
+
+model OrderMirror {
+  id              String   @id @default(cuid())
+  squareOrderId   String?  @unique
+  squarePaymentId String?  @unique
+  customerEmail   String?
+  customerPhone   String?
+  currency        String   @default("USD")
+  totalMoney      Json
+  status          String
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  items           OrderItemMirror[]
+  fulfillmentTasks FulfillmentTask[]
+}
+
+model OrderItemMirror {
+  id                String   @id @default(cuid())
+  orderId           String
+  squareVariationId String
+  name              String
+  quantity          Int
+  priceMoney        Json
+  order             OrderMirror @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  variation         SquareItemVariation @relation(fields: [squareVariationId], references: [id])
+}
+
+model FulfillmentTask {
+  id             String            @id @default(cuid())
+  orderId        String
+  locationId     String?
+  mode           FulfillmentMode
+  status         FulfillmentStatus @default(NEW)
+  assignedRole   AdminRole?
+  capacityPoints Int               @default(1)
+  deliveryAddress Json?
+  shippingAddress Json?
+  trackingNumber String?
+  carrier         String?
+  labelUrl        String?
+  dueAt           DateTime?
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+  order           OrderMirror      @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  location        StoreLocation?   @relation(fields: [locationId], references: [id])
+}
+
+model DeliveryZone {
+  id                 String   @id @default(cuid())
+  locationId         String
+  name               String
+  polygonGeojson     Json
+  version            Int      @default(1)
+  active             Boolean  @default(true)
+  serviceMode        String
+  baseFeeCents       Int
+  minimumOrderCents  Int
+  maxDistanceMiles   Decimal?
+  maxRouteMinutes    Int?
+  priority           Int      @default(0)
+  activeDays         String[]
+  cutoffMinutes      Int
+  leadTimeMinutes    Int
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+  location           StoreLocation @relation(fields: [locationId], references: [id], onDelete: Cascade)
+}
+
+model SlotTemplate {
+  id              String          @id @default(cuid())
+  locationId      String
+  fulfillmentMode FulfillmentMode
+  dayOfWeek       Int
+  startTime       String
+  endTime         String
+  capacityPoints  Int
+  active          Boolean         @default(true)
+  cutoffMinutes   Int
+  leadTimeMinutes Int
+  location        StoreLocation   @relation(fields: [locationId], references: [id], onDelete: Cascade)
+  holds           SlotHold[]
+}
+
+model SlotHold {
+  id             String       @id @default(cuid())
+  slotTemplateId String
+  cartId         String?
+  orderId        String?
+  capacityPoints Int
+  expiresAt      DateTime
+  confirmedAt    DateTime?
+  releasedAt     DateTime?
+  createdAt      DateTime     @default(now())
+  slotTemplate   SlotTemplate @relation(fields: [slotTemplateId], references: [id], onDelete: Cascade)
+}
+
+model ShippingRateQuote {
+  id             String   @id @default(cuid())
+  provider       String
+  carrier        String
+  serviceLevel   String
+  amountCents    Int
+  currency       String   @default("USD")
+  addressHash    String
+  expiresAt      DateTime
+  raw            Json
+  createdAt      DateTime @default(now())
+}
+
+model WebhookEvent {
+  id          String   @id
+  provider    String
+  eventType   String
+  processedAt DateTime?
+  receivedAt  DateTime @default(now())
+  raw         Json
+}
+
+model AdminUser {
+  id           String    @id @default(cuid())
+  email        String    @unique
+  role         AdminRole
+  locationId   String?
+  mfaEnabled   Boolean   @default(false)
+  lastLoginAt  DateTime?
+  createdAt    DateTime  @default(now())
+  auditLogs    AuditLog[]
+  cmsVersionsCreated CmsContentVersion[] @relation("CmsVersionCreatedBy")
+  cmsVersionsPublished CmsContentVersion[] @relation("CmsVersionPublishedBy")
+}
+
+model AuditLog {
+  id          String    @id @default(cuid())
+  actorId     String?
+  action      String
+  entityType  String
+  entityId    String?
+  before      Json?
+  after       Json?
+  ipHash      String?
+  userAgent   String?
+  createdAt   DateTime  @default(now())
+  actor       AdminUser? @relation(fields: [actorId], references: [id])
+}

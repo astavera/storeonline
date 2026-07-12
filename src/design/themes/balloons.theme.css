@@ -1,0 +1,5 @@
+:root {
+  --theme-balloons-action: var(--color-legacy-navy);
+  --theme-balloons-accent: var(--color-legacy-yellow);
+  --theme-balloons-secondary: var(--color-legacy-cyan);
+}

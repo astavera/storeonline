@@ -1,0 +1,5 @@
+:root {
+  --theme-holiday-action: var(--color-legacy-navy);
+  --theme-holiday-accent: var(--color-legacy-red);
+  --theme-holiday-soft: rgba(225, 43, 39, 0.08);
+}

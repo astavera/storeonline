@@ -1,0 +1,20 @@
+:root {
+  --color-background: #FFFFFF;
+  --color-surface: #FFFFFF;
+  --color-surface-muted: #F5F7FA;
+  --color-text-primary: #111827;
+  --color-text-secondary: #53606F;
+  --color-border: #DEE4EC;
+
+  --color-legacy-navy: #062C68;
+  --color-legacy-yellow: #FFCF24;
+  --color-legacy-red: #E50046;
+  --color-legacy-blue: #155BC2;
+  --color-legacy-cyan: #75DCEB;
+  --color-legacy-green: #63C43F;
+
+  --color-focus: #155BC2;
+  --color-success: #2F7D32;
+  --color-warning: #B7791F;
+  --color-danger: #B42318;
+}

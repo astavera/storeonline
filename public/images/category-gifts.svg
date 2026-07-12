@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="600" height="600" viewBox="0 0 600 600" role="img" aria-labelledby="title">
+  <title id="title">Gift category artwork</title>
+  <rect width="600" height="600" rx="36" fill="#E50046"/>
+  <rect x="120" y="250" width="360" height="230" rx="28" fill="#FFCF24"/>
+  <rect x="270" y="250" width="60" height="230" fill="#155BC2"/>
+  <rect x="100" y="205" width="400" height="80" rx="24" fill="#FFFFFF"/>
+  <rect x="270" y="205" width="60" height="80" fill="#155BC2"/>
+  <path d="M300 205c-85-72-95-135-35-150 48-12 70 48 35 150ZM300 205c85-72 95-135 35-150-48-12-70 48-35 150Z" fill="#75DCEB"/>
+</svg>

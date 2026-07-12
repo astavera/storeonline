@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="900" viewBox="0 0 900 900" role="img" aria-labelledby="title desc">
+  <title id="title">Modern State product image fallback</title>
+  <desc id="desc">A bright product placeholder with playful retail shapes.</desc>
+  <rect width="900" height="900" fill="#F5F7FA"/>
+  <circle cx="250" cy="250" r="120" fill="#75DCEB"/>
+  <circle cx="660" cy="250" r="92" fill="#FFCF24"/>
+  <rect x="220" y="430" width="460" height="280" rx="36" fill="#155BC2"/>
+  <path d="M260 430c18-82 78-132 160-132h60c82 0 142 50 160 132" fill="none" stroke="#63C43F" stroke-width="42" stroke-linecap="round"/>
+  <rect x="315" y="500" width="270" height="54" rx="27" fill="#FFFFFF"/>
+  <rect x="360" y="590" width="180" height="36" rx="18" fill="#FFCF24"/>
+  <circle cx="610" cy="585" r="34" fill="#E50046"/>
+</svg>
