@@ -303,10 +303,10 @@ function BalloonPromoSection({ section }: { section: HomepageSectionConfig }) {
     section.items && section.items.length > 0
       ? section.items
       : [
-          { id: "latex", title: "Latex", body: "Pickup or local delivery eligible after backend validation." },
-          { id: "mylar", title: "Mylar", body: "Pickup or local delivery eligible after backend validation." },
-          { id: "numbers", title: "Numbers", body: "Pickup or local delivery eligible after backend validation." },
-          { id: "bouquets", title: "Bouquets", body: "Pickup or local delivery eligible after backend validation." }
+          { id: "latex", title: "Latex", body: "Classic colors for birthdays, parties, and everyday celebrations." },
+          { id: "mylar", title: "Mylar", body: "Characters, messages, and shapes for every special moment." },
+          { id: "numbers", title: "Numbers", body: "Milestone numbers in celebration-ready colors." },
+          { id: "bouquets", title: "Bouquets", body: "Ready-made combinations for an easy, festive surprise." }
         ];
 
   return (

@@ -58,7 +58,7 @@ export function CheckoutClient() {
       })
       .catch(() => {
         if (!ignore) {
-          setMessage({ tone: "error", text: "Checkout could not validate the cart." });
+          setMessage({ tone: "error", text: "We couldn’t review your cart. Refresh the page and try again." });
         }
       });
 
@@ -71,7 +71,7 @@ export function CheckoutClient() {
     event.preventDefault();
     const formData = new FormData(event.currentTarget);
     setIsSubmitting(true);
-    setMessage({ tone: "idle", text: "Validating checkout..." });
+    setMessage({ tone: "idle", text: "Checking your order details..." });
 
     try {
       const response = await fetch("/api/checkout", {
@@ -96,7 +96,7 @@ export function CheckoutClient() {
         return;
       }
 
-      setMessage({ tone: "success", text: "Checkout is validated and ready for Square payment." });
+      setMessage({ tone: "success", text: "Your order details were checked. No order was placed and no payment was taken. Contact the store to complete your purchase." });
     } catch {
       setMessage({ tone: "error", text: "Checkout request failed. Please try again." });
     } finally {
@@ -119,7 +119,7 @@ export function CheckoutClient() {
     <form className="grid gap-6 lg:grid-cols-[1fr_380px]" onSubmit={submitCheckout}>
       <div className="space-y-6">
         <section className="surface-card p-6" data-store-area="Checkout" data-store-component="CheckoutCustomerInfoSection" data-store-section="checkout.customer-info" data-store-variant="form">
-          <h2 className="font-display text-2xl font-semibold">Customer</h2>
+          <h2 className="font-display text-2xl font-semibold">Contact information</h2>
           <div className="mt-5 grid gap-4">
             <CheckoutField label="Name" name="name" placeholder="Full name" required />
             <CheckoutField label="Email" name="email" placeholder="you@example.com" required type="email" />
@@ -130,7 +130,7 @@ export function CheckoutClient() {
         <section className="surface-card p-6" data-store-area="Checkout" data-store-component="CheckoutFulfillmentSection" data-store-section="checkout.fulfillment" data-store-variant="fulfillment-groups">
           <div className="flex items-center gap-2">
             <MapPin aria-hidden="true" size={18} />
-            <h2 className="font-display text-2xl font-semibold">Fulfillment</h2>
+            <h2 className="font-display text-2xl font-semibold">Fulfillment preference</h2>
           </div>
           <div className="mt-5 grid gap-3 sm:grid-cols-3">
             {quote.compatibleFulfillmentModes.map((mode) => (
@@ -148,14 +148,14 @@ export function CheckoutClient() {
             <CreditCard aria-hidden="true" size={18} />
             <h2 className="font-display text-2xl font-semibold">Payment</h2>
           </div>
-          <p className="mt-3 text-secondary">Payment is tokenized through Square when credentials are configured. Raw card data is never collected by this site.</p>
+          <p className="mt-3 text-secondary">Online payment is not available yet. You will not be charged when you submit this form.</p>
         </section>
       </div>
 
       <section className="surface-card h-fit p-6" data-store-area="Checkout" data-store-component="CheckoutOrderSummarySection" data-store-section="checkout.order-summary" data-store-variant="summary">
         <div className="flex items-center gap-2">
           <PackageCheck aria-hidden="true" size={18} />
-          <h2 className="font-display text-2xl font-semibold">Validated summary</h2>
+          <h2 className="font-display text-2xl font-semibold">Order summary</h2>
         </div>
         <div className="mt-5 grid gap-3 text-sm">
           <SummaryRow label="Items" value={String(quote.itemCount)} />
@@ -163,12 +163,12 @@ export function CheckoutClient() {
           <SummaryRow label="Estimated tax" value={formatMoney(quote.estimatedTaxCents)} />
           <SummaryRow label="Fulfillment" value={fulfillmentLabels[fulfillmentMode]} />
           <div className="border-t border-border pt-3">
-            <SummaryRow label="Estimated total" value={formatMoney(quote.totalCents)} strong />
+            <SummaryRow label="Estimated total before delivery or shipping" value={formatMoney(quote.totalCents)} strong />
           </div>
         </div>
         <Button className="mt-6 w-full gap-2" disabled={!canSubmit || isSubmitting} type="submit">
           <ShieldCheck aria-hidden="true" size={16} />
-          {isSubmitting ? "Validating..." : "Validate checkout"}
+          {isSubmitting ? "Checking..." : "Check order details"}
         </Button>
         {message.text ? (
           <p className={`mt-4 rounded-md border p-3 text-sm ${message.tone === "error" ? "border-red-200 bg-red-50 text-red-900" : message.tone === "success" ? "border-green-200 bg-green-50 text-green-900" : "border-border bg-surface-muted text-secondary"}`} role="status">

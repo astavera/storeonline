@@ -1,5 +1,5 @@
 import { ContentPageTemplate } from "@/components/templates/content-page-template";
 
 export default function PickupPolicyPage() {
-  return <ContentPageTemplate area="Policy" body="Pickup availability depends on store selection, inventory, cutoff rules, and capacity-point slot validation." sectionId="policy.pickup" title="Pickup Policy" />;
+  return <ContentPageTemplate area="Policy" body="Choose your preferred store and contact us to confirm item availability and a convenient pickup time." sectionId="policy.pickup" title="Pickup Policy" />;
 }

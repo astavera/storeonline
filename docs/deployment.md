@@ -1,8 +1,24 @@
 # Deployment
 
-## Required environment
+The current application is a scaffold and must not receive unrestricted production traffic. Environment ownership and isolation are defined in [environments.md](environments.md).
+
+## Toolchain gate
+
+```bash
+nvm use
+npm ci
+npm run check
+DATABASE_URL=postgresql://ci:ci@127.0.0.1:5432/storeonline_ci npm run prisma:validate
+DATABASE_URL=postgresql://ci:ci@127.0.0.1:5432/storeonline_ci npm run prisma:generate
+npm run build
+```
+
+All three GitHub checks documented in [engineering-workflow.md](engineering-workflow.md) must pass before promotion.
+
+## Production environment
 
 - `DATABASE_URL`
+- `NEXT_PUBLIC_SITE_URL`
 - `SQUARE_ENVIRONMENT`
 - `SQUARE_ACCESS_TOKEN`
 - `SQUARE_APPLICATION_ID`
@@ -16,10 +32,12 @@
 
 ## Launch checks
 
-- Run unit, integration, and Playwright tests.
+- Create and review the initial Prisma migration history; run `prisma migrate deploy` only after it exists.
+- Run lint, typecheck, unit, integration, build, and Playwright gates.
 - Verify Square Sandbox checkout.
 - Verify webhook signature validation and replay protection.
 - Verify old URL redirects.
 - Verify security headers.
 - Verify no secrets in frontend bundle.
 - Verify mobile navigation and checkout accessibility.
+- Confirm `/admin` and `/api/admin/*` are authenticated and authorized before removing deployment-platform access control.

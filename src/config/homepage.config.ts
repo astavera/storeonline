@@ -69,7 +69,7 @@ export type HomepageSectionTemplate = {
 };
 
 export const defaultHomepageImage = "https://images.unsplash.com/photo-1558060370-d644479cb6f7?auto=format&fit=crop&w=1800&q=80";
-export const backToSchoolHomepageImage = "/uploads/admin/20260710113045-home-hero-back-to-school-ecommerce-wireframe.svg";
+export const backToSchoolHomepageImage = "/images/home-hero-back-to-school.svg";
 
 export const homepageImagePresets: HomepageImagePreset[] = [
   {
@@ -130,7 +130,7 @@ export const homepageSections: HomepageSectionConfig[] = [
     sectionId: "home.departments",
     sectionType: "departments",
     title: "Shop by category",
-    body: "Jump into the collections shoppers expect first, with every tile editable from the admin and linkable to real products or pages.",
+    body: "Explore toys, party supplies, balloons, arts and crafts, stationery, and gifts from your neighborhood store.",
     variant: "department-grid",
     sortOrder: 20,
     isVisible: true,
@@ -152,7 +152,7 @@ export const homepageSections: HomepageSectionConfig[] = [
     sectionId: "home.featured-products",
     sectionType: "product-grid",
     title: "Shop popular picks",
-    body: "Product cards show real Square-ready variation IDs, prices, fulfillment options, and cart actions.",
+    body: "Neighborhood favorites for school, celebrations, and everyday moments—ready for pickup, local delivery, or shipping.",
     ctaLabel: "Shop all products",
     ctaHref: "/shop",
     variant: "featured-products",
@@ -167,9 +167,9 @@ export const homepageSections: HomepageSectionConfig[] = [
   {
     sectionId: "home.balloon-promo",
     sectionType: "promo",
-    title: "Guided balloon orders",
-    body: "A premium builder will route latex, mylar, numbers, bouquets, add-ons, pickup, and local delivery through safe fulfillment rules.",
-    ctaLabel: "Start balloons",
+    title: "Plan your balloon order",
+    body: "Choose latex, mylar, numbers, or a ready-made bouquet, then select pickup or local delivery.",
+    ctaLabel: "Explore balloons",
     ctaHref: "/balloons",
     variant: "balloon-promo",
     sortOrder: 40,
@@ -191,7 +191,7 @@ export const homepageSections: HomepageSectionConfig[] = [
     sectionId: "home.local-storefront",
     sectionType: "storefront",
     title: "Two Upper East Side stores",
-    body: "Pickup and local delivery will be driven by editable zones, store slots, cutoff times, and capacity points.",
+    body: "Choose your closest Upper East Side store for convenient pickup and local delivery.",
     ctaLabel: "View locations",
     ctaHref: "/locations",
     variant: "local-storefront",
@@ -297,7 +297,7 @@ export const homepageSectionTemplates: HomepageSectionTemplate[] = [
       verticalPadding: "compact",
       columns: 4,
       items: [
-        { id: "secure", title: "Secure Square checkout" },
+        { id: "service", title: "Helpful local service" },
         { id: "pickup", title: "Store pickup" },
         { id: "delivery", title: "Local delivery rules" },
         { id: "support", title: "Neighborhood support" }
@@ -323,7 +323,7 @@ export const homepageSectionTemplates: HomepageSectionTemplate[] = [
       items: [
         { id: "pickup", title: "Can I pick up my order?", body: "Yes. Pickup availability depends on store hours and product eligibility." },
         { id: "balloons", title: "Can I order balloons online?", body: "Balloon availability, timing, and delivery are controlled by fulfillment rules." },
-        { id: "delivery", title: "Do you deliver locally?", body: "Local delivery depends on editable zones, fees, cutoff times, and capacity." }
+        { id: "delivery", title: "Do you deliver locally?", body: "Contact either store with your address and order details to ask about local delivery." }
       ]
     }
   },
@@ -355,7 +355,7 @@ export const homepageSectionTemplates: HomepageSectionTemplate[] = [
     defaults: {
       sectionType: "content",
       eyebrow: "Store note",
-      title: "Add a fully editable content block.",
+      title: "Share what makes Modern State special.",
       body: "Use this section for announcements, local SEO copy, buyer guidance, event messaging, or anything the storefront needs.",
       ctaLabel: "Learn more",
       ctaHref: "/about",

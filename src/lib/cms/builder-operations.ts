@@ -1,4 +1,4 @@
-import type { CmsKnownSectionType, CmsPageDocument, CmsSection, SectionPreset, ThemePreset, ThemeTokenOverrides } from "./cms-types";
+import type { CmsKnownSectionType, CmsPageDocument, CmsSection, CmsSectionPatch, SectionPreset, ThemePreset, ThemeTokenOverrides } from "./cms-types";
 import { createCmsSection, normalizeSectionType } from "./section-registry";
 
 export function withCmsSectionSortOrder(document: CmsPageDocument): CmsPageDocument {
@@ -122,7 +122,7 @@ export function moveCmsSection(document: CmsPageDocument, sectionId: string, dir
   return reorderCmsSection(document, sectionId, document.sections[targetIndex].id);
 }
 
-export function updateCmsSection(document: CmsPageDocument, sectionId: string, patch: Partial<CmsSection>): CmsPageDocument {
+export function updateCmsSection(document: CmsPageDocument, sectionId: string, patch: CmsSectionPatch): CmsPageDocument {
   return touchCmsDocument({
     ...document,
     sections: document.sections.map((section) =>

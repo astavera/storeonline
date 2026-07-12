@@ -81,7 +81,7 @@ export function CartClient({ mode = "cart" }: { mode?: "cart" | "summary" }) {
       })
       .catch(() => {
         if (!ignore) {
-          setQuote({ ...emptyQuote, errors: ["Cart could not be validated."] });
+          setQuote({ ...emptyQuote, errors: ["We couldn’t update your cart. Refresh the page and try again."] });
         }
       })
       .finally(() => {
@@ -172,14 +172,14 @@ function CartSummary({ canCheckout, quote }: { canCheckout: boolean; quote: Cart
         <SummaryRow label="Items" value={String(quote.itemCount)} />
         <SummaryRow label="Subtotal" value={formatMoney(quote.subtotalCents)} />
         <SummaryRow label="Estimated tax" value={formatMoney(quote.estimatedTaxCents)} />
-        <SummaryRow label="Fulfillment" value={quote.fulfillmentLabel || "Select at checkout"} />
+        <SummaryRow label="Fulfillment" value={quote.fulfillmentLabel || "Choose on the next step"} />
         <div className="border-t border-border pt-3">
-          <SummaryRow label="Estimated total" value={formatMoney(quote.totalCents)} strong />
+          <SummaryRow label="Estimated total before delivery or shipping" value={formatMoney(quote.totalCents)} strong />
         </div>
       </div>
       {quote.errors.length > 0 ? <p className="mt-4 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-900">{quote.errors.join(" ")}</p> : null}
       <Link className={`mt-6 inline-flex min-h-11 w-full items-center justify-center rounded-md px-5 py-2.5 text-sm font-semibold ${canCheckout ? "bg-[var(--theme-action)] text-[var(--theme-action-foreground)]" : "pointer-events-none border border-border bg-surface-muted text-secondary"}`} href="/checkout">
-        Checkout
+        Review order details
       </Link>
     </section>
   );

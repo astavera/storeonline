@@ -3,6 +3,7 @@ import "server-only";
 import type { CmsEntityType, CmsPageDocument, CmsVersionStatus } from "@/lib/cms";
 import { parseCmsPageDocumentPayload, serializeCmsPageDocument, validateCmsPageDocument } from "@/lib/cms";
 import { readLocalCmsVersions, writeLocalCmsVersion, type LocalCmsStatus } from "./admin-local-cms-store";
+import { toPrismaJson } from "@/server/prisma-json";
 
 export type CmsDocumentOperation = "save_draft" | "preview" | "publish";
 
@@ -40,7 +41,7 @@ export async function readLatestCmsDocument(input: ReadCmsDocumentInput): Promis
     try {
       const { PrismaClient } = await import("@prisma/client");
       const prisma = new PrismaClient();
-      const cmsContentVersion = (prisma as any).cmsContentVersion;
+      const cmsContentVersion = prisma.cmsContentVersion;
       const record = await cmsContentVersion.findFirst({
         where: {
           entityType: `CMS_${input.entityType}`,
@@ -101,7 +102,7 @@ export async function persistCmsDocument(input: { document: CmsPageDocument; ope
     try {
       const { PrismaClient } = await import("@prisma/client");
       const prisma = new PrismaClient();
-      const cmsContentVersion = (prisma as any).cmsContentVersion;
+      const cmsContentVersion = prisma.cmsContentVersion;
       const latest = await cmsContentVersion.aggregate({
         where: {
           entityType: `CMS_${validation.document.entityType}`,
@@ -119,7 +120,7 @@ export async function persistCmsDocument(input: { document: CmsPageDocument; ope
           versionNumber: nextVersionNumber,
           status,
           title: validation.document.title,
-          payload,
+          payload: toPrismaJson(payload),
           publishedAt: status === "PUBLISHED" ? new Date(now) : null
         }
       });

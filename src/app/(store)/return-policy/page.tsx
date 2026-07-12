@@ -1,5 +1,5 @@
 import { ContentPageTemplate } from "@/components/templates/content-page-template";
 
 export default function ReturnPolicyPage() {
-  return <ContentPageTemplate area="Policy" body="Return rules will be finalized before launch and surfaced consistently across product, cart, and checkout pages." sectionId="policy.returns" title="Return Policy" />;
+  return <ContentPageTemplate area="Policy" body="Please contact the store where you purchased the item and keep your receipt. Our team will confirm whether the item is eligible for return or exchange." sectionId="policy.returns" title="Return Policy" />;
 }

@@ -41,7 +41,7 @@ export async function POST(request: NextRequest) {
           ok: false,
           quote,
           status: "payment_setup_required",
-          errors: ["Payment is not enabled yet. Configure Square credentials and enable approved write mode before taking live orders."]
+          errors: ["Online checkout isn’t available yet. Please contact the store to complete your purchase."]
         },
         { status: 503 }
       );

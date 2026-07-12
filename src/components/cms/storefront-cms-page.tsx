@@ -1,4 +1,5 @@
 import { DepartmentCardGrid } from "@/components/commerce/department-card-grid";
+import { AddToCartButton } from "@/components/commerce/add-to-cart-button";
 import { ProductGrid } from "@/components/commerce/product-grid";
 import { SiteFooter } from "@/components/layout/site-footer";
 import { SiteHeader } from "@/components/layout/site-header";
@@ -9,6 +10,7 @@ import type { ProductGridPresetId } from "@/design/presets/product-grid-presets"
 import type { CmsPageDocument, CmsSection, SectionContentItem } from "@/lib/cms";
 import { cn, formatMoney } from "@/lib/utils";
 import { PageRenderer, type CmsSectionRenderContext } from "./page-renderer";
+import Link from "next/link";
 import type { ReactNode } from "react";
 
 const productSectionTypes = new Set([
@@ -161,7 +163,7 @@ function EditableGlobalFrameSection({ section }: { section: CmsSection }) {
 
   return (
     <div className="bg-cyan px-4 py-2 text-center text-sm font-black text-primary" data-cms-component="EditableAnnouncementBarSection">
-      {String(section.content.title || section.content.body || "Free shipping for local orders over $49")}
+      {String(section.content.title || section.content.body || "Visit Modern State on the Upper East Side")}
     </div>
   );
 }
@@ -239,16 +241,20 @@ function EditableProductDetailSection({ section }: { section: CmsSection }) {
             )}
           </div>
           <div className="mt-8 max-w-sm" data-cms-edit-field="primaryCta">
-            <span className="inline-flex w-full items-center justify-center rounded-pill bg-blue px-6 py-3 text-sm font-black text-white">
-              {String(section.content.primaryCtaLabel || "Add to cart")}
-            </span>
+            {product ? (
+              <AddToCartButton label={String(section.content.primaryCtaLabel || "Add to cart")} squareVariationId={product.squareVariationId} />
+            ) : (
+              <Link className="inline-flex min-h-11 w-full items-center justify-center rounded-pill bg-blue px-6 py-3 text-sm font-black text-white" href="/contact">
+                Contact the store
+              </Link>
+            )}
           </div>
           <div className="mt-8 grid gap-3 rounded-md border border-border bg-surface-muted p-4 text-sm text-secondary" data-cms-edit-field="linkedProducts">
             <p>
               <span className="font-semibold text-primary">Availability:</span> {inventoryLabel(inventoryStatus)}
             </p>
             <p>
-              <span className="font-semibold text-primary">Payment:</span> Square checkout validates price, fulfillment, and tax before payment capture.
+              <span className="font-semibold text-primary">Good to know:</span> Final availability and your order total are confirmed before purchase.
             </p>
           </div>
         </section>
@@ -281,57 +287,40 @@ function EditableProductsSection({ section }: { section: CmsSection }) {
 
 function EditableShopCatalogSection({ products, section }: { products: StorefrontProduct[]; section: CmsSection }) {
   const departments = Array.from(new Set(getVisibleProducts().map((product) => product.department))).sort();
+  const title = String(section.content.title || "Shop");
 
   return (
     <section className="bg-surface" data-cms-component="EditableShopCatalogSection">
       <section className="py-8 md:py-12">
         <div className="container-shell">
-          <nav aria-label="Breadcrumb" className="mb-8 text-sm font-black text-primary [&_*]:text-primary" data-cms-edit-field="breadcrumbs">
-            <a className="text-primary hover:underline" href="/">
+          <nav aria-label="Breadcrumb" className="mb-5 text-sm font-black text-primary [&_*]:text-primary" data-cms-edit-field="breadcrumbs">
+            <Link className="text-primary hover:underline" href="/">
               Home
-            </a>
+            </Link>
             <span className="mx-2 text-secondary">›</span>
-            <span className="text-primary">{String(section.content.title || "Shop")}</span>
+            <span className="text-primary">{title}</span>
           </nav>
+          <div className="mb-8 max-w-3xl">
+            <h1 className="font-display text-4xl font-black leading-tight md:text-5xl" data-cms-edit-field="title">{title}</h1>
+            <p className="mt-3 text-lg text-secondary">Browse toys, balloons, party supplies, stationery, gifts, and neighborhood favorites.</p>
+          </div>
 
           <div className="grid gap-8 lg:grid-cols-[260px_minmax(0,1fr)]">
             <aside className="lg:sticky lg:top-[170px] lg:self-start" data-cms-edit-field="filters">
-              <div className="rounded-md border border-border bg-surface p-5">
+              <details className="rounded-md border border-border bg-surface lg:hidden">
+                <summary className="flex min-h-14 cursor-pointer list-none items-center justify-between gap-3 px-5 py-4 font-black [&::-webkit-details-marker]:hidden">
+                  <span>Filters</span>
+                  <span aria-hidden="true">⌄</span>
+                </summary>
+                <div className="border-t border-border px-5 pb-2">
+                  <EditableShopFilterOptions departments={departments} />
+                </div>
+              </details>
+              <div className="hidden rounded-md border border-border bg-surface p-5 lg:block">
                 <div className="mb-4 flex items-center justify-between border-b border-border pb-4">
                   <h2 className="font-black">Filter</h2>
                 </div>
-                <ShopFilterGroup label="Category">
-                  <a className="rounded-pill bg-blue px-3 py-1 text-sm font-black text-white" href="/shop">
-                    All products
-                  </a>
-                  {departments.map((department) => (
-                    <a className="rounded-pill bg-surface-muted px-3 py-1 text-sm font-black text-secondary hover:bg-cyan hover:text-primary" href={`/shop?department=${encodeURIComponent(department)}`} key={department}>
-                      {department}
-                    </a>
-                  ))}
-                </ShopFilterGroup>
-                <ShopFilterGroup label="Age">
-                  {["0-2", "3-4", "5-7", "8-10", "11-12", "13+"].map((age) => (
-                    <span className="rounded-pill bg-surface-muted px-3 py-1 text-sm font-bold text-secondary" key={age}>
-                      {age}
-                    </span>
-                  ))}
-                </ShopFilterGroup>
-                <ShopFilterGroup label="Fulfillment">
-                  {["Pickup", "Local delivery", "Shipping"].map((mode) => (
-                    <span className="rounded-pill bg-surface-muted px-3 py-1 text-sm font-bold text-secondary" key={mode}>
-                      {mode}
-                    </span>
-                  ))}
-                </ShopFilterGroup>
-                <ShopFilterGroup label="Price">
-                  <a className="text-sm font-bold text-blue hover:underline" href="/shop?sort=price-low">
-                    Low to high
-                  </a>
-                  <a className="text-sm font-bold text-blue hover:underline" href="/shop?sort=price-high">
-                    High to low
-                  </a>
-                </ShopFilterGroup>
+                <EditableShopFilterOptions departments={departments} />
               </div>
             </aside>
 
@@ -349,6 +338,45 @@ function EditableShopCatalogSection({ products, section }: { products: Storefron
         </div>
       </section>
     </section>
+  );
+}
+
+function EditableShopFilterOptions({ departments }: { departments: string[] }) {
+  return (
+    <>
+      <ShopFilterGroup label="Category">
+        <Link className="rounded-pill bg-blue px-3 py-1 text-sm font-black text-white" href="/shop">
+          All products
+        </Link>
+        {departments.map((department) => (
+          <Link className="rounded-pill bg-surface-muted px-3 py-1 text-sm font-black text-secondary hover:bg-cyan hover:text-primary" href={`/shop?department=${encodeURIComponent(department)}`} key={department}>
+            {department}
+          </Link>
+        ))}
+      </ShopFilterGroup>
+      <ShopFilterGroup label="Age">
+        {["0-2", "3-4", "5-7", "8-10", "11-12", "13+"].map((age) => (
+          <span className="rounded-pill bg-surface-muted px-3 py-1 text-sm font-bold text-secondary" key={age}>
+            {age}
+          </span>
+        ))}
+      </ShopFilterGroup>
+      <ShopFilterGroup label="Fulfillment">
+        {["Pickup", "Local delivery", "Shipping"].map((mode) => (
+          <span className="rounded-pill bg-surface-muted px-3 py-1 text-sm font-bold text-secondary" key={mode}>
+            {mode}
+          </span>
+        ))}
+      </ShopFilterGroup>
+      <ShopFilterGroup label="Price">
+        <Link className="text-sm font-bold text-blue hover:underline" href="/shop?sort=price-low">
+          Low to high
+        </Link>
+        <Link className="text-sm font-bold text-blue hover:underline" href="/shop?sort=price-high">
+          High to low
+        </Link>
+      </ShopFilterGroup>
+    </>
   );
 }
 
@@ -439,11 +467,11 @@ function EditableEditorialSection({ section }: { section: CmsSection }) {
 }
 
 function EditableTestimonialsSection({ section }: { section: CmsSection }) {
-  const items = normalizedItems(section, [
-    { id: "quote-1", title: "Neighborhood favorite", body: "Helpful service, party essentials, toys, balloons, and last-minute gifts in one place." },
-    { id: "quote-2", title: "Ready for celebrations", body: "Make this section reviews, staff picks, press mentions, or community notes." },
-    { id: "quote-3", title: "Editable from admin", body: "Add quotes, badges, photos, and links without touching code." }
-  ]);
+  const items = manualItems(section);
+
+  if (items.length === 0) {
+    return null;
+  }
 
   return (
     <section className="bg-surface py-16" data-cms-component="EditableTestimonialsSection">
@@ -452,7 +480,9 @@ function EditableTestimonialsSection({ section }: { section: CmsSection }) {
         <div className="mt-8 grid gap-5 md:grid-cols-3">
           {items.slice(0, 3).map((item) => (
             <article className="rounded-md border border-border bg-surface p-6 shadow-sm" key={item.id}>
-              <p className="text-4xl font-black text-yellow">"</p>
+              <p aria-hidden="true" className="text-4xl font-black text-yellow">
+                &ldquo;
+              </p>
               <h3 className="font-display text-lg font-black">{String(item.title || item.label || "Customer note")}</h3>
               {item.body ? <p className="mt-3 text-sm text-secondary">{String(item.body)}</p> : null}
             </article>
@@ -562,7 +592,7 @@ function EditableFaqSection({ section }: { section: CmsSection }) {
               </details>
             ))
           ) : (
-            <p className="text-secondary">Add FAQ items from the admin builder.</p>
+            <p className="text-secondary">Questions? Call or visit either store and our team will be happy to help.</p>
           )}
         </div>
       </div>
@@ -701,8 +731,8 @@ function EditorialFallbackPanel() {
         <img alt="" className="rounded-md bg-yellow p-5" src="/images/category-stationery.svg" />
         <img alt="" className="rounded-md bg-cyan p-5" src="/images/category-arts.svg" />
         <div className="col-span-2 rounded-md bg-white p-5">
-          <p className="font-display text-2xl font-black text-primary">Modern State story block</p>
-          <p className="mt-2 text-sm text-secondary">Add a photo, text, links, or campaign copy from the admin.</p>
+          <p className="font-display text-2xl font-black text-primary">Your neighborhood Modern State</p>
+          <p className="mt-2 text-sm text-secondary">Toys, celebrations, gifts, and friendly local service in one place.</p>
         </div>
       </div>
     </div>

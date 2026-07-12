@@ -2,6 +2,7 @@ import "server-only";
 
 import { defaultHeaderNavigation, normalizeHeaderNavigation, type HeaderNavigationConfig } from "@/config/header-navigation.config";
 import { defaultHomepageImage, homepageImagePresets, homepageSectionElements, homepageSections, type HomepageImagePreset, type HomepageSectionConfig } from "@/config/homepage.config";
+import type { CmsVersionStatus } from "@/lib/cms";
 import { readLocalCmsVersions, type LocalCmsVersion } from "@/server/admin/admin-local-cms-store";
 
 type CmsHomepagePayload = {
@@ -110,12 +111,12 @@ export async function getPublishedHomepageState(): Promise<HomepageVisualEditorS
   });
 }
 
-async function readHomepageVersions(status?: string): Promise<HomepageStoredVersion[]> {
+async function readHomepageVersions(status?: CmsVersionStatus): Promise<HomepageStoredVersion[]> {
   if (process.env.DATABASE_URL) {
     try {
       const { PrismaClient } = await import("@prisma/client");
       const prisma = new PrismaClient();
-      const cmsContentVersion = (prisma as any).cmsContentVersion;
+      const cmsContentVersion = prisma.cmsContentVersion;
       const records = await cmsContentVersion.findMany({
         where: {
           entityType: "ADMIN_MODULE",
@@ -127,7 +128,7 @@ async function readHomepageVersions(status?: string): Promise<HomepageStoredVers
       });
       await prisma.$disconnect();
 
-      return records.map((record: any) => ({
+      return records.map((record) => ({
         entityType: "ADMIN_MODULE" as const,
         entityId: "homepage",
         versionNumber: Number(record.versionNumber),

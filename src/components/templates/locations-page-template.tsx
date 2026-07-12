@@ -31,7 +31,7 @@ export async function LocationsIndexTemplate() {
       <SectionFrame area="Locations" className="bg-surface-muted py-16" component="LocationsIndexSection" sectionId="locations.index" variant="location-card-section">
         <div className="container-shell">
           <h1 className="font-display text-4xl font-semibold">Two Upper East Side stores.</h1>
-          <p className="mt-4 max-w-2xl text-secondary">Pickup and local delivery will be driven by editable zones, verified server-side address checks, and capacity-point slots.</p>
+          <p className="mt-4 max-w-2xl text-secondary">Visit your closest store for neighborhood favorites, helpful service, pickup, and local delivery guidance.</p>
           <div className="mt-8 grid gap-5 md:grid-cols-2">
             {publicLocations.map((location) => (
               <article className="surface-card p-6" key={location.id}>
@@ -75,8 +75,8 @@ export async function LocationDetailTemplate({ slug }: { slug: string }) {
               <p className="text-secondary">{location.hours}</p>
             </div>
             <div className="surface-card p-6">
-              <h2 className="font-display text-xl font-semibold">Fulfillment</h2>
-              <p className="mt-3 text-sm text-secondary">Pickup and local delivery are enabled after backend availability, delivery zone, and slot-capacity validation.</p>
+              <h2 className="font-display text-xl font-semibold">Pickup and local delivery</h2>
+              <p className="mt-3 text-sm text-secondary">Contact the store to confirm current availability, pickup timing, or delivery options for your address.</p>
             </div>
           </div>
         </div>

@@ -3,6 +3,7 @@ import "server-only";
 import { adminModules, getAdminModuleById, type AdminFieldValue, type AdminModule, type AdminWorkflowAction } from "@/config/admin-control-plane";
 import { buildAdminAuditEvent } from "@/server/admin/admin-audit-service";
 import { writeLocalCmsVersion } from "@/server/admin/admin-local-cms-store";
+import { toPrismaJson } from "@/server/prisma-json";
 
 export type AdminControlPayload = {
   moduleId: string;
@@ -44,20 +45,20 @@ const actionToStatus: Record<AdminWorkflowAction, NonNullable<AdminControlResult
 };
 
 export function buildAdminControlOperation(payload: AdminControlPayload): AdminControlResult {
-  const module = getAdminModuleById(payload.moduleId);
+  const moduleConfig = getAdminModuleById(payload.moduleId);
 
-  if (!module) {
+  if (!moduleConfig) {
     return { ok: false, errors: [`Unknown admin module: ${payload.moduleId}`] };
   }
 
-  if (!module.workflowActions.includes(payload.operation)) {
-    return { ok: false, module: moduleSummary(module), errors: [`Operation ${payload.operation} is not allowed for ${module.title}.`] };
+  if (!moduleConfig.workflowActions.includes(payload.operation)) {
+    return { ok: false, module: moduleSummary(moduleConfig), errors: [`Operation ${payload.operation} is not allowed for ${moduleConfig.title}.`] };
   }
 
-  const { errors, sanitizedValues } = sanitizeAdminValues(module, payload.values);
+  const { errors, sanitizedValues } = sanitizeAdminValues(moduleConfig, payload.values);
 
   if (errors.length > 0) {
-    return { ok: false, module: moduleSummary(module), operation: payload.operation, errors };
+    return { ok: false, module: moduleSummary(moduleConfig), operation: payload.operation, errors };
   }
 
   const status = actionToStatus[payload.operation];
@@ -66,8 +67,8 @@ export function buildAdminControlOperation(payload: AdminControlPayload): AdminC
     ...sanitizedValues,
     workflow: {
       status,
-      riskLevel: module.riskLevel,
-      sectionId: module.sectionId,
+      riskLevel: moduleConfig.riskLevel,
+      sectionId: moduleConfig.sectionId,
       operation: payload.operation,
       submittedAt: new Date().toISOString()
     }
@@ -75,12 +76,12 @@ export function buildAdminControlOperation(payload: AdminControlPayload): AdminC
 
   return {
     ok: true,
-    module: moduleSummary(module),
+    module: moduleSummary(moduleConfig),
     operation: payload.operation,
     status,
     version: {
       entityType: "ADMIN_MODULE",
-      entityId: module.id,
+      entityId: moduleConfig.id,
       versionNumber: Date.now(),
       payload: payloadWithMeta
     },
@@ -88,7 +89,7 @@ export function buildAdminControlOperation(payload: AdminControlPayload): AdminC
       actorId,
       action: `admin.${payload.operation}`,
       entityType: "ADMIN_MODULE",
-      entityId: module.id
+      entityId: moduleConfig.id
     }),
     errors: []
   };
@@ -142,7 +143,7 @@ export async function persistAdminControlOperation(result: AdminControlResult): 
     try {
       const { PrismaClient } = await import("@prisma/client");
       const prisma = new PrismaClient();
-      const cmsContentVersion = (prisma as any).cmsContentVersion;
+      const cmsContentVersion = prisma.cmsContentVersion;
       const latest = await cmsContentVersion.aggregate({
         where: {
           entityType: result.version.entityType,
@@ -160,7 +161,7 @@ export async function persistAdminControlOperation(result: AdminControlResult): 
           versionNumber: nextVersionNumber,
           status: result.status,
           title: result.module.title,
-          payload: result.version.payload,
+          payload: toPrismaJson(result.version.payload),
           publishedAt: result.status === "PUBLISHED" ? new Date() : null
         }
       });

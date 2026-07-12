@@ -70,7 +70,7 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
             </div>
             <div className="mt-8 grid gap-3 rounded-md border border-border bg-surface-muted p-4 text-sm text-secondary">
               <p><span className="font-semibold text-primary">Availability:</span> {inventoryLabel(product.inventoryStatus)}</p>
-              <p><span className="font-semibold text-primary">Payment:</span> Square checkout validates price, fulfillment, and tax before payment capture.</p>
+              <p><span className="font-semibold text-primary">Good to know:</span> Final availability and your order total are confirmed before purchase.</p>
             </div>
           </section>
         </div>

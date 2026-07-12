@@ -1,5 +1,5 @@
 import type { StorefrontEditablePage } from "@/config/storefront-pages.config";
-import { balloonBuilderSteps, balloonFlows } from "@/config/balloons.config";
+import { balloonBuilderStepLabels, balloonBuilderSteps, balloonFlows } from "@/config/balloons.config";
 import { getDepartmentBySlug } from "@/config/departments.config";
 import { getHolidayBySlug, holidays } from "@/config/holidays.config";
 import { getLocationBySlug, storeLocations } from "@/config/locations.config";
@@ -222,9 +222,9 @@ function createBalloonPageSections(page: StorefrontEditablePage): CmsSection[] {
   const body =
     selectedFlow?.description ??
     (flowSlug === "local-delivery"
-      ? "Local delivery eligibility will be verified server-side against active delivery zones, route limits, fees, and slot capacity."
+      ? "Local delivery ordering is coming soon. Contact the store with your address and event date to ask about availability."
       : flowSlug === "pickup"
-        ? "Pickup windows will be reserved through temporary holds, checkout revalidation, and confirmed capacity locks."
+        ? "Online pickup scheduling is coming soon. Contact your preferred store to confirm balloon choices and timing."
         : balloons?.hero_subtitle_en ?? page.description);
 
   return [
@@ -236,7 +236,7 @@ function createBalloonPageSections(page: StorefrontEditablePage): CmsSection[] {
         eyebrow: "Balloons",
         title,
         body,
-        primaryCtaLabel: "Build a bouquet",
+        primaryCtaLabel: "Explore bouquets",
         primaryCtaHref: "/balloons/bouquets",
         items: []
       },
@@ -260,15 +260,15 @@ function createBalloonPageSections(page: StorefrontEditablePage): CmsSection[] {
     }),
     createCmsSection("featuredCategories", {
       id: "balloons.builder",
-      label: "Guided balloon builder",
+      label: "Plan your balloon order",
       variant: "guided",
       content: {
-        title: "Guided balloon builder",
-        body: "The first version separates stocked Square variations from non-stocked modifiers and keeps fulfillment validation server-side.",
+        title: "Plan your balloon order",
+        body: "Browse balloon types and planning steps, then contact the store to confirm colors, timing, pickup, or local delivery.",
         items: balloonBuilderSteps.map((step) => ({
           id: step,
-          title: toTitle(step),
-          body: "Admin-editable options, backend validation, and auditability are planned for this step."
+          title: balloonBuilderStepLabels[step],
+          body: "Choose your preferences. Final availability is confirmed by the store."
         }))
       },
       layout: {
@@ -281,14 +281,14 @@ function createBalloonPageSections(page: StorefrontEditablePage): CmsSection[] {
     }),
     createCmsSection("featuredCategories", {
       id: "balloons.type-selector",
-      label: "Choose a balloon flow",
+      label: "Choose a balloon style",
       variant: "flow-cards",
       content: {
-        title: "Choose a balloon flow",
+        title: "Choose a balloon style",
         body: "",
         items: balloonFlows.map((flow) => ({
           id: flow.slug,
-          label: "Open",
+          label: "View options",
           title: flow.title,
           body: flow.description,
           href: `/balloons/${flow.slug}`
@@ -310,8 +310,8 @@ function createBalloonPageSections(page: StorefrontEditablePage): CmsSection[] {
         title: "Pickup and local delivery",
         body: "",
         items: [
-          { id: "pickup", title: "Pickup", body: "Store selection, cutoff windows, and slot capacity will be locked by the backend before payment." },
-          { id: "local-delivery", title: "Local delivery", body: "Delivery fee, route eligibility, and zone membership are recalculated server-side." }
+          { id: "pickup", title: "Pickup", body: "Choose your preferred store and contact us to confirm pickup timing." },
+          { id: "local-delivery", title: "Local delivery", body: "Contact us with your delivery address and event date to check availability and pricing." }
         ]
       },
       layout: {
@@ -323,11 +323,11 @@ function createBalloonPageSections(page: StorefrontEditablePage): CmsSection[] {
     }),
     createCmsSection("editorialStory", {
       id: "balloons.time-slot-picker",
-      label: "Capacity-point slots",
-      variant: "capacity-points",
+      label: "Timing and availability",
+      variant: "timing-availability",
       content: {
-        title: "Capacity-point slots",
-        body: "Simple mylar pickup, latex bouquets, large arrangements, local delivery stops, and rush work consume different capacity points.",
+        title: "Timing and availability",
+        body: "Balloon orders may require advance notice. Contact the store to confirm a pickup or delivery window.",
         items: []
       },
       layout: {
@@ -353,8 +353,8 @@ function createHolidayPageSections(page: StorefrontEditablePage): CmsSection[] {
         variant: "parent",
         content: {
           eyebrow: "Holidays",
-          title: "Editable holiday shopping, without changing Square categories.",
-          body: "Holidays are website-managed parent pages with their own dates, SEO, accents, images, and product assignments.",
+          title: "Seasonal favorites for every celebration.",
+          body: "Find timely gifts, party supplies, cards, decorations, and neighborhood favorites throughout the year.",
           items: []
         },
         layout: {
@@ -473,7 +473,7 @@ function createLocationPageSections(page: StorefrontEditablePage): CmsSection[] 
         variant: "location-card-section",
         content: {
           title: "Two Upper East Side stores.",
-          body: "Pickup and local delivery will be driven by editable zones, verified server-side address checks, and capacity-point slots.",
+          body: "Visit your closest store for neighborhood favorites, helpful service, pickup, and local delivery guidance.",
           items: publicLocationItems()
         },
         dataSource: {
@@ -512,7 +512,7 @@ function createLocationPageSections(page: StorefrontEditablePage): CmsSection[] 
           {
             id: "fulfillment",
             title: "Fulfillment",
-            body: "Pickup and local delivery are enabled after backend availability, delivery zone, and slot-capacity validation."
+            body: "Contact the store to confirm current availability, pickup timing, or delivery options for your address."
           }
         ]
       },

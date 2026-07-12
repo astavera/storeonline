@@ -1,18 +1,4 @@
-const legacyRedirects = [
-  ["/read/65/toys", "/toys"],
-  ["/read/47/party-supplies", "/party-supplies"],
-  ["/read/48/stationery", "/stationery"],
-  ["/read/49/arts-crafts", "/arts-and-crafts"],
-  ["/read/50/greeting-cards", "/greeting-cards"],
-  ["/read/63/balloons", "/balloons"],
-  ["/read/51/gifts", "/gifts"],
-  ["/read/58/seasonal-specials", "/holidays"],
-  ["/read/20/modern-state-news-store-locations-in-upper-east-side-nyc", "/locations"],
-  ["/read/59/store-on-3rd-avenue", "/locations/3rd-avenue"],
-  ["/read/60/store-on-86th-street", "/locations/86th-street"],
-  ["/read/19/a-modern-state-news", "/about"],
-  ["/read/64/email-signup", "/contact#newsletter"]
-];
+import oldUrlRedirects from "./src/config/old-url-redirects.config.json" with { type: "json" };
 
 const scriptSrc = [
   "'self'",
@@ -27,10 +13,10 @@ const nextConfig = {
   reactStrictMode: true,
   poweredByHeader: false,
   async redirects() {
-    return legacyRedirects.map(([source, destination]) => ({
+    return oldUrlRedirects.map(({ source, destination, permanent }) => ({
       source,
       destination,
-      permanent: true
+      permanent
     }));
   },
   async headers() {

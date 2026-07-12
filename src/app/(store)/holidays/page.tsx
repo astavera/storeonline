@@ -2,7 +2,7 @@ import { HolidaysIndexTemplate } from "@/components/templates/holidays-page-temp
 
 export const metadata = {
   title: "Holidays",
-  description: "Editable holiday shopping pages for Modern State seasonal campaigns."
+  description: "Shop Modern State seasonal gifts, party supplies, cards, decorations, and holiday favorites."
 };
 
 export default function HolidaysPage() {

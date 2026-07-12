@@ -334,6 +334,19 @@ export type CmsSection = {
   advanced: SectionAdvancedSettings;
 };
 
+export type CmsSectionPatch = Omit<
+  Partial<CmsSection>,
+  "content" | "design" | "layout" | "media" | "dataSource" | "visibility" | "advanced"
+> & {
+  content?: Partial<SectionContent>;
+  design?: Partial<SectionDesignSettings>;
+  layout?: Partial<SectionLayoutSettings>;
+  media?: Partial<SectionMediaSettings>;
+  dataSource?: Partial<SectionDataSource>;
+  visibility?: Partial<ResponsiveVisibility>;
+  advanced?: Partial<SectionAdvancedSettings>;
+};
+
 export type CmsPageDocument = {
   id: string;
   entityType: CmsEntityType;

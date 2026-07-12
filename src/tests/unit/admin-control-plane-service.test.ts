@@ -6,12 +6,12 @@ describe("admin control plane", () => {
   it("gives every admin module a purpose, fields, roles, and guardrails", () => {
     expect(adminModules.length).toBeGreaterThan(10);
 
-    for (const module of adminModules) {
-      expect(module.purpose.length).toBeGreaterThan(20);
-      expect(module.editableFields.length).toBeGreaterThan(0);
-      expect(module.ownerRoles.length).toBeGreaterThan(0);
-      expect(module.guardrails.length).toBeGreaterThan(0);
-      expect(module.productionChecklist.length).toBeGreaterThan(0);
+    for (const moduleConfig of adminModules) {
+      expect(moduleConfig.purpose.length).toBeGreaterThan(20);
+      expect(moduleConfig.editableFields.length).toBeGreaterThan(0);
+      expect(moduleConfig.ownerRoles.length).toBeGreaterThan(0);
+      expect(moduleConfig.guardrails.length).toBeGreaterThan(0);
+      expect(moduleConfig.productionChecklist.length).toBeGreaterThan(0);
     }
   });
 
@@ -44,10 +44,10 @@ describe("admin control plane", () => {
   });
 
   it("rejects fields that are not explicitly editable", () => {
-    const module = adminModules.find((item) => item.id === "product-display");
-    expect(module).toBeDefined();
+    const moduleConfig = adminModules.find((item) => item.id === "product-display");
+    expect(moduleConfig).toBeDefined();
 
-    const { errors } = sanitizeAdminValues(module!, {
+    const { errors } = sanitizeAdminValues(moduleConfig!, {
       squareVariationId: "SQ123",
       webTitle: "Test",
       webShortDescription: "Short",

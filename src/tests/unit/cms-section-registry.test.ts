@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createUnknownSectionFallback, isSectionCompatibleWithScope, resolveSectionRegistryItem, sectionRegistry } from "@/lib/cms";
+import { createUnknownSectionFallback, isSectionCompatibleWithScope, resolveSectionRegistryItem, sectionRegistry, type CmsKnownSectionType } from "@/lib/cms";
 
 const requiredSectionTypes = [
   "announcementBar",
@@ -95,7 +95,7 @@ const requiredSectionTypes = [
   "modalPopup",
   "cookieBanner",
   "customCodeEmbed"
-];
+] satisfies CmsKnownSectionType[];
 
 describe("cms section registry", () => {
   it("registers every required builder section type", () => {

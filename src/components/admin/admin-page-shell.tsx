@@ -24,12 +24,12 @@ export function AdminPageShell({
   sectionId: string;
   description: string;
 }) {
-  const module = getAdminModuleForPage(sectionId, title) ?? createFallbackModule({ title, sectionId, description });
+  const moduleConfig = getAdminModuleForPage(sectionId, title) ?? createFallbackModule({ title, sectionId, description });
 
   return (
     <main className="p-6">
-      <SectionFrame area="Admin" className="surface-card p-6" component="AdminPageShell" sectionId={module.sectionId} variant="admin-control-editor">
-        <AdminModuleEditor module={module} />
+      <SectionFrame area="Admin" className="surface-card p-6" component="AdminPageShell" sectionId={moduleConfig.sectionId} variant="admin-control-editor">
+        <AdminModuleEditor module={moduleConfig} />
       </SectionFrame>
     </main>
   );

@@ -15,10 +15,15 @@ import { Heart, Search, UserRound } from "lucide-react";
 import Link from "next/link";
 import { defaultHeaderNavigation, type HeaderNavigationConfig, type HeaderNavigationLink } from "@/config/header-navigation.config";
 import { CartLink } from "./cart-link";
+import { MobileSiteNavigation } from "./mobile-site-navigation";
 
 export function SiteHeader({ navigation = defaultHeaderNavigation }: { navigation?: HeaderNavigationConfig }) {
   const primaryLinks = navigation.primary.filter((link) => link.visible);
   const utilityLinks = navigation.utility.filter((link) => link.visible);
+  const drawerUtilityLinks = utilityLinks.filter((link) => !["account", "cart", "search", "wishlist"].includes(link.id));
+  const accountLink = utilityLinks.find((link) => link.id === "account");
+  const wishlistLink = utilityLinks.find((link) => link.id === "wishlist");
+  const cartLink = utilityLinks.find((link) => link.id === "cart");
 
   return (
     <header className="sticky top-0 z-[var(--z-header)] bg-surface shadow-[0_4px_14px_rgba(15,23,42,0.18)]" data-store-area="Layout" data-store-component="SiteHeader" data-store-section="layout.header">
@@ -32,12 +37,13 @@ export function SiteHeader({ navigation = defaultHeaderNavigation }: { navigatio
         }}
       />
       <div className="bg-[#367DCB] text-white">
-        <div className="mx-auto flex min-h-[72px] w-full items-center justify-between gap-8 px-4 py-3 sm:px-8 xl:px-12 2xl:px-16">
-          <Link className="flex min-w-[220px] items-center" href="/">
-            <img alt="Modern State" className="h-14 w-auto max-w-[230px] object-contain" decoding="async" src="/images/modern-state-logo-original.png" />
+        <div className="mx-auto flex min-h-[72px] w-full items-center justify-between gap-3 px-4 py-3 sm:gap-6 sm:px-8 lg:gap-8 xl:px-12 2xl:px-16">
+          <MobileSiteNavigation mobileCta={navigation.mobileCta} primaryLinks={primaryLinks} utilityLinks={drawerUtilityLinks} />
+          <Link className="hidden min-w-0 flex-1 items-center sm:flex lg:min-w-[220px] lg:flex-none" data-header-logo href="/">
+            <img alt="Modern State" className="h-12 w-auto max-w-[175px] object-contain sm:h-14 sm:max-w-[230px]" decoding="async" src="/images/modern-state-logo-original.png" />
             <span className="sr-only">Modern State - Toys, party, balloons and gifts</span>
           </Link>
-          <nav aria-label="Primary navigation" className="hidden flex-1 items-center gap-6 text-[15px] font-bold leading-none lg:flex xl:gap-8">
+          <nav aria-label="Primary navigation" className="hidden flex-1 items-center gap-8 text-[15px] font-bold leading-none xl:flex">
             {primaryLinks.map((link) => (
               <Link className="hover:text-yellow" data-header-nav-id={link.id} href={link.href} key={link.id}>
                 {link.label}
@@ -49,16 +55,13 @@ export function SiteHeader({ navigation = defaultHeaderNavigation }: { navigatio
               <HeaderUtilityLink key={link.id} link={link} />
             ))}
           </nav>
-          <div className="flex items-center gap-2 xl:hidden">
-            {utilityLinks.find((link) => link.id === "cart") ? (
+          <div className="ml-auto flex shrink-0 items-center gap-2 xl:hidden">
+            {accountLink ? <HeaderUtilityLink link={accountLink} /> : null}
+            {wishlistLink ? <HeaderUtilityLink link={wishlistLink} /> : null}
+            {cartLink ? (
               <span data-header-nav-id="cart">
-                <CartLink href={utilityLinks.find((link) => link.id === "cart")?.href} iconOnly label={utilityLinks.find((link) => link.id === "cart")?.label} />
+                <CartLink href={cartLink.href} iconOnly label={cartLink.label} />
               </span>
-            ) : null}
-            {navigation.mobileCta.visible ? (
-              <Link className="rounded-pill bg-yellow px-4 py-2 text-sm font-black text-blue" data-header-nav-id={navigation.mobileCta.id} href={navigation.mobileCta.href}>
-                {navigation.mobileCta.label}
-              </Link>
             ) : null}
           </div>
         </div>

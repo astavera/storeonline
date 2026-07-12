@@ -47,7 +47,7 @@ export function quoteCart(input: z.infer<typeof cartQuoteInputSchema>): CartQuot
     const product = getProductByVariationId(item.squareVariationId);
 
     if (!product) {
-      errors.push(`Item ${item.squareVariationId} is no longer available.`);
+      errors.push("One or more items in your cart are no longer available. Please update your cart and try again.");
       return [];
     }
 

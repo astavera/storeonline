@@ -14,7 +14,7 @@
 
 - CSP compatible with Square Web Payments SDK.
 - `X-Content-Type-Options: nosniff`.
-- `X-Frame-Options: DENY`.
+- `X-Frame-Options: SAMEORIGIN` so the same-origin admin preview can render the storefront.
 - `Referrer-Policy: strict-origin-when-cross-origin`.
 - Payment and geolocation permissions are scoped.
 
@@ -33,3 +33,5 @@ Delivery staff should not see payment details. Warehouse staff should not see ca
 - Add rate limiting for login, checkout, cart, search, and webhooks.
 - Add Sentry filtering for sensitive data.
 - Add dependency and secret scanning to CI.
+
+Until admin auth and RBAC are implemented, `/admin` and `/api/admin/*` must remain local or behind deployment-platform access control.

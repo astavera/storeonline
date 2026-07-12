@@ -1,5 +1,5 @@
 import { ContentPageTemplate } from "@/components/templates/content-page-template";
 
 export default function LocalDeliveryPolicyPage() {
-  return <ContentPageTemplate area="Policy" body="Local delivery will be available only inside editable delivery zones and verified server-side before checkout." sectionId="policy.local-delivery" title="Local Delivery Policy" />;
+  return <ContentPageTemplate area="Policy" body="Contact either store with your address and order details to confirm local delivery availability, timing, and cost." sectionId="policy.local-delivery" title="Local Delivery Policy" />;
 }

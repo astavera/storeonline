@@ -1,8 +1,15 @@
+import { existsSync } from "node:fs";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { defaultHomepageImage, homepageSections } from "@/config/homepage.config";
+import { backToSchoolHomepageImage, defaultHomepageImage, homepageSections } from "@/config/homepage.config";
 import { mergeHomepageSections, normalizeHomepageImagePresets, normalizeHomepageSections } from "@/features/admin/services/homepage-visual-editor-service";
 
 describe("homepage visual editor service", () => {
+  it("uses a tracked hero asset and customer-facing homepage copy", () => {
+    expect(existsSync(join(process.cwd(), "public", backToSchoolHomepageImage.slice(1)))).toBe(true);
+    expect(JSON.stringify(homepageSections)).not.toMatch(/Square-ready|backend validation|capacity points/i);
+  });
+
   it("keeps visible sections ordered by sort order", () => {
     const [hero, departments] = homepageSections;
     const normalized = normalizeHomepageSections([

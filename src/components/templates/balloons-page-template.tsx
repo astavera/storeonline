@@ -13,7 +13,7 @@ BUSINESS LOGIC FILES: src/features/balloons/services/balloon-builder-service.ts,
 
 import { notFound } from "next/navigation";
 import { StorefrontCmsPage } from "@/components/cms/storefront-cms-page";
-import { balloonBuilderSteps, balloonFlows } from "@/config/balloons.config";
+import { balloonBuilderStepLabels, balloonBuilderSteps, balloonFlows } from "@/config/balloons.config";
 import { getDepartmentBySlug } from "@/config/departments.config";
 import { readLatestCmsDocument } from "@/server/admin/admin-cms-document-service";
 import { ButtonLink } from "../ui/button";
@@ -45,9 +45,9 @@ export async function BalloonsPageTemplate({ flowSlug }: BalloonsPageTemplatePro
   const body =
     selectedFlow?.description ??
     (flowSlug === "local-delivery"
-      ? "Local delivery eligibility will be verified server-side against active delivery zones, route limits, fees, and slot capacity."
+      ? "Local delivery ordering is coming soon. Contact the store with your address and event date to ask about availability."
       : flowSlug === "pickup"
-        ? "Pickup windows will be reserved through temporary holds, checkout revalidation, and confirmed capacity locks."
+        ? "Online pickup scheduling is coming soon. Contact your preferred store to confirm balloon choices and timing."
         : balloons.hero_subtitle_en);
 
   return (
@@ -65,7 +65,7 @@ export async function BalloonsPageTemplate({ flowSlug }: BalloonsPageTemplatePro
           <h1 className="max-w-3xl font-display text-4xl font-semibold leading-tight md:text-5xl">{title}</h1>
           <p className="mt-4 max-w-2xl text-white/88">{body}</p>
           <ButtonLink className="mt-7" href="/balloons/bouquets">
-            Build a bouquet
+            Explore bouquets
           </ButtonLink>
         </div>
       </SectionFrame>
@@ -73,8 +73,8 @@ export async function BalloonsPageTemplate({ flowSlug }: BalloonsPageTemplatePro
       <SectionFrame area="Balloons" className="py-16" component="BalloonBuilderSection" sectionId="balloons.builder" variant="guided">
         <div className="container-shell">
           <div className="mb-8 max-w-2xl">
-            <h2 className="font-display text-3xl font-semibold">Guided balloon builder</h2>
-            <p className="mt-3 text-secondary">The first version separates stocked Square variations from non-stocked modifiers and keeps fulfillment validation server-side.</p>
+            <h2 className="font-display text-3xl font-semibold">Plan your balloon order</h2>
+            <p className="mt-3 text-secondary">Browse balloon types and planning steps, then contact the store to confirm colors, timing, pickup, or local delivery.</p>
           </div>
           <div className="grid gap-4 md:grid-cols-3">
             {balloonBuilderSteps.map((step) => (
@@ -86,14 +86,14 @@ export async function BalloonsPageTemplate({ flowSlug }: BalloonsPageTemplatePro
 
       <SectionFrame area="Balloons" className="bg-surface py-16" component="BalloonTypeSelectorSection" sectionId="balloons.type-selector" variant="flow-cards">
         <div className="container-shell">
-          <h2 className="font-display text-3xl font-semibold">Choose a balloon flow</h2>
+          <h2 className="font-display text-3xl font-semibold">Choose a balloon style</h2>
           <div className="mt-6 grid gap-4 md:grid-cols-4">
             {balloonFlows.map((flow) => (
               <article className="surface-card p-5" key={flow.slug}>
                 <h3 className="font-semibold">{flow.title}</h3>
                 <p className="mt-2 text-sm text-secondary">{flow.description}</p>
                 <ButtonLink className="mt-4 w-full" href={`/balloons/${flow.slug}`} variant="secondary">
-                  Open
+                  View options
                 </ButtonLink>
               </article>
             ))}
@@ -105,36 +105,33 @@ export async function BalloonsPageTemplate({ flowSlug }: BalloonsPageTemplatePro
         <div className="container-shell grid gap-5 md:grid-cols-2">
           <div className="surface-card p-6">
             <h2 className="font-display text-2xl font-semibold">Pickup</h2>
-            <p className="mt-3 text-secondary">Store selection, cutoff windows, and slot capacity will be locked by the backend before payment.</p>
+            <p className="mt-3 text-secondary">Choose your preferred store and contact us to confirm pickup timing.</p>
           </div>
           <div className="surface-card p-6">
             <h2 className="font-display text-2xl font-semibold">Local delivery</h2>
-            <p className="mt-3 text-secondary">Delivery fee, route eligibility, and zone membership are recalculated server-side.</p>
+            <p className="mt-3 text-secondary">Contact us with your delivery address and event date to check availability and pricing.</p>
           </div>
         </div>
       </SectionFrame>
 
       <SectionFrame area="Balloons" className="bg-surface-muted py-14" component="BalloonTimeSlotPickerSection" sectionId="balloons.time-slot-picker" variant="capacity-points">
         <div className="container-shell">
-          <h2 className="font-display text-3xl font-semibold">Capacity-point slots</h2>
-          <p className="mt-3 max-w-2xl text-secondary">Simple mylar pickup, latex bouquets, large arrangements, local delivery stops, and rush work consume different capacity points.</p>
+          <h2 className="font-display text-3xl font-semibold">Timing and availability</h2>
+          <p className="mt-3 max-w-2xl text-secondary">Balloon orders may require advance notice. Contact the store to confirm a pickup or delivery window.</p>
         </div>
       </SectionFrame>
     </main>
   );
 }
 
-function BuilderStepCard({ step }: { step: string }) {
+function BuilderStepCard({ step }: { step: (typeof balloonBuilderSteps)[number] }) {
   const sectionId = `balloons.${step}`;
-  const label = step
-    .split("-")
-    .map((word) => word[0]?.toUpperCase() + word.slice(1))
-    .join(" ");
+  const label = balloonBuilderStepLabels[step];
 
   return (
     <article className="surface-card p-5" data-store-area="Balloons" data-store-component="BalloonBuilderStep" data-store-section={sectionId} data-store-variant="builder-step">
       <p className="font-semibold">{label}</p>
-      <p className="mt-2 text-sm text-secondary">Admin-editable options, backend validation, and auditability are planned for this step.</p>
+      <p className="mt-2 text-sm text-secondary">Choose your preferences. Final availability is confirmed by the store.</p>
     </article>
   );
 }

@@ -31,8 +31,8 @@ export async function HolidaysIndexTemplate() {
       <SectionFrame area="Holidays" className="bg-surface-muted py-16" component="HolidaysIndexHeroSection" sectionId="holidays.index-hero" variant="parent">
         <div className="container-shell">
           <span className="mb-4 block h-1 w-12 rounded-pill bg-red" />
-          <h1 className="max-w-3xl font-display text-4xl font-semibold leading-tight md:text-5xl">Editable holiday shopping, without changing Square categories.</h1>
-          <p className="mt-4 max-w-2xl text-secondary">Holidays are website-managed parent pages with their own dates, SEO, accents, images, and product assignments.</p>
+          <h1 className="max-w-3xl font-display text-4xl font-semibold leading-tight md:text-5xl">Seasonal favorites for every celebration.</h1>
+          <p className="mt-4 max-w-2xl text-secondary">Find timely gifts, party supplies, cards, decorations, and neighborhood favorites throughout the year.</p>
         </div>
       </SectionFrame>
       <SectionFrame area="Holidays" className="py-16" component="ActiveHolidaysGridSection" sectionId="holidays.active-holidays-grid" variant="holiday-card-grid">

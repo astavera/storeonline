@@ -1,5 +1,5 @@
 import { ContentPageTemplate } from "@/components/templates/content-page-template";
 
 export default function ShippingPolicyPage() {
-  return <ContentPageTemplate area="Policy" body="Shipping will route eligible products through warehouse fulfillment and carrier rates validated by the backend." sectionId="policy.shipping" title="Shipping Policy" />;
+  return <ContentPageTemplate area="Policy" body="Shipping is available for eligible products. Available methods, timing, and cost are shown before purchase." sectionId="policy.shipping" title="Shipping Policy" />;
 }

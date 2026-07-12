@@ -20,7 +20,7 @@ export function CartPageTemplate() {
       <SectionFrame area="Cart" className="py-16" component="CartDrawerSection" sectionId="cart.drawer" variant="page">
         <div className="container-shell">
           <h1 className="font-display text-4xl font-semibold">Cart</h1>
-          <p className="mt-3 max-w-2xl text-secondary">Review quantities, fulfillment compatibility, estimated tax, and server-validated totals before checkout.</p>
+          <p className="mt-3 max-w-2xl text-secondary">Review your items and update quantities before moving to the next step.</p>
           <div className="mt-8">
             <CartClient />
           </div>

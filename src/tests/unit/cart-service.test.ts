@@ -35,6 +35,7 @@ describe("cart service", () => {
       ]
     });
 
-    expect(unavailable.errors).toContain("Item missing is no longer available.");
+    expect(unavailable.errors).toContain("One or more items in your cart are no longer available. Please update your cart and try again.");
+    expect(unavailable.errors.join(" ")).not.toContain("missing");
   });
 });

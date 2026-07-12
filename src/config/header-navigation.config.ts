@@ -14,7 +14,7 @@ export type HeaderNavigationConfig = {
 export const defaultHeaderNavigation: HeaderNavigationConfig = {
   primary: [
     { id: "shop-all", label: "Shop all", href: "/shop", visible: true },
-    { id: "balloon-order", label: "Balloon Order", href: "/balloons", visible: true },
+    { id: "balloon-order", label: "Balloons", href: "/balloons", visible: true },
     { id: "toys", label: "Toys", href: "/toys", visible: true },
     { id: "party-supplies", label: "Party Supplies", href: "/party-supplies", visible: true },
     { id: "holidays", label: "Holidays", href: "/holidays", visible: true },
