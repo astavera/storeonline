@@ -1,6 +1,8 @@
 # Database Schema Proposal
 
-The first schema proposal lives in `prisma/schema.prisma`.
+The first schema proposal lives in `prisma/schema.prisma`. Its Phase 1 PostgreSQL
+baseline lives in
+`prisma/migrations/20260712180000_initial_schema/migration.sql`.
 
 It covers:
 
@@ -27,6 +29,14 @@ It covers:
 - Admin users
 - Admin audit logs
 
+## Phase 1 verification
+
+On 2026-07-12 the baseline was applied from an empty database to disposable
+PostgreSQL 17.10. Prisma reported the schema up to date, PostgreSQL contained 26
+application tables, 8 enums, and 25 foreign keys, and a transactional catalog
+write/read smoke test passed before rolling back all test rows. No shared database
+was changed.
+
 GeoJSON is stored as JSON in the first proposal. Production can add PostGIS geometry columns through a SQL migration once the deployment database is selected.
 
 ## Advanced admin additions
@@ -39,6 +49,25 @@ Square catalog objects include website-safe description sync fields:
 - `descriptionPlaintext`
 - `squareDescriptionHash`
 - `lastDescriptionSyncedAt`
+
+## Square catalog retention policy
+
+Square catalog rows are a local, read-only cache and use soft deletion. A sync that
+receives a Square deletion marks `SquareCatalogObject.deletedAt`; it must not
+physically delete the catalog object or its `SquareItemVariation` rows. Variations
+also remain unavailable when their Square payload reports deletion or their parent
+item is soft-deleted. This preserves order history and website merchandising
+references, whose foreign keys intentionally restrict variation deletion.
+
+A later Square upsert for the same object clears `deletedAt` only when Square
+reports it active again. Normal catalog sync jobs must never cascade-delete product
+overrides, assignments, placements, cart lines, or order lines. Hard deletion is a
+separate, reviewed maintenance operation permitted only after dependent records
+have been archived or migrated.
+
+Website records store only `squareVariationId`; the parent Square item identity is
+resolved through `SquareItemVariation.itemId`, avoiding duplicate `squareItemId`
+values that could drift out of sync.
 
 Website product overrides include no-code display, fulfillment, publishing, and description fallback fields:
 

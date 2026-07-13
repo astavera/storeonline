@@ -32,7 +32,9 @@ All three GitHub checks documented in [engineering-workflow.md](engineering-work
 
 ## Launch checks
 
-- Create and review the initial Prisma migration history; run `prisma migrate deploy` only after it exists.
+- The Phase 1 Prisma baseline has passed a disposable PostgreSQL 17 application
+  test. Before running `prisma migrate deploy` against a shared environment,
+  review the exact SQL, backup policy, and rollback plan for that environment.
 - Run lint, typecheck, unit, integration, build, and Playwright gates.
 - Verify Square Sandbox checkout.
 - Verify webhook signature validation and replay protection.

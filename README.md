@@ -8,7 +8,8 @@ Next.js ecommerce scaffold for Modern State, the evolution of State News on NYC'
 - Square is server-only by design. No production writes are implemented.
 - Website departments are independent from Square categories and `reporting_category`.
 - Candy & Snacks is preserved as legacy/search/SEO context, not a main department.
-- This is not yet a production-ready transactional store. Payments, durable orders, database migrations, fulfillment, and admin authentication remain incomplete.
+- The Phase 1 Prisma baseline has been applied and smoke-tested on disposable PostgreSQL 17; no shared database was changed.
+- This is not yet a production-ready transactional store. Payments, durable orders, shared database provisioning, fulfillment, and admin authentication remain incomplete.
 
 ## Prerequisites
 

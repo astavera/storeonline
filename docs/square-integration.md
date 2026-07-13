@@ -12,6 +12,19 @@ Square remains the source of truth for catalog items, variations, prices, invent
 - Do not change Square inventory counts unless explicitly approved.
 - Use website departments and holiday assignments in the app database.
 
+## Catalog soft deletion
+
+- Treat Square catalog tables as an append/update cache; catalog sync never
+  hard-deletes an item or variation.
+- When Square reports an item deleted, set `SquareCatalogObject.deletedAt` and
+  exclude that item and its variations from sale and merchandising queries.
+- Keep variation rows so historical orders and website configuration retain valid
+  foreign keys; deletion reported in a variation's Square payload also makes it
+  unavailable.
+- Clear `deletedAt` only after Square reports the same object active again.
+- Reserve physical deletion for an explicit maintenance procedure that first
+  archives or migrates every dependent record.
+
 ## Server-only implementation
 
 Initial server-only helpers live in `src/server/square/client.ts`.

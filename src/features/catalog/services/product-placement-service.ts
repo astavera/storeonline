@@ -8,7 +8,6 @@ export type WebsitePlacementType =
   | "PROMO_SECTION";
 
 export type WebsiteProductPlacementInput = {
-  squareItemId: string;
   squareVariationId: string;
   placementType: WebsitePlacementType;
   placementTargetSlug: string;
@@ -106,7 +105,6 @@ export const defaultPlacementRules: PlacementRuleInput[] = [
 
 export function normalizePlacement(input: WebsiteProductPlacementInput): Required<Omit<WebsiteProductPlacementInput, "startsAt" | "endsAt">> & Pick<WebsiteProductPlacementInput, "startsAt" | "endsAt"> {
   return {
-    squareItemId: input.squareItemId,
     squareVariationId: input.squareVariationId,
     placementType: input.placementType,
     placementTargetSlug: input.placementTargetSlug,

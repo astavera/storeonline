@@ -48,12 +48,35 @@ DATABASE_URL=postgresql://user:password@127.0.0.1:5432/storeonline npm run prism
 DATABASE_URL=postgresql://user:password@127.0.0.1:5432/storeonline npm run prisma:generate
 ```
 
-Use `npm run prisma:migrate:dev` only against a disposable local database. Production and CI may use `prisma:migrate:deploy` only after a reviewed migration baseline exists.
+Phase 1 establishes the reviewed PostgreSQL baseline at
+`prisma/migrations/20260712180000_initial_schema/migration.sql`. Before using any
+shared database, inspect that SQL and prove it against an empty, disposable local
+PostgreSQL database:
+
+```bash
+DATABASE_URL=postgresql://user:password@127.0.0.1:5432/storeonline_phase1 npm run prisma:migrate:deploy
+DATABASE_URL=postgresql://user:password@127.0.0.1:5432/storeonline_phase1 npx prisma migrate status
+```
+
+Use `npm run prisma:migrate:dev` only against a disposable local database. Once
+the baseline has been applied to a shared environment, never rewrite it; create a
+new migration for every later schema change.
 
 ## Current, visible technical debt
 
 The initial ESLint migration has a recorded baseline of 51 warnings for image optimization, effect-state, hook dependency, unused-code, and image-alt findings. The default lint command enforces that budget, so new work cannot raise the total. Reduce the baseline section by section; `npm run lint:strict` must pass before the soft launch gate.
 
-The repository does not yet contain a Prisma migration history. Creating and reviewing the initial migration belongs to Phase 1 before any shared database deployment.
+Prisma treats `categoryIds`, `fulfillmentModes`, `allowedLocationIds`, and
+`activeDays` as required list fields, while PostgreSQL's generated array columns
+still permit `NULL` in direct SQL. Runtime writes must go through Prisma and
+validated services. Before operational or admin database writes are enabled, add
+a reviewed follow-up migration with database-level defaults, nullability, and
+positive/range checks for quantities, capacity, fees, dates, and slot times.
+
+The Phase 1 Prisma baseline passed a clean application and transactional
+read/write smoke test on disposable PostgreSQL 17.10 on 2026-07-12. The test
+created 26 application tables, 8 enums, 25 foreign keys, and the manual
+`SlotHold_exactly_one_owner_check`; the test data was rolled back. No shared
+database was changed.
 
 Admin authentication is intentionally scheduled near launch. Until it is implemented and verified, `/admin` and `/api/admin/*` must not be exposed to untrusted users; use only local development or an access-controlled preview.

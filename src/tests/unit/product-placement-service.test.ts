@@ -14,7 +14,6 @@ describe("product placement service", () => {
 
   it("normalizes a placement as hidden until admin approves visibility", () => {
     const placement = normalizePlacement({
-      squareItemId: "ITEM",
       squareVariationId: "VARIATION",
       placementType: "DEPARTMENT",
       placementTargetSlug: "toys",

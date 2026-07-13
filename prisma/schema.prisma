@@ -84,71 +84,77 @@ enum DescriptionStatus {
 }
 
 model StoreLocation {
-  id                         String             @id @default(cuid())
-  squareLocationId           String?            @unique
-  slug                       String             @unique
+  id                         String            @id @default(cuid())
+  squareLocationId           String?           @unique
+  slug                       String            @unique
   name                       String
   address                    String
   phone                      String?
-  pickupEnabled              Boolean            @default(true)
-  localDeliveryEnabled       Boolean            @default(true)
-  shippingFulfillmentEnabled Boolean            @default(false)
-  createdAt                  DateTime           @default(now())
-  updatedAt                  DateTime           @updatedAt
+  pickupEnabled              Boolean           @default(true)
+  localDeliveryEnabled       Boolean           @default(true)
+  shippingFulfillmentEnabled Boolean           @default(false)
+  createdAt                  DateTime          @default(now())
+  updatedAt                  DateTime          @updatedAt
   deliveryZones              DeliveryZone[]
   slotTemplates              SlotTemplate[]
   fulfillmentTasks           FulfillmentTask[]
+  adminUsers                 AdminUser[]
 }
 
 model SquareCatalogObject {
-  id              String    @id
-  type            String
-  version         BigInt?
-  reportingCategoryId String?
-  categoryIds     String[]
-  name            String?
-  descriptionHtml String?
-  descriptionPlaintext String?
-  squareDescriptionHash String?
+  id                      String                   @id
+  type                    String
+  version                 BigInt?
+  reportingCategoryId     String?
+  categoryIds             String[]
+  name                    String?
+  descriptionHtml         String?
+  descriptionPlaintext    String?
+  squareDescriptionHash   String?
   lastDescriptionSyncedAt DateTime?
-  raw             Json
-  syncedAt        DateTime  @default(now())
-  deletedAt       DateTime?
-  itemVariations  SquareItemVariation[]
-  images          ProductImagePreference[]
+  raw                     Json
+  syncedAt                DateTime                 @default(now())
+  deletedAt               DateTime?
+  itemVariations          SquareItemVariation[]
+  images                  ProductImagePreference[]
 }
 
 model SquareItemVariation {
-  id              String   @id
-  itemId          String
-  name            String
-  sku             String?
-  upc             String?
-  priceMoney      Json?
-  raw             Json
-  syncedAt        DateTime @default(now())
-  item            SquareCatalogObject @relation(fields: [itemId], references: [id], onDelete: Cascade)
-  inventoryCounts SquareInventoryCount[]
-  cartItems       CartItem[]
-  orderItems      OrderItemMirror[]
+  id                    String                        @id
+  itemId                String
+  name                  String
+  sku                   String?
+  upc                   String?
+  priceMoney            Json?
+  raw                   Json
+  syncedAt              DateTime                      @default(now())
+  item                  SquareCatalogObject           @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  inventoryCounts       SquareInventoryCount[]
+  departmentAssignments ProductDepartmentAssignment[]
+  holidayAssignments    ProductHolidayAssignment[]
+  productOverride       ProductOverride?
+  cartItems             CartItem[]
+  orderItems            OrderItemMirror[]
+
+  @@index([itemId])
 }
 
 model SquareInventoryCount {
-  id                  String   @id @default(cuid())
-  variationId         String
-  squareLocationId    String
-  quantity            Decimal
-  state               String
-  calculatedAt        DateTime
-  syncedAt            DateTime @default(now())
-  variation           SquareItemVariation @relation(fields: [variationId], references: [id], onDelete: Cascade)
+  id               String              @id @default(cuid())
+  variationId      String
+  squareLocationId String
+  quantity         Decimal
+  state            String
+  calculatedAt     DateTime
+  syncedAt         DateTime            @default(now())
+  variation        SquareItemVariation @relation(fields: [variationId], references: [id], onDelete: Cascade)
 
   @@unique([variationId, squareLocationId, state])
 }
 
 model Department {
-  id                 String   @id @default(cuid())
-  slug               String   @unique
+  id                 String                        @id @default(cuid())
+  slug               String                        @unique
   titleEn            String
   shortTitleEn       String
   descriptionEn      String
@@ -161,19 +167,19 @@ model Department {
   accentColorToken   String
   sortOrder          Int
   navigationPriority String
-  isPrimaryNav       Boolean  @default(false)
-  isVisible          Boolean  @default(true)
+  isPrimaryNav       Boolean                       @default(false)
+  isVisible          Boolean                       @default(true)
   layoutPreset       String
   productGridPreset  String
   productCardVariant String
-  createdAt          DateTime @default(now())
-  updatedAt          DateTime @updatedAt
+  createdAt          DateTime                      @default(now())
+  updatedAt          DateTime                      @updatedAt
   products           ProductDepartmentAssignment[]
 }
 
 model Holiday {
-  id                 String   @id @default(cuid())
-  slug               String   @unique
+  id                 String                     @id @default(cuid())
+  slug               String                     @unique
   titleEn            String
   shortTitleEn       String
   descriptionEn      String
@@ -187,167 +193,177 @@ model Holiday {
   customAccentColor  String?
   startDate          DateTime
   endDate            DateTime
-  isActive           Boolean  @default(false)
-  isVisible          Boolean  @default(true)
+  isActive           Boolean                    @default(false)
+  isVisible          Boolean                    @default(true)
   sortOrder          Int
   layoutPreset       String
   productGridPreset  String
   productCardVariant String
-  createdAt          DateTime @default(now())
-  updatedAt          DateTime @updatedAt
+  createdAt          DateTime                   @default(now())
+  updatedAt          DateTime                   @updatedAt
   products           ProductHolidayAssignment[]
 }
 
 model ProductDepartmentAssignment {
-  id               String     @id @default(cuid())
-  departmentId     String
+  id                String              @id @default(cuid())
+  departmentId      String
   squareVariationId String
-  sortOrder        Int        @default(0)
-  isFeatured       Boolean    @default(false)
-  createdAt        DateTime   @default(now())
-  department       Department @relation(fields: [departmentId], references: [id], onDelete: Cascade)
+  sortOrder         Int                 @default(0)
+  isFeatured        Boolean             @default(false)
+  createdAt         DateTime            @default(now())
+  department        Department          @relation(fields: [departmentId], references: [id], onDelete: Cascade)
+  variation         SquareItemVariation @relation(fields: [squareVariationId], references: [id], onDelete: Restrict)
 
   @@unique([departmentId, squareVariationId])
+  @@index([squareVariationId])
 }
 
 model ProductHolidayAssignment {
-  id                String  @id @default(cuid())
+  id                String              @id @default(cuid())
   holidayId         String
   squareVariationId String
-  sortOrder         Int     @default(0)
+  sortOrder         Int                 @default(0)
   badge             String?
-  createdAt         DateTime @default(now())
-  holiday           Holiday @relation(fields: [holidayId], references: [id], onDelete: Cascade)
+  createdAt         DateTime            @default(now())
+  holiday           Holiday             @relation(fields: [holidayId], references: [id], onDelete: Cascade)
+  variation         SquareItemVariation @relation(fields: [squareVariationId], references: [id], onDelete: Restrict)
 
   @@unique([holidayId, squareVariationId])
+  @@index([squareVariationId])
 }
 
 model ProductOverride {
-  id                String   @id @default(cuid())
-  squareVariationId String   @unique
-  squareItemId      String?
-  webVisible        Boolean  @default(true)
-  webStatus         ProductWebStatus @default(NEEDS_PLACEMENT)
-  seoTitleEn        String?
-  seoDescriptionEn  String?
-  slug              String?  @unique
-  displayNameEn     String?
-  webShortDescriptionEn String?
-  webDescriptionEn  String?
-  badgeEn           String?
-  featured          Boolean  @default(false)
-  productCardStyle  String?
-  fulfillmentModes  FulfillmentMode[]
-  pickupAllowed     Boolean  @default(false)
-  localDeliveryAllowed Boolean @default(false)
-  shippingAllowed   Boolean  @default(false)
-  allowedLocationIds String[]
-  warehouseRequired Boolean @default(false)
-  inflated          Boolean @default(false)
-  fragile           Boolean @default(false)
-  requiresBalloonPrep Boolean @default(false)
-  prepTimeMinutes   Int?
-  capacityPoints    Int?
-  descriptionSource DescriptionSource @default(EMPTY)
-  descriptionStatus DescriptionStatus @default(MISSING)
-  useSquareDescription Boolean @default(true)
-  lockWebDescription Boolean @default(false)
-  squareDescriptionHash String?
+  id                            String                    @id @default(cuid())
+  squareVariationId             String                    @unique
+  webVisible                    Boolean                   @default(true)
+  webStatus                     ProductWebStatus          @default(NEEDS_PLACEMENT)
+  seoTitleEn                    String?
+  seoDescriptionEn              String?
+  slug                          String?                   @unique
+  displayNameEn                 String?
+  webShortDescriptionEn         String?
+  webDescriptionEn              String?
+  badgeEn                       String?
+  featured                      Boolean                   @default(false)
+  productCardStyle              String?
+  fulfillmentModes              FulfillmentMode[]
+  pickupAllowed                 Boolean                   @default(false)
+  localDeliveryAllowed          Boolean                   @default(false)
+  shippingAllowed               Boolean                   @default(false)
+  allowedLocationIds            String[]
+  warehouseRequired             Boolean                   @default(false)
+  inflated                      Boolean                   @default(false)
+  fragile                       Boolean                   @default(false)
+  requiresBalloonPrep           Boolean                   @default(false)
+  prepTimeMinutes               Int?
+  capacityPoints                Int?
+  descriptionSource             DescriptionSource         @default(EMPTY)
+  descriptionStatus             DescriptionStatus         @default(MISSING)
+  useSquareDescription          Boolean                   @default(true)
+  lockWebDescription            Boolean                   @default(false)
+  squareDescriptionHash         String?
   lastSquareDescriptionSyncedAt DateTime?
-  isBalloonComponent Boolean @default(false)
-  isShippable       Boolean @default(true)
-  publishedAt       DateTime?
-  unpublishedAt     DateTime?
-  scheduledPublishAt DateTime?
-  scheduledUnpublishAt DateTime?
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
-  placements        WebsiteProductPlacement[]
+  isBalloonComponent            Boolean                   @default(false)
+  isShippable                   Boolean                   @default(true)
+  publishedAt                   DateTime?
+  unpublishedAt                 DateTime?
+  scheduledPublishAt            DateTime?
+  scheduledUnpublishAt          DateTime?
+  createdAt                     DateTime                  @default(now())
+  updatedAt                     DateTime                  @updatedAt
+  variation                     SquareItemVariation       @relation(fields: [squareVariationId], references: [id], onDelete: Restrict)
+  placements                    WebsiteProductPlacement[]
 }
 
 model WebsiteProductPlacement {
   id                  String               @id @default(cuid())
-  squareItemId         String
-  squareVariationId    String
-  placementType        ProductPlacementType
-  placementTargetId    String?
-  placementTargetSlug  String
-  sectionId            String
-  sortOrder            Int                  @default(0)
-  isFeatured           Boolean              @default(false)
-  isPrimary            Boolean              @default(false)
-  visible              Boolean              @default(false)
-  startsAt             DateTime?
-  endsAt               DateTime?
-  createdAt            DateTime             @default(now())
-  updatedAt            DateTime             @updatedAt
-  productOverride      ProductOverride      @relation(fields: [squareVariationId], references: [squareVariationId], onDelete: Cascade)
+  squareVariationId   String
+  placementType       ProductPlacementType
+  placementTargetId   String?
+  placementTargetSlug String
+  sectionId           String
+  sortOrder           Int                  @default(0)
+  isFeatured          Boolean              @default(false)
+  isPrimary           Boolean              @default(false)
+  visible             Boolean              @default(false)
+  startsAt            DateTime?
+  endsAt              DateTime?
+  createdAt           DateTime             @default(now())
+  updatedAt           DateTime             @updatedAt
+  productOverride     ProductOverride      @relation(fields: [squareVariationId], references: [squareVariationId], onDelete: Cascade)
 
   @@index([placementType, placementTargetSlug])
   @@index([squareVariationId])
 }
 
 model ProductPlacementRule {
-  id              String               @id @default(cuid())
-  name            String
-  active          Boolean              @default(true)
-  suggestOnly     Boolean              @default(true)
-  matchField      String
-  matchOperator   String
-  matchValue      String
-  placementType   ProductPlacementType
-  placementTargetSlug String
+  id                    String               @id @default(cuid())
+  name                  String
+  active                Boolean              @default(true)
+  suggestOnly           Boolean              @default(true)
+  matchField            String
+  matchOperator         String
+  matchValue            String
+  placementType         ProductPlacementType
+  placementTargetSlug   String
   fulfillmentSuggestion Json?
-  createdAt       DateTime             @default(now())
-  updatedAt       DateTime             @updatedAt
+  createdAt             DateTime             @default(now())
+  updatedAt             DateTime             @updatedAt
 }
 
 model CmsContentVersion {
-  id              String           @id @default(cuid())
-  entityType      String
-  entityId        String
-  versionNumber   Int
-  status          CmsPublishStatus @default(DRAFT)
-  title           String?
-  payload         Json
-  createdById     String?
-  publishedById   String?
-  publishedAt     DateTime?
-  scheduledPublishAt DateTime?
+  id                   String              @id @default(cuid())
+  entityType           String
+  entityId             String
+  versionNumber        Int
+  status               CmsPublishStatus    @default(DRAFT)
+  title                String?
+  payload              Json
+  createdById          String?
+  publishedById        String?
+  publishedAt          DateTime?
+  scheduledPublishAt   DateTime?
   scheduledUnpublishAt DateTime?
-  rollbackOfVersionId String?
-  createdAt       DateTime         @default(now())
-  createdBy        AdminUser?       @relation("CmsVersionCreatedBy", fields: [createdById], references: [id])
-  publishedBy      AdminUser?       @relation("CmsVersionPublishedBy", fields: [publishedById], references: [id])
+  rollbackOfVersionId  String?
+  createdAt            DateTime            @default(now())
+  createdBy            AdminUser?          @relation("CmsVersionCreatedBy", fields: [createdById], references: [id])
+  publishedBy          AdminUser?          @relation("CmsVersionPublishedBy", fields: [publishedById], references: [id])
+  rollbackOfVersion    CmsContentVersion?  @relation("CmsVersionRollback", fields: [rollbackOfVersionId], references: [id], onDelete: SetNull)
+  rollbackVersions     CmsContentVersion[] @relation("CmsVersionRollback")
 
   @@unique([entityType, entityId, versionNumber])
   @@index([entityType, entityId, status])
+  @@index([createdById])
+  @@index([publishedById])
+  @@index([rollbackOfVersionId])
 }
 
 model MediaAsset {
-  id              String   @id @default(cuid())
-  source          String
-  sourceId        String?
-  url             String
-  altTextEn       String?
-  mimeType        String?
-  width           Int?
-  height          Int?
-  hiddenFromWebsite Boolean @default(false)
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  id                String   @id @default(cuid())
+  source            String
+  sourceId          String?
+  url               String
+  altTextEn         String?
+  mimeType          String?
+  width             Int?
+  height            Int?
+  hiddenFromWebsite Boolean  @default(false)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
 }
 
 model ProductImagePreference {
-  id              String   @id @default(cuid())
+  id              String              @id @default(cuid())
   catalogObjectId String
   imageUrl        String
   altTextEn       String?
-  sortOrder       Int      @default(0)
-  isPrimary       Boolean  @default(false)
+  sortOrder       Int                 @default(0)
+  isPrimary       Boolean             @default(false)
   cropPreset      String?
-  createdAt       DateTime @default(now())
+  createdAt       DateTime            @default(now())
   catalogObject   SquareCatalogObject @relation(fields: [catalogObjectId], references: [id], onDelete: Cascade)
+
+  @@index([catalogObjectId])
 }
 
 model Cart {
@@ -357,86 +373,99 @@ model Cart {
   createdAt DateTime   @default(now())
   updatedAt DateTime   @updatedAt
   items     CartItem[]
+  slotHolds SlotHold[]
 }
 
 model CartItem {
-  id                String   @id @default(cuid())
+  id                String              @id @default(cuid())
   cartId            String
   squareVariationId String
   quantity          Int
   fulfillmentMode   FulfillmentMode?
   metadata          Json?
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
-  cart              Cart @relation(fields: [cartId], references: [id], onDelete: Cascade)
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+  cart              Cart                @relation(fields: [cartId], references: [id], onDelete: Cascade)
   variation         SquareItemVariation @relation(fields: [squareVariationId], references: [id])
+
+  @@index([cartId])
+  @@index([squareVariationId])
 }
 
 model OrderMirror {
-  id              String   @id @default(cuid())
-  squareOrderId   String?  @unique
-  squarePaymentId String?  @unique
-  customerEmail   String?
-  customerPhone   String?
-  currency        String   @default("USD")
-  totalMoney      Json
-  status          String
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-  items           OrderItemMirror[]
+  id               String            @id @default(cuid())
+  squareOrderId    String?           @unique
+  squarePaymentId  String?           @unique
+  customerEmail    String?
+  customerPhone    String?
+  currency         String            @default("USD")
+  totalMoney       Json
+  status           String
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+  items            OrderItemMirror[]
   fulfillmentTasks FulfillmentTask[]
+  slotHolds        SlotHold[]
 }
 
 model OrderItemMirror {
-  id                String   @id @default(cuid())
+  id                String              @id @default(cuid())
   orderId           String
   squareVariationId String
   name              String
   quantity          Int
   priceMoney        Json
-  order             OrderMirror @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  order             OrderMirror         @relation(fields: [orderId], references: [id], onDelete: Cascade)
   variation         SquareItemVariation @relation(fields: [squareVariationId], references: [id])
+
+  @@index([orderId])
+  @@index([squareVariationId])
 }
 
 model FulfillmentTask {
-  id             String            @id @default(cuid())
-  orderId        String
-  locationId     String?
-  mode           FulfillmentMode
-  status         FulfillmentStatus @default(NEW)
-  assignedRole   AdminRole?
-  capacityPoints Int               @default(1)
+  id              String            @id @default(cuid())
+  orderId         String
+  locationId      String?
+  mode            FulfillmentMode
+  status          FulfillmentStatus @default(NEW)
+  assignedRole    AdminRole?
+  capacityPoints  Int               @default(1)
   deliveryAddress Json?
   shippingAddress Json?
-  trackingNumber String?
+  trackingNumber  String?
   carrier         String?
   labelUrl        String?
   dueAt           DateTime?
-  createdAt       DateTime         @default(now())
-  updatedAt       DateTime         @updatedAt
-  order           OrderMirror      @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  location        StoreLocation?   @relation(fields: [locationId], references: [id])
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+  order           OrderMirror       @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  location        StoreLocation?    @relation(fields: [locationId], references: [id])
+
+  @@index([orderId])
+  @@index([locationId])
 }
 
 model DeliveryZone {
-  id                 String   @id @default(cuid())
-  locationId         String
-  name               String
-  polygonGeojson     Json
-  version            Int      @default(1)
-  active             Boolean  @default(true)
-  serviceMode        String
-  baseFeeCents       Int
-  minimumOrderCents  Int
-  maxDistanceMiles   Decimal?
-  maxRouteMinutes    Int?
-  priority           Int      @default(0)
-  activeDays         String[]
-  cutoffMinutes      Int
-  leadTimeMinutes    Int
-  createdAt          DateTime @default(now())
-  updatedAt          DateTime @updatedAt
-  location           StoreLocation @relation(fields: [locationId], references: [id], onDelete: Cascade)
+  id                String        @id @default(cuid())
+  locationId        String
+  name              String
+  polygonGeojson    Json
+  version           Int           @default(1)
+  active            Boolean       @default(true)
+  serviceMode       String
+  baseFeeCents      Int
+  minimumOrderCents Int
+  maxDistanceMiles  Decimal?
+  maxRouteMinutes   Int?
+  priority          Int           @default(0)
+  activeDays        String[]
+  cutoffMinutes     Int
+  leadTimeMinutes   Int
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+  location          StoreLocation @relation(fields: [locationId], references: [id], onDelete: Cascade)
+
+  @@index([locationId])
 }
 
 model SlotTemplate {
@@ -452,6 +481,8 @@ model SlotTemplate {
   leadTimeMinutes Int
   location        StoreLocation   @relation(fields: [locationId], references: [id], onDelete: Cascade)
   holds           SlotHold[]
+
+  @@index([locationId])
 }
 
 model SlotHold {
@@ -465,53 +496,64 @@ model SlotHold {
   releasedAt     DateTime?
   createdAt      DateTime     @default(now())
   slotTemplate   SlotTemplate @relation(fields: [slotTemplateId], references: [id], onDelete: Cascade)
+  cart           Cart?        @relation(fields: [cartId], references: [id], onDelete: Cascade)
+  order          OrderMirror? @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([slotTemplateId])
+  @@index([cartId])
+  @@index([orderId])
 }
 
 model ShippingRateQuote {
-  id             String   @id @default(cuid())
-  provider       String
-  carrier        String
-  serviceLevel   String
-  amountCents    Int
-  currency       String   @default("USD")
-  addressHash    String
-  expiresAt      DateTime
-  raw            Json
-  createdAt      DateTime @default(now())
+  id           String   @id @default(cuid())
+  provider     String
+  carrier      String
+  serviceLevel String
+  amountCents  Int
+  currency     String   @default("USD")
+  addressHash  String
+  expiresAt    DateTime
+  raw          Json
+  createdAt    DateTime @default(now())
 }
 
 model WebhookEvent {
-  id          String   @id
+  id          String    @id
   provider    String
   eventType   String
   processedAt DateTime?
-  receivedAt  DateTime @default(now())
+  receivedAt  DateTime  @default(now())
   raw         Json
 }
 
 model AdminUser {
-  id           String    @id @default(cuid())
-  email        String    @unique
-  role         AdminRole
-  locationId   String?
-  mfaEnabled   Boolean   @default(false)
-  lastLoginAt  DateTime?
-  createdAt    DateTime  @default(now())
-  auditLogs    AuditLog[]
-  cmsVersionsCreated CmsContentVersion[] @relation("CmsVersionCreatedBy")
+  id                   String              @id @default(cuid())
+  email                String              @unique
+  role                 AdminRole
+  locationId           String?
+  mfaEnabled           Boolean             @default(false)
+  lastLoginAt          DateTime?
+  createdAt            DateTime            @default(now())
+  auditLogs            AuditLog[]
+  cmsVersionsCreated   CmsContentVersion[] @relation("CmsVersionCreatedBy")
   cmsVersionsPublished CmsContentVersion[] @relation("CmsVersionPublishedBy")
+  location             StoreLocation?      @relation(fields: [locationId], references: [id], onDelete: SetNull)
+
+  @@index([locationId])
 }
 
 model AuditLog {
-  id          String    @id @default(cuid())
-  actorId     String?
-  action      String
-  entityType  String
-  entityId    String?
-  before      Json?
-  after       Json?
-  ipHash      String?
-  userAgent   String?
-  createdAt   DateTime  @default(now())
-  actor       AdminUser? @relation(fields: [actorId], references: [id])
+  id         String     @id @default(cuid())
+  actorId    String?
+  action     String
+  entityType String
+  entityId   String?
+  before     Json?
+  after      Json?
+  ipHash     String?
+  userAgent  String?
+  createdAt  DateTime   @default(now())
+  actor      AdminUser? @relation(fields: [actorId], references: [id])
+
+  @@index([actorId])
 }
