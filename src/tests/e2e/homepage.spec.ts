@@ -3,6 +3,11 @@ import { expect, test } from "@playwright/test";
 test("homepage exposes the correct desktop and mobile navigation", async ({ page }, testInfo) => {
   await page.goto("/");
 
+  const skipLink = page.getByRole("link", { name: "Skip to main content" });
+  await skipLink.focus();
+  await expect(skipLink).toBeVisible();
+  await expect(skipLink).toHaveAttribute("href", "#main-content");
+
   const header = page.locator("header");
   const primaryNavigation = page.locator('nav[aria-label="Primary navigation"]');
   const headerLogo = header.locator("[data-header-logo]");
@@ -95,5 +100,7 @@ test("homepage exposes the correct desktop and mobile navigation", async ({ page
 
   await expect(header).not.toContainText("Candy");
   await expect(page.locator("[data-store-section='home.hero']")).toBeVisible();
-  await expect(page.locator(".homepage-hero-bg")).toHaveCSS("background-image", /home-hero-back-to-school\.svg/);
+  await expect(page.locator(".homepage-hero-bg")).toHaveCSS("background-image", /home-hero-back-to-school(?:-ecommerce-wireframe)?\.svg/);
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await expect(page.locator(".homepage-hero-bg")).toHaveCSS("animation-name", "none");
 });

@@ -3,7 +3,12 @@ import "server-only";
 import type { CmsEntityType, CmsPageDocument, CmsVersionStatus } from "@/lib/cms";
 import { parseCmsPageDocumentPayload, serializeCmsPageDocument, validateCmsPageDocument } from "@/lib/cms";
 import { readLocalCmsVersions, writeLocalCmsVersion, type LocalCmsStatus } from "./admin-local-cms-store";
-import { toPrismaJson } from "@/server/prisma-json";
+import { createDatabaseCmsVersion, readLatestDatabaseCmsVersion } from "@/server/db/cms-version-repository";
+import {
+  isDevelopmentLocalPersistenceEnabled,
+  PersistenceUnavailableError,
+  requireDatabaseOrDevelopmentFallback
+} from "@/server/db/persistence-policy";
 
 export type CmsDocumentOperation = "save_draft" | "preview" | "publish";
 
@@ -36,32 +41,25 @@ const operationStatus: Record<CmsDocumentOperation, CmsVersionStatus> = {
 
 export async function readLatestCmsDocument(input: ReadCmsDocumentInput): Promise<CmsPageDocument | null> {
   const statuses = input.statuses ?? ["PUBLISHED"];
+  const persistence = requireDatabaseOrDevelopmentFallback("CMS");
 
-  if (process.env.DATABASE_URL) {
+  if (persistence === "database") {
     try {
-      const { PrismaClient } = await import("@prisma/client");
-      const prisma = new PrismaClient();
-      const cmsContentVersion = prisma.cmsContentVersion;
-      const record = await cmsContentVersion.findFirst({
-        where: {
-          entityType: `CMS_${input.entityType}`,
-          entityId: input.entityId,
-          status: {
-            in: statuses
-          }
-        },
-        orderBy: [{ versionNumber: "desc" }, { createdAt: "desc" }]
+      const record = await readLatestDatabaseCmsVersion({
+        entityType: `CMS_${input.entityType}`,
+        entityId: input.entityId,
+        statuses
       });
-      await prisma.$disconnect();
-
       if (!record) {
         return null;
       }
 
       const parsed = parseCmsPageDocumentPayload(record.payload);
-      return parsed.ok ? parsed.document : null;
-    } catch {
-      return null;
+      if (!parsed.ok) throw new PersistenceUnavailableError("CMS content");
+      return parsed.document;
+    } catch (error) {
+      if (!isDevelopmentLocalPersistenceEnabled()) throw error;
+      console.warn("[development-local-persistence] CMS database read failed; reading the explicit local fallback.");
     }
   }
 
@@ -98,34 +96,18 @@ export async function persistCmsDocument(input: { document: CmsPageDocument; ope
 
   const payload = serializeCmsPageDocument(validation.document);
 
-  if (process.env.DATABASE_URL) {
-    try {
-      const { PrismaClient } = await import("@prisma/client");
-      const prisma = new PrismaClient();
-      const cmsContentVersion = prisma.cmsContentVersion;
-      const latest = await cmsContentVersion.aggregate({
-        where: {
-          entityType: `CMS_${validation.document.entityType}`,
-          entityId: validation.document.entityId
-        },
-        _max: {
-          versionNumber: true
-        }
-      });
-      const nextVersionNumber = (latest._max.versionNumber ?? 0) + 1;
-      const created = await cmsContentVersion.create({
-        data: {
-          entityType: `CMS_${validation.document.entityType}`,
-          entityId: validation.document.entityId,
-          versionNumber: nextVersionNumber,
-          status,
-          title: validation.document.title,
-          payload: toPrismaJson(payload),
-          publishedAt: status === "PUBLISHED" ? new Date(now) : null
-        }
-      });
-      await prisma.$disconnect();
+  const persistence = requireDatabaseOrDevelopmentFallback("CMS");
 
+  if (persistence === "database") {
+    try {
+      const created = await createDatabaseCmsVersion({
+        entityType: `CMS_${validation.document.entityType}`,
+        entityId: validation.document.entityId,
+        status,
+        title: validation.document.title,
+        payload,
+        publishedAt: status === "PUBLISHED" ? new Date(now) : null
+      });
       return {
         ok: true,
         status,
@@ -134,21 +116,13 @@ export async function persistCmsDocument(input: { document: CmsPageDocument; ope
           mode: "database",
           persisted: true,
           id: created.id,
-          versionNumber: nextVersionNumber,
-          message: `Saved CMS document version ${nextVersionNumber}.`
+          versionNumber: created.versionNumber,
+          message: `Saved CMS document version ${created.versionNumber}.`
         }
       };
     } catch (error) {
-      return {
-        ok: true,
-        status,
-        errors: [],
-        storage: {
-          mode: "validated-only",
-          persisted: false,
-          message: `Validated but database persistence failed: ${error instanceof Error ? error.message : "unknown error"}`
-        }
-      };
+      if (!isDevelopmentLocalPersistenceEnabled()) return failedPersistenceResult(status, error);
+      console.warn("[development-local-persistence] CMS database write failed; using the explicit local fallback.");
     }
   }
 
@@ -171,6 +145,16 @@ export async function persistCmsDocument(input: { document: CmsPageDocument; ope
       versionNumber: localVersion.versionNumber,
       message: `Saved local CMS document version ${localVersion.versionNumber}.`
     }
+  };
+}
+
+function failedPersistenceResult(status: CmsVersionStatus, error: unknown): PersistCmsDocumentResult {
+  const persistenceError = error instanceof PersistenceUnavailableError ? error : new PersistenceUnavailableError("CMS", { cause: error });
+  return {
+    ok: false,
+    status,
+    errors: [persistenceError.message],
+    storage: { mode: "validated-only", persisted: false, message: persistenceError.message }
   };
 }
 

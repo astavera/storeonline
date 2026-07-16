@@ -12,10 +12,11 @@ BUSINESS LOGIC FILES: src/features/catalog/services/product-display-service.ts, 
 */
 
 import { cardPresets, type ProductCardVariant } from "@/design/presets/card-presets";
-import { fulfillmentModeLabel, type FulfillmentMode } from "@/features/catalog/product-catalog";
+import { fulfillmentModeLabel, type FulfillmentMode, type ProductAgeGroup } from "@/features/catalog/product-catalog";
 import { cn, formatMoney } from "@/lib/utils";
 import { AddToCartButton } from "./add-to-cart-button";
-import { Heart } from "lucide-react";
+import { WishlistButton } from "./wishlist-button";
+import { ShoppingCart } from "lucide-react";
 
 export type ProductCardData = {
   squareVariationId: string;
@@ -27,21 +28,42 @@ export type ProductCardData = {
   priceCents: number;
   badge?: string;
   fulfillmentModes: FulfillmentMode[];
-  inventoryStatus: "in-stock" | "limited" | "special-order";
+  inventoryStatus: "in-stock" | "limited" | "special-order" | "out-of-stock";
+  priceAvailable?: boolean;
+  ageGroups?: ProductAgeGroup[];
+  previewOnly?: boolean;
 };
 
 export function ProductCard({ product, variant = "premium" }: { product: ProductCardData; variant?: ProductCardVariant }) {
   const productImage = product.imageUrl || "/images/product-fallback.svg";
-  const inventoryLabel = product.inventoryStatus === "limited" ? "Limited stock" : product.inventoryStatus === "special-order" ? "Special order" : "In stock";
+  const purchaseDisabled = product.inventoryStatus === "out-of-stock" || product.priceAvailable === false;
+  const disabledReason = product.priceAvailable === false ? "Price unavailable" : "Out of stock";
+  const inventoryLabel = product.previewOnly
+    ? "Check availability by location"
+    : product.inventoryStatus === "limited"
+      ? "Limited stock"
+      : product.inventoryStatus === "out-of-stock"
+        ? "Out of stock"
+      : product.inventoryStatus === "special-order"
+        ? "Special order"
+        : "In stock";
+  const productImageElement = (
+    <img
+      alt={product.name}
+      className={cn("h-full w-full object-contain", product.previewOnly ? undefined : "transition duration-300 group-hover:scale-[1.04]")}
+      src={productImage}
+    />
+  );
 
   return (
     <article className={cn("group relative flex min-h-[510px] flex-col overflow-hidden rounded-md bg-surface", cardPresets[variant])} data-cms-edit-field="linkedProduct" data-product-slug={product.slug} data-store-component="ProductCard" data-store-variant={variant}>
-      <button aria-label={`Save ${product.name}`} className="absolute right-4 top-4 z-10 rounded-full bg-white/95 p-2 text-primary shadow-sm transition hover:text-red" type="button">
-        <Heart aria-hidden="true" size={18} />
-      </button>
-      <a className="block aspect-square bg-white p-6" href={`/products/${product.slug}`}>
-        <img alt={product.name} className="h-full w-full object-contain transition duration-300 group-hover:scale-[1.04]" src={productImage} />
-      </a>
+      {product.previewOnly ? (
+        <div className="block aspect-square bg-white p-6">{productImageElement}</div>
+      ) : (
+        <a className="block aspect-square bg-white p-6" href={`/products/${product.slug}`}>
+          {productImageElement}
+        </a>
+      )}
       <div className="flex flex-1 flex-col gap-3 p-4">
         <div className="flex items-center justify-between gap-3">
           <p className="text-xs font-black uppercase tracking-[0.12em] text-blue" data-cms-edit-field="productDepartment">{product.department}</p>
@@ -49,11 +71,12 @@ export function ProductCard({ product, variant = "premium" }: { product: Product
         </div>
         <div className="flex-1">
           <h3 className="font-display text-base font-black leading-snug" data-cms-edit-field="productTitle">
-            <a className="hover:text-blue" href={`/products/${product.slug}`}>
-              {product.name}
-            </a>
+            {product.previewOnly ? product.name : (
+              <a className="hover:text-blue" href={`/products/${product.slug}`}>
+                {product.name}
+              </a>
+            )}
           </h3>
-          <p className="mt-2 line-clamp-2 min-h-10 text-sm text-secondary" data-cms-edit-field="productDescription">{product.shortDescription}</p>
         </div>
         <div className="flex flex-wrap gap-1">
           {product.fulfillmentModes.map((mode) => (
@@ -61,12 +84,35 @@ export function ProductCard({ product, variant = "premium" }: { product: Product
               {fulfillmentModeLabel(mode)}
             </span>
           ))}
+          {product.ageGroups?.length ? (
+            <span className="rounded-md border border-blue/20 bg-cyan px-2 py-1 text-[11px] font-bold text-primary">
+              Ages {product.ageGroups.join(", ")}
+            </span>
+          ) : null}
         </div>
         <div className="flex items-center justify-between gap-3">
           <p className="text-xs font-black text-green">{inventoryLabel}</p>
-          <p className="text-xl font-black text-primary">{formatMoney(product.priceCents)}</p>
+          <p className="text-xl font-black text-primary">{product.priceAvailable === false ? "Price unavailable" : formatMoney(product.priceCents)}</p>
         </div>
-        <AddToCartButton squareVariationId={product.squareVariationId} />
+        <div className="flex items-stretch gap-2">
+          <div className="min-w-0 flex-1">
+            {product.previewOnly ? (
+              <button
+                aria-disabled="true"
+                className="flex min-h-11 w-full cursor-not-allowed items-center justify-center gap-2 rounded-pill border border-blue/30 bg-cyan px-4 py-3 text-sm font-black text-primary opacity-75"
+                disabled
+                title="Checkout is disabled during the read-only Square preview"
+                type="button"
+              >
+                <ShoppingCart aria-hidden="true" size={16} />
+                Add to cart
+              </button>
+            ) : (
+              <AddToCartButton disabled={purchaseDisabled} disabledReason={disabledReason} squareVariationId={product.squareVariationId} />
+            )}
+          </div>
+          <WishlistButton productName={product.name} squareVariationId={product.squareVariationId} />
+        </div>
       </div>
     </article>
   );

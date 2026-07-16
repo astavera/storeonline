@@ -1,6 +1,7 @@
 "use client";
 
-import { Database, Eye, FileText, History, Image, LayoutDashboard, Palette, PanelRight, Search, Settings2, SlidersHorizontal, Sparkles } from "lucide-react";
+import { Database, Eye, History, Image, LayoutDashboard, Palette, PanelRight, Search, Settings2, SlidersHorizontal, Sparkles } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { AdvancedInspector } from "@/components/admin/inspector/AdvancedInspector";
 import { ContentInspector } from "@/components/admin/inspector/ContentInspector";
 import { DataSourceInspector } from "@/components/admin/inspector/DataSourceInspector";
@@ -36,6 +37,7 @@ export function BuilderInspector({
   history,
   onApplySectionPreset,
   onApplyThemePreset,
+  onDone,
   selectedSection,
   setActiveTab,
   updateSection,
@@ -47,6 +49,7 @@ export function BuilderInspector({
   history: BuilderDocumentHistoryEntry[];
   onApplySectionPreset: (preset: SectionPreset) => void;
   onApplyThemePreset: (preset: ThemePreset) => void;
+  onDone: () => void;
   selectedSection: CmsSection;
   setActiveTab: (tab: BuilderInspectorTab) => void;
   updateSection: (patch: Partial<CmsSection>) => void;
@@ -54,21 +57,20 @@ export function BuilderInspector({
   updateTheme: (theme: ThemeTokenOverrides) => void;
 }) {
   return (
-    <aside className="rounded-md border border-border bg-surface p-4">
-      <div className="mb-4">
-        <p className="text-xs font-semibold uppercase tracking-[0.14em] text-secondary">Inspector</p>
-        <h2 className="mt-1 font-display text-xl font-semibold">{activeTab === "seo" ? "Page SEO" : selectedSection.label}</h2>
-        <p className="mt-1 text-xs text-secondary">
-          {selectedSection.type} / {selectedSection.variant}
-        </p>
+    <aside>
+      <div className="sticky top-0 z-20 -mx-5 -mt-5 mb-4 flex items-center justify-between gap-3 border-b border-border bg-surface/95 px-5 py-4 backdrop-blur">
+        <h2 className="truncate font-display text-lg font-semibold">{activeTab === "seo" ? "Page SEO" : selectedSection.label}</h2>
+        <Button className="h-10 shrink-0 rounded-full px-4" onClick={onDone} variant="quiet">
+          Done
+        </Button>
       </div>
-      <div className="mb-4 flex flex-wrap gap-1">
+      <div className="mb-4 grid grid-cols-3 gap-1">
         {tabs.map((tab) => {
           const Icon = tab.icon;
 
           return (
             <button
-              className={cn("inline-flex h-8 items-center gap-1 rounded-md px-2 text-xs font-semibold text-secondary transition hover:bg-surface-muted hover:text-primary", activeTab === tab.id && "bg-primary text-white hover:bg-primary hover:text-white")}
+              className={cn("inline-flex h-9 min-w-0 items-center justify-center gap-1 rounded-full px-2 text-[11px] font-semibold text-secondary transition hover:bg-surface-muted hover:text-primary", activeTab === tab.id && "bg-primary text-white hover:bg-primary hover:text-white")}
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
               type="button"
@@ -90,12 +92,6 @@ export function BuilderInspector({
       {activeTab === "visibility" ? <VisibilityInspector section={selectedSection} updateSection={updateSection} /> : null}
       {activeTab === "advanced" ? <AdvancedInspector section={selectedSection} updateSection={updateSection} /> : null}
       {activeTab === "history" ? <BuilderHistoryPanel history={history} /> : null}
-      {activeTab === "history" ? null : (
-        <div className="mt-4 rounded-md border border-border bg-surface-muted p-3 text-xs text-secondary">
-          <FileText aria-hidden="true" className="mb-2" size={15} />
-          Changes update the draft document immediately. Use Draft or Publish to persist a version.
-        </div>
-      )}
     </aside>
   );
 }

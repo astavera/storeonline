@@ -5,11 +5,18 @@ Next.js ecommerce scaffold for Modern State, the evolution of State News on NYC'
 ## First milestone status
 
 - App Router, TypeScript, Tailwind, design tokens, route tree, admin shell, checkout shell, and tests are scaffolded.
-- Square is server-only by design. No production writes are implemented.
+- Square is server-only by design. Production catalog and inventory reads are
+  supported behind an explicit kill switch; no Production Square writes are enabled.
 - Website departments are independent from Square categories and `reporting_category`.
 - Candy & Snacks is preserved as legacy/search/SEO context, not a main department.
-- The Phase 1 Prisma baseline has been applied and smoke-tested on disposable PostgreSQL 17; no shared database was changed.
-- This is not yet a production-ready transactional store. Payments, durable orders, shared database provisioning, fulfillment, and admin authentication remain incomplete.
+- The six Phase 1 migrations are applied to the shared Supabase database and all
+  24 operational constraints are present, validated, and violation-free.
+- The two public stores are mapped to Square Production. Catalog and inventory
+  are synchronized into PostgreSQL, and checkout validates price and stock at
+  the selected store without creating an order or taking payment.
+- This is not yet a production-ready transactional store. Payments, Square order
+  creation, warehouse shipping, fulfillment business rules, worker scheduling,
+  and the production admin identity provider remain incomplete.
 
 ## Prerequisites
 
@@ -33,8 +40,8 @@ Open `http://localhost:3000`.
 
 ```bash
 npm run check
-DATABASE_URL=postgresql://local:local@127.0.0.1:5432/storeonline npm run prisma:validate
-DATABASE_URL=postgresql://local:local@127.0.0.1:5432/storeonline npm run prisma:generate
+DATABASE_URL=postgresql://local:local@127.0.0.1:5432/storeonline DIRECT_URL=postgresql://local:local@127.0.0.1:5432/storeonline npm run prisma:validate
+DATABASE_URL=postgresql://local:local@127.0.0.1:5432/storeonline DIRECT_URL=postgresql://local:local@127.0.0.1:5432/storeonline npm run prisma:generate
 npm run build
 ```
 
@@ -45,14 +52,34 @@ npx playwright install chromium
 npm run test:e2e
 ```
 
+For a bounded Square catalog smoke test, place the matching Sandbox or production access token in ignored `.env.local`, set `SQUARE_ENVIRONMENT`, and run:
+
+```bash
+npm run test:square:catalog
+```
+
+For the PostgreSQL-backed Production read-only workflow, also set
+`SQUARE_ALLOW_PRODUCTION_READONLY_SYNC=true` and use:
+
+```bash
+npm run sync:square:postgres:readonly -- --check
+npm run sync:square:postgres:readonly -- --status
+npm run sync:square:postgres:readonly -- --checkout-readiness
+```
+
+This command only lists locations and catalog items. It does not expose Square mutation methods. Never commit or paste an access token into terminal output, issues, or pull requests. See [the read-only audit](docs/square-readonly-audit.md) for the latest production findings.
+
 GitHub Actions repeats these checks on Node 24 and tests Playwright against the production server.
 
 ## Working agreements
 
+- [Current Phase 1 handoff](docs/phase-1-handoff.md)
 - [Engineering workflow](docs/engineering-workflow.md)
 - [Environments and configuration](docs/environments.md)
 - [Architecture](docs/architecture.md)
 - [Deployment](docs/deployment.md)
 - [Security](docs/security.md)
 
-Admin authentication is intentionally deferred to the later security phase. Until then, do not expose `/admin` or `/api/admin/*` to untrusted users.
+Admin routes have fail-closed containment, origin checks, RBAC, and shared rate
+limiting, but no production identity issuer has been selected. Do not expose
+`/admin` or `/api/admin/*` to untrusted users until that identity layer is configured.

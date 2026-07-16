@@ -3,8 +3,9 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
 }
 
 enum FulfillmentMode {
@@ -83,22 +84,62 @@ enum DescriptionStatus {
   OUTDATED_SQUARE_CHANGED
 }
 
+enum CheckoutAttemptStatus {
+  RECEIVED
+  VALIDATING
+  VALIDATED
+  REJECTED
+  EXPIRED
+}
+
+enum WebhookInboxStatus {
+  RECEIVED
+  PROCESSING
+  PROCESSED
+  FAILED
+  DEAD_LETTER
+}
+
+enum CapacityHoldStatus {
+  ACTIVE
+  CONFIRMED
+  RELEASED
+  EXPIRED
+}
+
+enum BalloonDraftStatus {
+  DRAFT
+  SUBMITTED
+  QUOTED
+  EXPIRED
+  CONVERTED
+  CANCELLED
+}
+
+enum BalloonQuoteStatus {
+  ACTIVE
+  ACCEPTED
+  EXPIRED
+  SUPERSEDED
+}
+
 model StoreLocation {
-  id                         String            @id @default(cuid())
-  squareLocationId           String?           @unique
-  slug                       String            @unique
+  id                         String              @id @default(cuid())
+  squareLocationId           String?             @unique
+  slug                       String              @unique
   name                       String
   address                    String
   phone                      String?
-  pickupEnabled              Boolean           @default(true)
-  localDeliveryEnabled       Boolean           @default(true)
-  shippingFulfillmentEnabled Boolean           @default(false)
-  createdAt                  DateTime          @default(now())
-  updatedAt                  DateTime          @updatedAt
+  pickupEnabled              Boolean             @default(true)
+  localDeliveryEnabled       Boolean             @default(true)
+  shippingFulfillmentEnabled Boolean             @default(false)
+  createdAt                  DateTime            @default(now())
+  updatedAt                  DateTime            @updatedAt
   deliveryZones              DeliveryZone[]
   slotTemplates              SlotTemplate[]
   fulfillmentTasks           FulfillmentTask[]
   adminUsers                 AdminUser[]
+  balloonOrderDrafts         BalloonOrderDraft[]
 }
 
 model SquareCatalogObject {
@@ -128,15 +169,19 @@ model SquareItemVariation {
   priceMoney            Json?
   raw                   Json
   syncedAt              DateTime                      @default(now())
+  deletedAt             DateTime?
   item                  SquareCatalogObject           @relation(fields: [itemId], references: [id], onDelete: Cascade)
   inventoryCounts       SquareInventoryCount[]
   departmentAssignments ProductDepartmentAssignment[]
   holidayAssignments    ProductHolidayAssignment[]
+  brandAssignments      ProductBrandAssignment[]
   productOverride       ProductOverride?
   cartItems             CartItem[]
   orderItems            OrderItemMirror[]
+  balloonDraftLines     BalloonDraftLine[]
 
   @@index([itemId])
+  @@index([deletedAt])
 }
 
 model SquareInventoryCount {
@@ -150,6 +195,18 @@ model SquareInventoryCount {
   variation        SquareItemVariation @relation(fields: [variationId], references: [id], onDelete: Cascade)
 
   @@unique([variationId, squareLocationId, state])
+  @@index([squareLocationId, state])
+}
+
+model SquareCatalogSyncState {
+  environment     String    @id
+  latestTime      String?
+  lastStartedAt   DateTime?
+  lastCompletedAt DateTime?
+  lastError       String?
+  lockedAt        DateTime?
+  lockToken       String?
+  updatedAt       DateTime  @updatedAt
 }
 
 model Department {
@@ -202,6 +259,40 @@ model Holiday {
   createdAt          DateTime                   @default(now())
   updatedAt          DateTime                   @updatedAt
   products           ProductHolidayAssignment[]
+
+  @@index([isActive, isVisible, startDate, endDate])
+}
+
+model WebsiteBrand {
+  id                 String                   @id @default(cuid())
+  slug               String                   @unique
+  name               String
+  description        String
+  logoUrl            String?
+  imageAlt           String?
+  squareVendorIds    String[]
+  visible            Boolean                  @default(false)
+  featuredOnHomepage Boolean                  @default(false)
+  sortOrder          Int                      @default(0)
+  createdAt          DateTime                 @default(now())
+  updatedAt          DateTime                 @updatedAt
+  products           ProductBrandAssignment[]
+
+  @@index([visible, sortOrder])
+}
+
+model ProductBrandAssignment {
+  id                String              @id @default(cuid())
+  brandId           String
+  squareVariationId String
+  sortOrder         Int                 @default(0)
+  createdAt         DateTime            @default(now())
+  brand             WebsiteBrand        @relation(fields: [brandId], references: [id], onDelete: Cascade)
+  variation         SquareItemVariation @relation(fields: [squareVariationId], references: [id], onDelete: Restrict)
+
+  @@unique([brandId, squareVariationId])
+  @@index([brandId, sortOrder])
+  @@index([squareVariationId])
 }
 
 model ProductDepartmentAssignment {
@@ -235,7 +326,7 @@ model ProductHolidayAssignment {
 model ProductOverride {
   id                            String                    @id @default(cuid())
   squareVariationId             String                    @unique
-  webVisible                    Boolean                   @default(true)
+  webVisible                    Boolean                   @default(false)
   webStatus                     ProductWebStatus          @default(NEEDS_PLACEMENT)
   seoTitleEn                    String?
   seoDescriptionEn              String?
@@ -246,6 +337,8 @@ model ProductOverride {
   badgeEn                       String?
   featured                      Boolean                   @default(false)
   productCardStyle              String?
+  ageGroups                     String[]                  @default([])
+  websiteSurfaces               String[]                  @default([])
   fulfillmentModes              FulfillmentMode[]
   pickupAllowed                 Boolean                   @default(false)
   localDeliveryAllowed          Boolean                   @default(false)
@@ -273,6 +366,8 @@ model ProductOverride {
   updatedAt                     DateTime                  @updatedAt
   variation                     SquareItemVariation       @relation(fields: [squareVariationId], references: [id], onDelete: Restrict)
   placements                    WebsiteProductPlacement[]
+
+  @@index([webStatus, webVisible])
 }
 
 model WebsiteProductPlacement {
@@ -293,6 +388,7 @@ model WebsiteProductPlacement {
   productOverride     ProductOverride      @relation(fields: [squareVariationId], references: [squareVariationId], onDelete: Cascade)
 
   @@index([placementType, placementTargetSlug])
+  @@index([placementType, placementTargetSlug, visible, sortOrder])
   @@index([squareVariationId])
 }
 
@@ -350,6 +446,8 @@ model MediaAsset {
   hiddenFromWebsite Boolean  @default(false)
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
+
+  @@index([source, sourceId])
 }
 
 model ProductImagePreference {
@@ -367,13 +465,15 @@ model ProductImagePreference {
 }
 
 model Cart {
-  id        String     @id @default(cuid())
-  sessionId String     @unique
-  currency  String     @default("USD")
-  createdAt DateTime   @default(now())
-  updatedAt DateTime   @updatedAt
-  items     CartItem[]
-  slotHolds SlotHold[]
+  id               String            @id @default(cuid())
+  sessionId        String            @unique
+  currency         String            @default("USD")
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+  items            CartItem[]
+  slotHolds        SlotHold[]
+  checkoutAttempts CheckoutAttempt[]
+  capacityHolds    CapacityHold[]
 }
 
 model CartItem {
@@ -406,6 +506,9 @@ model OrderMirror {
   items            OrderItemMirror[]
   fulfillmentTasks FulfillmentTask[]
   slotHolds        SlotHold[]
+  capacityHolds    CapacityHold[]
+
+  @@index([status, createdAt])
 }
 
 model OrderItemMirror {
@@ -415,7 +518,7 @@ model OrderItemMirror {
   name              String
   quantity          Int
   priceMoney        Json
-  order             OrderMirror         @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  order             OrderMirror         @relation(fields: [orderId], references: [id], onDelete: Restrict)
   variation         SquareItemVariation @relation(fields: [squareVariationId], references: [id])
 
   @@index([orderId])
@@ -438,51 +541,56 @@ model FulfillmentTask {
   dueAt           DateTime?
   createdAt       DateTime          @default(now())
   updatedAt       DateTime          @updatedAt
-  order           OrderMirror       @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  order           OrderMirror       @relation(fields: [orderId], references: [id], onDelete: Restrict)
   location        StoreLocation?    @relation(fields: [locationId], references: [id])
 
   @@index([orderId])
   @@index([locationId])
+  @@index([status, dueAt])
 }
 
 model DeliveryZone {
-  id                String        @id @default(cuid())
+  id                String                @id @default(cuid())
   locationId        String
   name              String
   polygonGeojson    Json
-  version           Int           @default(1)
-  active            Boolean       @default(true)
+  version           Int                   @default(1)
+  active            Boolean               @default(true)
   serviceMode       String
   baseFeeCents      Int
   minimumOrderCents Int
   maxDistanceMiles  Decimal?
   maxRouteMinutes   Int?
-  priority          Int           @default(0)
+  priority          Int                   @default(0)
   activeDays        String[]
   cutoffMinutes     Int
   leadTimeMinutes   Int
-  createdAt         DateTime      @default(now())
-  updatedAt         DateTime      @updatedAt
-  location          StoreLocation @relation(fields: [locationId], references: [id], onDelete: Cascade)
+  createdAt         DateTime              @default(now())
+  updatedAt         DateTime              @updatedAt
+  location          StoreLocation         @relation(fields: [locationId], references: [id], onDelete: Restrict)
+  versions          DeliveryZoneVersion[]
 
   @@index([locationId])
+  @@index([locationId, active, priority])
 }
 
 model SlotTemplate {
-  id              String          @id @default(cuid())
+  id              String           @id @default(cuid())
   locationId      String
   fulfillmentMode FulfillmentMode
   dayOfWeek       Int
   startTime       String
   endTime         String
   capacityPoints  Int
-  active          Boolean         @default(true)
+  active          Boolean          @default(true)
   cutoffMinutes   Int
   leadTimeMinutes Int
-  location        StoreLocation   @relation(fields: [locationId], references: [id], onDelete: Cascade)
+  location        StoreLocation    @relation(fields: [locationId], references: [id], onDelete: Restrict)
   holds           SlotHold[]
+  occurrences     SlotOccurrence[]
 
   @@index([locationId])
+  @@index([locationId, fulfillmentMode, active, dayOfWeek])
 }
 
 model SlotHold {
@@ -495,11 +603,12 @@ model SlotHold {
   confirmedAt    DateTime?
   releasedAt     DateTime?
   createdAt      DateTime     @default(now())
-  slotTemplate   SlotTemplate @relation(fields: [slotTemplateId], references: [id], onDelete: Cascade)
-  cart           Cart?        @relation(fields: [cartId], references: [id], onDelete: Cascade)
-  order          OrderMirror? @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  slotTemplate   SlotTemplate @relation(fields: [slotTemplateId], references: [id], onDelete: Restrict)
+  cart           Cart?        @relation(fields: [cartId], references: [id], onDelete: Restrict)
+  order          OrderMirror? @relation(fields: [orderId], references: [id], onDelete: Restrict)
 
   @@index([slotTemplateId])
+  @@index([slotTemplateId, expiresAt])
   @@index([cartId])
   @@index([orderId])
 }
@@ -515,6 +624,8 @@ model ShippingRateQuote {
   expiresAt    DateTime
   raw          Json
   createdAt    DateTime @default(now())
+
+  @@index([addressHash, expiresAt])
 }
 
 model WebhookEvent {
@@ -524,6 +635,221 @@ model WebhookEvent {
   processedAt DateTime?
   receivedAt  DateTime  @default(now())
   raw         Json
+
+  @@index([provider, receivedAt])
+  @@index([processedAt])
+}
+
+model CheckoutAttempt {
+  id               String                @id @default(cuid())
+  idempotencyKey   String                @unique
+  cartId           String?
+  requestHash      String
+  status           CheckoutAttemptStatus @default(RECEIVED)
+  quote            Json?
+  validationErrors Json?
+  expiresAt        DateTime
+  createdAt        DateTime              @default(now())
+  updatedAt        DateTime              @updatedAt
+  cart             Cart?                 @relation(fields: [cartId], references: [id], onDelete: Restrict)
+  capacityHolds    CapacityHold[]
+
+  @@index([cartId])
+  @@index([status, expiresAt])
+}
+
+model WebhookInboxEvent {
+  id            String             @id @default(cuid())
+  provider      String
+  eventId       String
+  eventType     String
+  payload       Json
+  status        WebhookInboxStatus @default(RECEIVED)
+  attempts      Int                @default(0)
+  receivedAt    DateTime           @default(now())
+  lastAttemptAt DateTime?
+  nextAttemptAt DateTime?
+  lockedAt      DateTime?
+  lockToken     String?
+  processedAt   DateTime?
+  error         String?
+  updatedAt     DateTime           @updatedAt
+
+  @@unique([provider, eventId])
+  @@index([status, receivedAt])
+  @@index([provider, status, nextAttemptAt])
+  @@index([status, lockedAt])
+}
+
+model AdminRateLimitBucket {
+  id              String   @id @default(cuid())
+  scope           String
+  keyHash         String
+  windowStartedAt DateTime
+  windowMs        Int
+  count           Int      @default(1)
+  expiresAt       DateTime
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@unique([scope, keyHash, windowStartedAt])
+  @@index([expiresAt])
+}
+
+model SlotOccurrence {
+  id             String         @id @default(cuid())
+  slotTemplateId String
+  startsAt       DateTime
+  endsAt         DateTime
+  capacityPoints Int
+  active         Boolean        @default(true)
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+  slotTemplate   SlotTemplate   @relation(fields: [slotTemplateId], references: [id], onDelete: Restrict)
+  capacityHolds  CapacityHold[]
+
+  @@unique([slotTemplateId, startsAt])
+  @@index([startsAt, active])
+}
+
+model CapacityHold {
+  id                String             @id @default(cuid())
+  slotOccurrenceId  String
+  cartId            String?
+  checkoutAttemptId String?
+  orderId           String?
+  status            CapacityHoldStatus @default(ACTIVE)
+  capacityPoints    Int
+  expiresAt         DateTime
+  confirmedAt       DateTime?
+  releasedAt        DateTime?
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+  slotOccurrence    SlotOccurrence     @relation(fields: [slotOccurrenceId], references: [id], onDelete: Restrict)
+  cart              Cart?              @relation(fields: [cartId], references: [id], onDelete: Restrict)
+  checkoutAttempt   CheckoutAttempt?   @relation(fields: [checkoutAttemptId], references: [id], onDelete: Restrict)
+  order             OrderMirror?       @relation(fields: [orderId], references: [id], onDelete: Restrict)
+
+  @@index([slotOccurrenceId, status, expiresAt])
+  @@index([cartId])
+  @@index([checkoutAttemptId])
+  @@index([orderId])
+}
+
+model DeliveryZoneVersion {
+  id                 String              @id @default(cuid())
+  deliveryZoneId     String
+  versionNumber      Int
+  polygonGeojson     Json
+  serviceMode        String
+  baseFeeCents       Int
+  minimumOrderCents  Int
+  activeDays         String[]
+  cutoffMinutes      Int
+  leadTimeMinutes    Int
+  effectiveFrom      DateTime
+  effectiveTo        DateTime?
+  createdAt          DateTime            @default(now())
+  deliveryZone       DeliveryZone        @relation(fields: [deliveryZoneId], references: [id], onDelete: Restrict)
+  rateRules          DeliveryRateRule[]
+  addressEvaluations AddressEvaluation[]
+
+  @@unique([deliveryZoneId, versionNumber])
+  @@index([effectiveFrom, effectiveTo])
+}
+
+model DeliveryRateRule {
+  id                   String              @id @default(cuid())
+  zoneVersionId        String
+  name                 String
+  minimumSubtotalCents Int?
+  maximumSubtotalCents Int?
+  feeCents             Int
+  priority             Int                 @default(0)
+  active               Boolean             @default(true)
+  createdAt            DateTime            @default(now())
+  zoneVersion          DeliveryZoneVersion @relation(fields: [zoneVersionId], references: [id], onDelete: Restrict)
+
+  @@index([zoneVersionId, active, priority])
+}
+
+model AddressEvaluation {
+  id            String               @id @default(cuid())
+  zoneVersionId String?
+  addressHash   String
+  input         Json
+  eligible      Boolean
+  reasonCode    String
+  feeCents      Int?
+  distanceMiles Decimal?
+  routeMinutes  Int?
+  evaluatedAt   DateTime             @default(now())
+  expiresAt     DateTime
+  zoneVersion   DeliveryZoneVersion? @relation(fields: [zoneVersionId], references: [id], onDelete: SetNull)
+
+  @@index([addressHash, evaluatedAt])
+  @@index([zoneVersionId])
+}
+
+model BalloonOrderDraft {
+  id              String             @id @default(cuid())
+  publicTokenHash String             @unique
+  status          BalloonDraftStatus @default(DRAFT)
+  currency        String             @default("USD")
+  locationId      String?
+  fulfillmentMode FulfillmentMode?
+  requestDetails  Json?
+  customerContact Json?
+  deliveryAddress Json?
+  requestedFor    DateTime?
+  submittedAt     DateTime?
+  expiresAt       DateTime
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
+  location        StoreLocation?     @relation(fields: [locationId], references: [id], onDelete: Restrict)
+  lines           BalloonDraftLine[]
+  quotes          BalloonQuote[]
+
+  @@index([status, expiresAt])
+  @@index([locationId])
+}
+
+model BalloonDraftLine {
+  id                String               @id @default(cuid())
+  draftId           String
+  squareVariationId String?
+  componentKey      String
+  quantity          Int
+  configuration     Json
+  capacityPoints    Int                  @default(0)
+  sortOrder         Int                  @default(0)
+  createdAt         DateTime             @default(now())
+  updatedAt         DateTime             @updatedAt
+  draft             BalloonOrderDraft    @relation(fields: [draftId], references: [id], onDelete: Restrict)
+  variation         SquareItemVariation? @relation(fields: [squareVariationId], references: [id], onDelete: Restrict)
+
+  @@index([draftId, sortOrder])
+  @@index([squareVariationId])
+}
+
+model BalloonQuote {
+  id              String             @id @default(cuid())
+  draftId         String
+  versionNumber   Int
+  status          BalloonQuoteStatus @default(ACTIVE)
+  subtotalCents   Int
+  feeCents        Int                @default(0)
+  taxCents        Int                @default(0)
+  totalCents      Int
+  currency        String             @default("USD")
+  pricingSnapshot Json
+  expiresAt       DateTime
+  acceptedAt      DateTime?
+  createdAt       DateTime           @default(now())
+  draft           BalloonOrderDraft  @relation(fields: [draftId], references: [id], onDelete: Restrict)
+
+  @@unique([draftId, versionNumber])
+  @@index([status, expiresAt])
 }
 
 model AdminUser {

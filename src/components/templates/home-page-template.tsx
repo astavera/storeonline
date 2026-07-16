@@ -18,10 +18,11 @@ import { PageRenderer } from "@/components/cms";
 import { ButtonLink } from "@/components/ui/button";
 import { defaultHomepageImage, type HomepageSectionConfig, type HomepageSectionElement, type HomepageSectionItem } from "@/config/homepage.config";
 import { storeLocations } from "@/config/locations.config";
-import { getProductBySlug } from "@/features/catalog/product-catalog";
+import type { StorefrontProduct } from "@/features/catalog/product-catalog";
 import { homepageSectionsToCmsPageDocument, type CmsSection } from "@/lib/cms";
 import { cn } from "@/lib/utils";
 import { ChevronLeft, ChevronRight } from "lucide-react";
+import Image from "next/image";
 import Link from "next/link";
 import { SectionFrame } from "../sections/section-frame";
 
@@ -37,9 +38,11 @@ const defaultHomepageTemplateSeo: Parameters<typeof homepageSectionsToCmsPageDoc
 
 export function HomePageTemplate({
   locations = storeLocations.filter((location) => location.slug !== "warehouse"),
+  products = [],
   sections
 }: {
   locations?: typeof storeLocations;
+  products?: StorefrontProduct[];
   sections: HomepageSectionConfig[];
 }) {
   const homepageSectionsById = new Map(sections.map((section) => [section.sectionId, section]));
@@ -49,10 +52,10 @@ export function HomePageTemplate({
     status: "PUBLISHED"
   });
 
-  return <PageRenderer document={cmsDocument} renderSection={(section) => renderHomepageSection(section, homepageSectionsById, locations)} />;
+  return <PageRenderer document={cmsDocument} renderSection={(section) => renderHomepageSection(section, homepageSectionsById, locations, products)} />;
 }
 
-function renderHomepageSection(section: CmsSection, sectionsById: Map<string, HomepageSectionConfig>, locations: typeof storeLocations) {
+function renderHomepageSection(section: CmsSection, sectionsById: Map<string, HomepageSectionConfig>, locations: typeof storeLocations, products: StorefrontProduct[]) {
   const homepageSection = sectionsById.get(section.id);
 
   if (!homepageSection) {
@@ -79,7 +82,7 @@ function renderHomepageSection(section: CmsSection, sectionsById: Map<string, Ho
   }
 
   if (sectionType === "product-grid") {
-    return <FeaturedProductsSection section={homepageSection} />;
+    return products.length > 0 ? <FeaturedProductsSection products={products} section={homepageSection} /> : <></>;
   }
 
   if (sectionType === "promo") {
@@ -90,7 +93,7 @@ function renderHomepageSection(section: CmsSection, sectionsById: Map<string, Ho
     return <LocalStorefrontSection locations={locations} section={homepageSection} />;
   }
 
-  return <FlexibleSection section={homepageSection} />;
+  return <FlexibleSection products={products} section={homepageSection} />;
 }
 
 function HeroSection({ section }: { section: HomepageSectionConfig }) {
@@ -171,8 +174,8 @@ function HeroCategoryTiles({ campaign = false, items }: { campaign?: boolean; it
   return (
     <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
       {tiles.map((tile, index) => (
-        <Link className={cn("group rounded-md p-4 transition hover:-translate-y-1 hover:shadow-card", campaign ? "min-h-[142px] text-left" : "text-center", tones[index % tones.length])} href={tile.href || "/shop"} key={tile.id}>
-          {tile.image ? <img alt="" className="mx-auto aspect-square h-20 w-20 object-contain transition group-hover:scale-[1.04]" src={tile.image} /> : null}
+        <Link className={cn("group rounded-md p-4 transition hover:-translate-y-1 hover:shadow-card", campaign ? "min-h-[142px] text-left" : "text-center", tile.label === "Brand" && tile.image ? "bg-white text-primary" : tones[index % tones.length])} href={tile.href || "/shop"} key={tile.id}>
+          {tile.image ? <Image alt={tile.imageAlt || `${tile.title} logo`} className="mx-auto aspect-[4/3] h-20 w-full rounded bg-white object-contain p-2 transition group-hover:scale-[1.04]" height={80} src={tile.image} unoptimized width={240} /> : null}
           {tile.label ? <span className="block text-[11px] font-black uppercase tracking-[0.14em]">{tile.label}</span> : null}
           <span className={cn("block font-black", campaign ? "mt-3 text-xl leading-none" : "mt-3 text-sm")}>{tile.title}</span>
           {tile.body ? <span className="mt-3 block text-xs font-extrabold leading-snug">{tile.body}</span> : null}
@@ -221,7 +224,7 @@ function RetailPromoTiles() {
   );
 }
 
-function DepartmentsSection({ section }: { section: HomepageSectionConfig }) {
+function DepartmentsSection({ products, section }: { products: StorefrontProduct[]; section: HomepageSectionConfig }) {
   return (
     <SectionFrame area="Homepage" className={cn(publicToneClass(section), publicPaddingClass(section))} component="DepartmentCardGrid" sectionId={section.sectionId} variant={section.variant}>
       <div className="container-shell">
@@ -239,17 +242,17 @@ function DepartmentsSection({ section }: { section: HomepageSectionConfig }) {
             </span>
           </div>
         </div>
-        {section.items?.length ? <RetailCategoryRail items={section.items} /> : <DepartmentCardGrid />}
+        {section.items?.length ? <RetailCategoryRail items={section.items} products={products} /> : <DepartmentCardGrid />}
       </div>
     </SectionFrame>
   );
 }
 
-function RetailCategoryRail({ items }: { items: HomepageSectionItem[] }) {
+function RetailCategoryRail({ items, products }: { items: HomepageSectionItem[]; products: StorefrontProduct[] }) {
   return (
     <div className="grid grid-cols-2 gap-5 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6">
       {items.map((item) => {
-        const linkedProduct = item.productSlug ? getProductBySlug(item.productSlug) : null;
+        const linkedProduct = item.productSlug ? products.find((product) => product.slug === item.productSlug) : null;
         const href = item.href || (linkedProduct ? `/products/${linkedProduct.slug}` : "/shop");
         const image = item.image || linkedProduct?.imageUrl || "/images/product-fallback.svg";
 
@@ -267,7 +270,7 @@ function RetailCategoryRail({ items }: { items: HomepageSectionItem[] }) {
   );
 }
 
-function FeaturedProductsSection({ section }: { section: HomepageSectionConfig }) {
+function FeaturedProductsSection({ products, section }: { products: StorefrontProduct[]; section: HomepageSectionConfig }) {
   return (
     <SectionFrame area="Homepage" className={cn(publicToneClass(section), publicPaddingClass(section))} component="FeaturedProductsSection" sectionId={section.sectionId} variant={section.variant}>
       <div className="container-shell">
@@ -285,7 +288,7 @@ function FeaturedProductsSection({ section }: { section: HomepageSectionConfig }
             </span>
           </div>
         </div>
-        <ProductGrid cardVariant="premium" limit={4} preset="balloons" />
+        <ProductGrid cardVariant="premium" limit={4} preset="balloons" products={products.slice(0, 4)} />
         {isSectionElementVisible(section, "primaryCta") && section.ctaHref ? (
           <div className="mt-10 flex justify-center">
             <ButtonLink className="rounded-pill px-8 py-3 font-black" href={section.ctaHref}>
@@ -365,7 +368,7 @@ function LocalStorefrontSection({
   );
 }
 
-function FlexibleSection({ section }: { section: HomepageSectionConfig }) {
+function FlexibleSection({ products, section }: { products: StorefrontProduct[]; section: HomepageSectionConfig }) {
   const sectionType = sectionTypeFromSection(section);
   const hasImage = Boolean(section.backgroundImage) && section.mediaPlacement !== "none";
   const image = hasImage ? (
@@ -413,7 +416,7 @@ function FlexibleSection({ section }: { section: HomepageSectionConfig }) {
           {section.mediaPlacement === "left" ? image : null}
           <div>
             <SectionIntro section={section} />
-            {section.items?.length ? <SectionItemCards className="mt-7" items={section.items} section={section} /> : null}
+            {section.items?.length ? <SectionItemCards className="mt-7" items={section.items} products={products} section={section} /> : null}
           </div>
           {section.mediaPlacement !== "left" ? image : null}
         </div>
@@ -437,7 +440,7 @@ function FlexibleSection({ section }: { section: HomepageSectionConfig }) {
             {section.ctaLabel || "Learn more"}
           </ButtonLink>
         ) : null}
-        {isSectionElementVisible(section, "items") && section.items?.length ? <SectionItemCards className="mt-8" items={section.items} section={section} /> : null}
+        {isSectionElementVisible(section, "items") && section.items?.length ? <SectionItemCards className="mt-8" items={section.items} products={products} section={section} /> : null}
       </div>
     </SectionFrame>
   );
@@ -455,18 +458,18 @@ function SectionIntro({ section }: { section: HomepageSectionConfig }) {
   );
 }
 
-function SectionItemCards({ className, items, section }: { className?: string; items: HomepageSectionItem[]; section: HomepageSectionConfig }) {
+function SectionItemCards({ className, items, products, section }: { className?: string; items: HomepageSectionItem[]; products: StorefrontProduct[]; section: HomepageSectionConfig }) {
   return (
     <div className={cn("grid gap-4", publicColumnsClass(section), className)}>
       {items.map((item) => (
-        <HomepageItemCard item={item} key={item.id} />
+        <HomepageItemCard item={item} key={item.id} products={products} />
       ))}
     </div>
   );
 }
 
-function HomepageItemCard({ item }: { item: HomepageSectionItem }) {
-  const linkedProduct = item.productSlug ? getProductBySlug(item.productSlug) : null;
+function HomepageItemCard({ item, products }: { item: HomepageSectionItem; products: StorefrontProduct[] }) {
+  const linkedProduct = item.productSlug ? products.find((product) => product.slug === item.productSlug) : null;
 
   if (linkedProduct) {
     return <ProductCard product={linkedProduct} variant="premium" />;

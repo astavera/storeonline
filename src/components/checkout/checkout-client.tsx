@@ -1,7 +1,7 @@
 "use client";
 
 import { CreditCard, MapPin, PackageCheck, ShieldCheck } from "lucide-react";
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import { readCartItems, type StoredCartItem } from "@/components/commerce/add-to-cart-button";
 import { Button } from "@/components/ui/button";
 import { formatMoney } from "@/lib/utils";
@@ -14,6 +14,18 @@ type CartQuote = {
   compatibleFulfillmentModes: Array<"pickup" | "local-delivery" | "shipping">;
   fulfillmentLabel: string;
   errors: string[];
+  warnings: string[];
+  locationId: string | null;
+  locationName: string | null;
+};
+
+export type CheckoutLocation = {
+  id: string;
+  name: string;
+  address: string;
+  pickupEnabled: boolean;
+  localDeliveryEnabled: boolean;
+  shippingFulfillmentEnabled: boolean;
 };
 
 const fulfillmentLabels = {
@@ -22,12 +34,14 @@ const fulfillmentLabels = {
   shipping: "Shipping"
 };
 
-export function CheckoutClient() {
+export function CheckoutClient({ locations }: { locations: CheckoutLocation[] }) {
   const [items, setItems] = useState<StoredCartItem[]>([]);
   const [quote, setQuote] = useState<CartQuote | null>(null);
+  const [locationId, setLocationId] = useState(locations[0]?.id ?? "");
   const [fulfillmentMode, setFulfillmentMode] = useState<"pickup" | "local-delivery" | "shipping">("pickup");
   const [message, setMessage] = useState<{ tone: "idle" | "success" | "error"; text: string }>({ tone: "idle", text: "" });
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const idempotency = useRef<{ payload: string; key: string } | null>(null);
 
   useEffect(() => {
     setItems(readCartItems());
@@ -41,7 +55,7 @@ export function CheckoutClient() {
       headers: {
         "content-type": "application/json"
       },
-      body: JSON.stringify({ items })
+      body: JSON.stringify({ items, ...(locationId ? { locationId } : {}) })
     })
       .then((response) => response.json())
       .then((result) => {
@@ -53,7 +67,7 @@ export function CheckoutClient() {
         setQuote(nextQuote);
 
         if (nextQuote?.compatibleFulfillmentModes?.length) {
-          setFulfillmentMode(nextQuote.compatibleFulfillmentModes[0]);
+          setFulfillmentMode((current) => nextQuote.compatibleFulfillmentModes.includes(current) ? current : nextQuote.compatibleFulfillmentModes[0]);
         }
       })
       .catch(() => {
@@ -65,7 +79,7 @@ export function CheckoutClient() {
     return () => {
       ignore = true;
     };
-  }, [items]);
+  }, [items, locationId]);
 
   async function submitCheckout(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -74,20 +88,27 @@ export function CheckoutClient() {
     setMessage({ tone: "idle", text: "Checking your order details..." });
 
     try {
+      const payload = {
+        items,
+        fulfillmentMode,
+        locationId,
+        customer: {
+          name: String(formData.get("name") ?? ""),
+          email: String(formData.get("email") ?? ""),
+          phone: String(formData.get("phone") ?? "")
+        }
+      };
+      const serializedPayload = JSON.stringify(payload);
+      if (!idempotency.current || idempotency.current.payload !== serializedPayload) {
+        idempotency.current = { payload: serializedPayload, key: crypto.randomUUID() };
+      }
       const response = await fetch("/api/checkout", {
         method: "POST",
         headers: {
-          "content-type": "application/json"
+          "content-type": "application/json",
+          "idempotency-key": idempotency.current.key
         },
-        body: JSON.stringify({
-          items,
-          fulfillmentMode,
-          customer: {
-            name: String(formData.get("name") ?? ""),
-            email: String(formData.get("email") ?? ""),
-            phone: String(formData.get("phone") ?? "")
-          }
-        })
+        body: serializedPayload
       });
       const result = await response.json();
 
@@ -113,7 +134,8 @@ export function CheckoutClient() {
     );
   }
 
-  const canSubmit = quote.errors.length === 0 && quote.compatibleFulfillmentModes.length > 0;
+  const selectedLocation = locations.find((location) => location.id === locationId);
+  const canSubmit = Boolean(selectedLocation) && quote.errors.length === 0 && quote.compatibleFulfillmentModes.length > 0;
 
   return (
     <form className="grid gap-6 lg:grid-cols-[1fr_380px]" onSubmit={submitCheckout}>
@@ -132,6 +154,14 @@ export function CheckoutClient() {
             <MapPin aria-hidden="true" size={18} />
             <h2 className="font-display text-2xl font-semibold">Fulfillment preference</h2>
           </div>
+          {locations.length > 0 ? (
+            <label className="mt-5 block text-sm font-semibold">
+              Store fulfilling this order
+              <select className="mt-2 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm font-normal outline-none focus:border-primary" onChange={(event) => setLocationId(event.target.value)} value={locationId}>
+                {locations.map((location) => <option key={location.id} value={location.id}>{location.name} — {location.address}</option>)}
+              </select>
+            </label>
+          ) : <p className="mt-4 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-900">No Square-mapped fulfillment location is currently available.</p>}
           <div className="mt-5 grid gap-3 sm:grid-cols-3">
             {quote.compatibleFulfillmentModes.map((mode) => (
               <label className={`rounded-md border p-3 text-sm font-semibold ${fulfillmentMode === mode ? "border-primary bg-surface-muted text-primary" : "border-border text-secondary"}`} key={mode}>
@@ -141,6 +171,7 @@ export function CheckoutClient() {
             ))}
           </div>
           {quote.errors.length > 0 ? <p className="mt-4 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-900">{quote.errors.join(" ")}</p> : null}
+          {quote.warnings?.length > 0 ? <p className="mt-4 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">{quote.warnings.join(" ")}</p> : null}
         </section>
 
         <section className="surface-card p-6" data-store-area="Checkout" data-store-component="CheckoutPaymentSection" data-store-section="checkout.payment" data-store-variant="square-web-payments">
@@ -159,6 +190,7 @@ export function CheckoutClient() {
         </div>
         <div className="mt-5 grid gap-3 text-sm">
           <SummaryRow label="Items" value={String(quote.itemCount)} />
+          <SummaryRow label="Store" value={selectedLocation?.name ?? "Unavailable"} />
           <SummaryRow label="Subtotal" value={formatMoney(quote.subtotalCents)} />
           <SummaryRow label="Estimated tax" value={formatMoney(quote.estimatedTaxCents)} />
           <SummaryRow label="Fulfillment" value={fulfillmentLabels[fulfillmentMode]} />

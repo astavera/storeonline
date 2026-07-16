@@ -1,15 +1,46 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { NextRequest, NextResponse } from "next/server";
-import { buildAdminMediaUploadMetadata } from "@/server/admin/admin-media-service";
+import { adminMediaUploadMaxBytes, buildAdminMediaUploadMetadata, validateAdminImageContent } from "@/server/admin/admin-media-service";
+import { getAdminRateLimiter } from "@/server/admin/admin-rate-limit";
+import { adminAuthorizationResponse, adminCapabilities, authorizeAdminRequest } from "@/server/admin/admin-security";
+import { PersistenceUnavailableError } from "@/server/db/persistence-policy";
 
 export const runtime = "nodejs";
 
 export async function POST(request: NextRequest) {
+  const authorization = await authorizeAdminRequest(request, adminCapabilities.mediaWrite);
+  if (!authorization.ok) return adminAuthorizationResponse(authorization);
+
+  const contentLength = Number(request.headers.get("content-length") ?? 0);
+  if (Number.isFinite(contentLength) && contentLength > adminMediaUploadMaxBytes + 128 * 1024) {
+    return NextResponse.json({ ok: false, errors: ["Upload must be 5 MB or smaller."] }, { status: 413 });
+  }
+
+  let rateLimit;
+  try {
+    rateLimit = await getAdminRateLimiter().consume({
+      key: authorization.session.subject,
+      scope: "admin-media-upload",
+      limit: 10,
+      windowMs: 60_000
+    });
+  } catch (error) {
+    if (error instanceof PersistenceUnavailableError) {
+      return NextResponse.json({ ok: false, errors: [error.message] }, { status: 503 });
+    }
+    throw error;
+  }
+  if (!rateLimit.allowed) {
+    return NextResponse.json(
+      { ok: false, errors: ["Too many upload attempts. Try again later."] },
+      { status: 429, headers: { "Retry-After": String(rateLimit.retryAfterSeconds) } }
+    );
+  }
+
   try {
     const formData = await request.formData();
     const file = formData.get("file");
-    const context = String(formData.get("context") ?? "admin");
 
     if (!isUploadFile(file)) {
       return NextResponse.json(
@@ -22,7 +53,6 @@ export async function POST(request: NextRequest) {
     }
 
     const metadata = buildAdminMediaUploadMetadata({
-      context,
       name: file.name,
       size: file.size,
       type: file.type
@@ -32,12 +62,20 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(metadata, { status: 400 });
     }
 
-    const uploadDir = path.join(process.cwd(), "public", "uploads", "admin");
-    const uploadPath = path.join(uploadDir, metadata.asset.fileName);
     const bytes = Buffer.from(await file.arrayBuffer());
+    const contentErrors = validateAdminImageContent(bytes, file.type);
+    if (contentErrors.length > 0) {
+      return NextResponse.json({ ok: false, errors: contentErrors }, { status: 400 });
+    }
+
+    const uploadDir = path.resolve(process.cwd(), "public", "uploads", "admin");
+    const uploadPath = path.resolve(uploadDir, metadata.asset.fileName);
+    if (path.dirname(uploadPath) !== uploadDir) {
+      return NextResponse.json({ ok: false, errors: ["Unsafe upload path rejected."] }, { status: 400 });
+    }
 
     await mkdir(uploadDir, { recursive: true });
-    await writeFile(uploadPath, bytes);
+    await writeFile(uploadPath, bytes, { flag: "wx" });
 
     return NextResponse.json({
       ok: true,

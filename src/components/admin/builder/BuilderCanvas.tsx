@@ -61,39 +61,36 @@ export function BuilderCanvas({
   }
 
   return (
-    <section className="min-w-0 rounded-md border border-border bg-surface-muted p-3">
-      <div className="mb-3">
-        <p className="text-xs font-semibold uppercase tracking-[0.14em] text-secondary">Canvas</p>
-        <h2 className="font-display text-lg font-semibold">Click a storefront section to edit it</h2>
-        {publicPreviewRoute ? <p className="mt-1 text-xs font-semibold text-secondary">Editing draft for {publicPreviewRoute}. Publish to update the live page.</p> : null}
-      </div>
-      <BuilderPreviewFrame device={device}>
-        {publicPreviewRoute ? (
-          <div aria-label="Storefront header preview" data-builder-preview-chrome="header" onClick={navigateFromPreviewChrome}>
-            <SiteHeader />
-          </div>
-        ) : null}
-        {publicPreviewRoute && shouldShowPreviewBreadcrumb(document, publicPreviewRoute) ? (
-          <div className="bg-surface pt-8" data-builder-preview-chrome="breadcrumb" onClick={navigateFromPreviewChrome}>
-            <div className="container-shell">
-              <StorefrontBreadcrumb currentLabel={breadcrumbLabelForDocument(document)} />
+    <section className="min-w-0 bg-[#efefef] p-3 lg:min-h-0 lg:overflow-auto lg:p-4">
+      <div className="min-h-full rounded-[24px] border border-border bg-surface p-3 shadow-soft">
+        <BuilderPreviewFrame device={device}>
+          {publicPreviewRoute ? (
+            <div aria-label="Storefront header preview" data-builder-preview-chrome="header" onClick={navigateFromPreviewChrome}>
+              <SiteHeader />
             </div>
-          </div>
-        ) : null}
-        <PageRenderer
-          document={document}
-          previewMode
-          renderSection={(section, context) => {
-            const visualSection = renderStorefrontCmsSection(section, context, { includeGlobalFrame: true });
+          ) : null}
+          {publicPreviewRoute && shouldShowPreviewBreadcrumb(document, publicPreviewRoute) ? (
+            <div className="bg-surface pt-8" data-builder-preview-chrome="breadcrumb" onClick={navigateFromPreviewChrome}>
+              <div className="container-shell">
+                <StorefrontBreadcrumb currentLabel={breadcrumbLabelForDocument(document)} />
+              </div>
+            </div>
+          ) : null}
+          <PageRenderer
+            document={document}
+            previewMode
+            renderSection={(section, context) => {
+              const visualSection = renderStorefrontCmsSection(section, context, { includeGlobalFrame: true });
 
-            return (
-              <BuilderCanvasSection isSelected={selectedSectionId === section.id} onEdit={onEdit} onSelect={onSelect} section={section}>
-                {visualSection ?? <BuilderFallbackSection section={section} />}
-              </BuilderCanvasSection>
-            );
-          }}
-        />
-      </BuilderPreviewFrame>
+              return (
+                <BuilderCanvasSection isSelected={selectedSectionId === section.id} onEdit={onEdit} onSelect={onSelect} section={section}>
+                  {visualSection ?? <BuilderFallbackSection section={section} />}
+                </BuilderCanvasSection>
+              );
+            }}
+          />
+        </BuilderPreviewFrame>
+      </div>
     </section>
   );
 }

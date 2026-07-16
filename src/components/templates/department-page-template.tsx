@@ -16,7 +16,9 @@ import { StorefrontCmsPage } from "@/components/cms/storefront-cms-page";
 import { ProductGrid } from "@/components/commerce/product-grid";
 import { ButtonLink } from "@/components/ui/button";
 import { getDepartmentBySlug } from "@/config/departments.config";
+import { filterWebsiteCatalogProducts } from "@/features/catalog/services/website-merchandising-service";
 import { readLatestCmsDocument } from "@/server/admin/admin-cms-document-service";
+import { readResolvedSquareWebsiteCatalog } from "@/server/square/website-catalog-store";
 import { SectionFrame } from "../sections/section-frame";
 
 const sectionPrefixBySlug: Record<string, string> = {
@@ -28,7 +30,11 @@ function sectionPrefix(slug: string) {
 }
 
 export async function DepartmentPageTemplate({ slug }: { slug: string }) {
-  const publishedDocument = await readLatestCmsDocument({ entityType: "department", entityId: slug, statuses: ["PUBLISHED"] });
+  const squareCatalog = await readResolvedSquareWebsiteCatalog();
+  const resolvedCatalog = squareCatalog?.catalog ?? null;
+  const websiteCategory = resolvedCatalog?.categories.find((category) => category.slug === slug);
+  const products = resolvedCatalog && websiteCategory ? filterWebsiteCatalogProducts(resolvedCatalog, { categoryId: websiteCategory.id, surface: "category-pages" }) : squareCatalog ? [] : undefined;
+  const publishedDocument = squareCatalog ? null : await readLatestCmsDocument({ entityType: "department", entityId: slug, statuses: ["PUBLISHED"] });
 
   if (publishedDocument) {
     return <StorefrontCmsPage document={publishedDocument} />;
@@ -85,7 +91,7 @@ export async function DepartmentPageTemplate({ slug }: { slug: string }) {
             <h2 className="font-display text-3xl font-semibold">{department.title_en}</h2>
             <p className="mt-3 text-secondary">{department.description_en}</p>
           </div>
-          <ProductGrid cardVariant={department.product_card_variant} preset={department.product_grid_preset} />
+          <ProductGrid cardVariant={department.product_card_variant} preset={department.product_grid_preset} products={products} />
         </div>
       </SectionFrame>
     </main>

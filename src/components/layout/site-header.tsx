@@ -15,6 +15,7 @@ import { Heart, Search, UserRound } from "lucide-react";
 import Link from "next/link";
 import { defaultHeaderNavigation, type HeaderNavigationConfig, type HeaderNavigationLink } from "@/config/header-navigation.config";
 import { CartLink } from "./cart-link";
+import { HeaderCatalogSearch } from "./header-catalog-search";
 import { MobileSiteNavigation } from "./mobile-site-navigation";
 
 export function SiteHeader({ navigation = defaultHeaderNavigation }: { navigation?: HeaderNavigationConfig }) {
@@ -71,6 +72,10 @@ export function SiteHeader({ navigation = defaultHeaderNavigation }: { navigatio
 }
 
 function HeaderUtilityLink({ link }: { link: HeaderNavigationLink }) {
+  if (link.id === "search") {
+    return <HeaderCatalogSearch label={link.label} />;
+  }
+
   if (link.id === "cart") {
     return (
       <span data-header-nav-id={link.id}>

@@ -1,10 +1,9 @@
 "use client";
 
-import { ExternalLink } from "lucide-react";
+import { Clock3, Redo2, Save, Undo2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type { CmsPageDocument } from "@/lib/cms";
 import { BuilderDevicePreview } from "./BuilderDevicePreview";
-import { BuilderSavePublishControls } from "./BuilderSavePublishControls";
 import type { BuilderDevice, BuilderSaveState } from "./types";
 
 export function BuilderTopbar({
@@ -28,25 +27,37 @@ export function BuilderTopbar({
   saveState: BuilderSaveState;
   setDevice: (device: BuilderDevice) => void;
 }) {
+  const statusTone = saveState.tone === "error" ? "text-red" : saveState.tone === "success" ? "text-green" : "text-secondary";
+
   return (
-    <header className="rounded-md border border-border bg-surface p-4 shadow-soft">
-      <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.14em] text-secondary">Website editor</p>
-          <div className="mt-1 flex flex-wrap items-center gap-2">
-            <h1 className="font-display text-2xl font-semibold">{document.title}</h1>
-            <span className="rounded-md border border-border bg-surface-muted px-2 py-1 text-xs font-semibold text-secondary">v{document.version}</span>
-            {isDirty ? <span className="rounded-md bg-[rgba(255,221,87,0.26)] px-2 py-1 text-xs font-semibold">Unsaved</span> : null}
-          </div>
+    <header className="flex h-20 min-w-0 items-center justify-between gap-4 border-b border-border bg-[#f7f7f7] px-5">
+      <div className="flex min-w-0 items-center gap-3">
+        <BuilderDevicePreview device={device} setDevice={setDevice} />
+        <div className="hidden items-center gap-1 sm:flex">
+          <button aria-label="Undo" className="grid size-10 place-items-center rounded-full text-secondary opacity-40" disabled type="button">
+            <Undo2 aria-hidden="true" className="size-4" />
+          </button>
+          <button aria-label="Redo" className="grid size-10 place-items-center rounded-full text-secondary opacity-40" disabled type="button">
+            <Redo2 aria-hidden="true" className="size-4" />
+          </button>
         </div>
-        <div className="flex flex-wrap items-center gap-3">
-          <BuilderDevicePreview device={device} setDevice={setDevice} />
-          <Button className="h-9 gap-2 px-3" onClick={() => window.open(publicPreviewRoute || document.slug || "/", "_blank", "noopener,noreferrer")} type="button" variant="quiet">
-            <ExternalLink aria-hidden="true" size={16} />
-            Open
-          </Button>
-          <BuilderSavePublishControls onPreview={onPreview} onPublish={onPublish} onSaveDraft={onSaveDraft} saveState={saveState} />
-        </div>
+        <span className="hidden truncate text-sm font-semibold text-secondary 2xl:block">{document.title}</span>
+      </div>
+
+      <div className="flex shrink-0 items-center gap-2">
+        <span className={`hidden items-center gap-1.5 rounded-full border border-border bg-surface px-3 py-2 text-xs font-semibold xl:inline-flex ${statusTone}`}>
+          <Clock3 aria-hidden="true" className="size-3.5" />
+          {isDirty ? "Unsaved" : saveState.message}
+        </span>
+        <button aria-label="Save draft" className="grid size-11 place-items-center rounded-full text-primary transition hover:bg-surface" onClick={onSaveDraft} type="button">
+          <Save aria-hidden="true" className="size-4" />
+        </button>
+        <Button className="h-12 rounded-full bg-surface px-5 text-primary hover:bg-surface-muted" onClick={onPreview} title={publicPreviewRoute ? `Preview ${publicPreviewRoute}` : "Preview"} type="button" variant="quiet">
+          Preview
+        </Button>
+        <Button className="h-12 rounded-full bg-primary px-5 text-white hover:bg-primary/90" onClick={onPublish} type="button">
+          Publish
+        </Button>
       </div>
     </header>
   );

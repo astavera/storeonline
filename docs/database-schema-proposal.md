@@ -81,3 +81,18 @@ Website product overrides include no-code display, fulfillment, publishing, and 
 - `lastSquareDescriptionSyncedAt`
 - fulfillment flags and capacity points
 - scheduled publish and unpublish timestamps
+- `ageGroups` for reusable storefront age filters
+- `websiteSurfaces` for explicit Shop, homepage, search, category, and holiday placement
+
+Category and holiday membership use `WebsiteProductPlacement`. Holiday placements
+use `startsAt` and `endsAt` for product-specific campaign windows. The database
+defaults for age groups and website surfaces are empty so a catalog sync cannot
+make a product visible by implication.
+
+## Phase 0 operational hardening (not applied)
+
+`20260715123000_phase0_operational_hardening` is a new migration after the three existing migrations. It does not rewrite them. It adds durable `CheckoutAttempt`, `WebhookInboxEvent`, `SlotOccurrence`, `CapacityHold`, `DeliveryZoneVersion`, `DeliveryRateRule`, `AddressEvaluation`, `BalloonOrderDraft`, `BalloonDraftLine`, and `BalloonQuote` tables.
+
+The migration adds nonnegative money/capacity checks, positive quantities, valid date and schedule ranges, compatible state/timestamp checks, operational indexes, and restrictive foreign keys for order, slot, and delivery records. Checks on existing tables use PostgreSQL `NOT VALID`: new or updated rows are enforced immediately without pretending unknown historical rows were already audited. A later, separately approved reconciliation must validate historical rows and then run `VALIDATE CONSTRAINT`.
+
+No migration in this repository has been applied to Supabase during this remediation.

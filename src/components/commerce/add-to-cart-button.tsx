@@ -13,14 +13,19 @@ const cartStorageKey = "modern-state-cart";
 
 export function AddToCartButton({
   squareVariationId,
-  label = "Add to cart"
+  label = "Add to cart",
+  disabled = false,
+  disabledReason = "This item is not currently available to add to cart."
 }: {
   squareVariationId: string;
   label?: string;
+  disabled?: boolean;
+  disabledReason?: string;
 }) {
   const [message, setMessage] = useState("");
 
   function addToCart() {
+    if (disabled) return;
     const items = readCartItems();
     const existingItem = items.find((item) => item.squareVariationId === squareVariationId);
 
@@ -38,9 +43,9 @@ export function AddToCartButton({
 
   return (
     <div>
-      <Button className="w-full gap-2 rounded-pill py-3 font-black" onClick={addToCart} type="button">
+      <Button className="w-full gap-2 rounded-pill py-3 font-black" disabled={disabled} onClick={addToCart} title={disabled ? disabledReason : undefined} type="button">
         <ShoppingCart aria-hidden="true" size={16} />
-        {message || label}
+        {disabled ? disabledReason : message || label}
       </Button>
       <span className="sr-only" role="status">
         {message ? "Item added to cart." : ""}

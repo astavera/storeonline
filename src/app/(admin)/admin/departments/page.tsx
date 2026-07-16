@@ -1,5 +1,5 @@
-import { AdminPageShell } from "@/components/admin/admin-page-shell";
+import { redirect } from "next/navigation";
 
 export default function AdminDepartmentsPage() {
-  return <AdminPageShell description="Manage website departments independently from Square categories and reporting_category." sectionId="admin.departments" title="Departments" />;
+  redirect("/admin/product-placement");
 }

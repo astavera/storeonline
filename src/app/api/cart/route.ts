@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { quoteCart } from "@/server/checkout/cart-service";
+import { quoteCart, quoteCartFromOperationalCatalog } from "@/server/checkout/cart-service";
+import { PersistenceUnavailableError } from "@/server/db/persistence-policy";
 
 export async function GET() {
   return NextResponse.json({
@@ -11,8 +12,9 @@ export async function GET() {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const quote = quoteCart({
-      items: Array.isArray(body.items) ? body.items : []
+    const quote = await quoteCartFromOperationalCatalog({
+      items: Array.isArray(body.items) ? body.items : [],
+      ...(typeof body.locationId === "string" ? { locationId: body.locationId } : {})
     });
 
     return NextResponse.json({
@@ -21,12 +23,13 @@ export async function POST(request: NextRequest) {
       errors: quote.errors
     });
   } catch (error) {
+    const status = error instanceof PersistenceUnavailableError ? 503 : 400;
     return NextResponse.json(
       {
         ok: false,
         errors: [error instanceof Error ? error.message : "Invalid cart."]
       },
-      { status: 400 }
+      { status }
     );
   }
 }

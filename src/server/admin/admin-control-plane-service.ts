@@ -3,7 +3,8 @@ import "server-only";
 import { adminModules, getAdminModuleById, type AdminFieldValue, type AdminModule, type AdminWorkflowAction } from "@/config/admin-control-plane";
 import { buildAdminAuditEvent } from "@/server/admin/admin-audit-service";
 import { writeLocalCmsVersion } from "@/server/admin/admin-local-cms-store";
-import { toPrismaJson } from "@/server/prisma-json";
+import { createDatabaseCmsVersion } from "@/server/db/cms-version-repository";
+import { isDevelopmentLocalPersistenceEnabled, PersistenceUnavailableError, requireDatabaseOrDevelopmentFallback } from "@/server/db/persistence-policy";
 
 export type AdminControlPayload = {
   moduleId: string;
@@ -139,65 +140,35 @@ export async function persistAdminControlOperation(result: AdminControlResult): 
     };
   }
 
-  if (process.env.DATABASE_URL) {
-    try {
-      const { PrismaClient } = await import("@prisma/client");
-      const prisma = new PrismaClient();
-      const cmsContentVersion = prisma.cmsContentVersion;
-      const latest = await cmsContentVersion.aggregate({
-        where: {
-          entityType: result.version.entityType,
-          entityId: result.version.entityId
-        },
-        _max: {
-          versionNumber: true
-        }
-      });
-      const nextVersionNumber = (latest._max.versionNumber ?? 0) + 1;
-      const created = await cmsContentVersion.create({
-        data: {
-          entityType: result.version.entityType,
-          entityId: result.version.entityId,
-          versionNumber: nextVersionNumber,
-          status: result.status,
-          title: result.module.title,
-          payload: toPrismaJson(result.version.payload),
-          publishedAt: result.status === "PUBLISHED" ? new Date() : null
-        }
-      });
-      await prisma.$disconnect();
+  const persistence = requireDatabaseOrDevelopmentFallback("Admin CMS");
 
+  if (persistence === "database") {
+    try {
+      const created = await createDatabaseCmsVersion({
+        entityType: result.version.entityType,
+        entityId: result.version.entityId,
+        status: result.status,
+        title: result.module.title,
+        payload: result.version.payload,
+        publishedAt: result.status === "PUBLISHED" ? new Date() : null
+      });
       return {
         mode: "database",
         persisted: true,
         id: created.id,
-        versionNumber: nextVersionNumber,
-        message: `Saved version ${nextVersionNumber} to CmsContentVersion.`
+        versionNumber: created.versionNumber,
+        message: `Saved version ${created.versionNumber} to CmsContentVersion.`
       };
     } catch (error) {
-      try {
-        const localVersion = await writeLocalCmsVersion({
-          entityType: result.version.entityType,
-          entityId: result.version.entityId,
-          status: result.status,
-          title: result.module.title,
-          payload: result.version.payload
-        });
-
-        return {
-          mode: "local-file",
-          persisted: true,
-          id: `${localVersion.entityId}:${localVersion.versionNumber}`,
-          versionNumber: localVersion.versionNumber,
-          message: `Database persistence failed (${error instanceof Error ? error.message : "unknown error"}). Saved local fallback version ${localVersion.versionNumber}.`
-        };
-      } catch (localError) {
+      if (!isDevelopmentLocalPersistenceEnabled()) {
+        const persistenceError = error instanceof PersistenceUnavailableError ? error : new PersistenceUnavailableError("Admin CMS", { cause: error });
         return {
           mode: "validated-only",
           persisted: false,
-          message: `Validated but persistence failed. Database: ${error instanceof Error ? error.message : "unknown error"}. Local fallback: ${localError instanceof Error ? localError.message : "unknown error"}.`
+          message: persistenceError.message
         };
       }
+      console.warn("[development-local-persistence] Admin CMS database write failed; using the explicit local fallback.");
     }
   }
 
@@ -214,7 +185,7 @@ export async function persistAdminControlOperation(result: AdminControlResult): 
     persisted: true,
     id: `${localVersion.entityId}:${localVersion.versionNumber}`,
     versionNumber: localVersion.versionNumber,
-    message: `Saved local version ${localVersion.versionNumber}. Configure DATABASE_URL in production for CmsContentVersion.`
+    message: `Saved explicit development-local version ${localVersion.versionNumber}.`
   };
 }
 

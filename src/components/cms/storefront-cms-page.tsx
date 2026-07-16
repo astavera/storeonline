@@ -10,6 +10,7 @@ import type { ProductGridPresetId } from "@/design/presets/product-grid-presets"
 import type { CmsPageDocument, CmsSection, SectionContentItem } from "@/lib/cms";
 import { cn, formatMoney } from "@/lib/utils";
 import { PageRenderer, type CmsSectionRenderContext } from "./page-renderer";
+import Image from "next/image";
 import Link from "next/link";
 import type { ReactNode } from "react";
 
@@ -63,9 +64,13 @@ const globalSectionTypes = new Set(["header", "footer", "announcementBar"]);
 
 export type StorefrontCmsSectionRenderOptions = {
   includeGlobalFrame?: boolean;
+  products?: StorefrontProduct[];
+  product?: StorefrontProduct;
+  primaryHeadingSectionId?: string;
 };
 
-export function StorefrontCmsPage({ document }: { document: CmsPageDocument }) {
+export function StorefrontCmsPage({ document, product, products }: { document: CmsPageDocument; product?: StorefrontProduct; products?: StorefrontProduct[] }) {
+  const primaryHeadingSectionId = primaryHeadingSectionIdForDocument(document);
   return (
     <>
       {shouldShowDocumentBreadcrumb(document) ? (
@@ -75,7 +80,7 @@ export function StorefrontCmsPage({ document }: { document: CmsPageDocument }) {
           </div>
         </div>
       ) : null}
-      <PageRenderer document={document} renderSection={(section, context) => renderStorefrontCmsSection(section, context)} />
+      <PageRenderer document={document} renderSection={(section, context) => renderStorefrontCmsSection(section, context, { primaryHeadingSectionId, product, products })} />
     </>
   );
 }
@@ -88,21 +93,36 @@ function breadcrumbLabelForDocument(document: CmsPageDocument) {
   return document.title.replace(/^(Landing|Department|Holiday|Product|Location|Policy):\s*/i, "");
 }
 
+function primaryHeadingSectionIdForDocument(document: CmsPageDocument) {
+  const visibleSections = document.sections.filter((section) => !section.hidden);
+  const preferred = document.entityType === "product"
+    ? visibleSections.find((section) => section.id === "products.detail" || section.type === "productTitle")
+    : document.entityType === "landing" && document.entityId === "shop"
+      ? visibleSections.find((section) => section.id === "shop.index")
+      : undefined;
+  return (preferred ?? visibleSections.find((section) => heroSectionTypes.has(String(section.type))) ?? visibleSections[0])?.id;
+}
+
 export function renderStorefrontCmsSection(section: CmsSection, _context?: CmsSectionRenderContext, options: StorefrontCmsSectionRenderOptions = {}) {
+  const isPrimaryHeading = options.primaryHeadingSectionId ? options.primaryHeadingSectionId === section.id : true;
   if (globalSectionTypes.has(String(section.type))) {
     return options.includeGlobalFrame ? <EditableGlobalFrameSection section={section} /> : <></>;
   }
 
   if (heroSectionTypes.has(String(section.type))) {
-    return <EditableHeroSection section={section} />;
+    return <EditableHeroSection isPrimaryHeading={isPrimaryHeading} section={section} />;
   }
 
-  if (section.id === "products.detail" || productDetailSectionTypes.has(String(section.type))) {
-    return <EditableProductDetailSection section={section} />;
+  if (section.id === "products.detail") {
+    return <EditableProductDetailSection isPrimaryHeading={isPrimaryHeading} product={options.product} section={section} />;
+  }
+
+  if (productDetailSectionTypes.has(String(section.type))) {
+    return <EditableProductModuleSection isPrimaryHeading={isPrimaryHeading} product={options.product} section={section} />;
   }
 
   if (productSectionTypes.has(String(section.type))) {
-    return <EditableProductsSection section={section} />;
+    return <EditableProductsSection isPrimaryHeading={isPrimaryHeading} products={options.products} section={section} />;
   }
 
   if (categorySectionTypes.has(String(section.type))) {
@@ -168,11 +188,12 @@ function EditableGlobalFrameSection({ section }: { section: CmsSection }) {
   );
 }
 
-function EditableHeroSection({ section }: { section: CmsSection }) {
+function EditableHeroSection({ isPrimaryHeading, section }: { isPrimaryHeading: boolean; section: CmsSection }) {
   const image = section.media.image;
   const imageIsBackground = Boolean(image) && section.layout.imagePosition === "background";
   const showSplitMedia = !imageIsBackground && section.layout.imagePosition !== "none";
   const isDark = section.design.backgroundTone === "dark" || section.design.backgroundTone === "brand" || imageIsBackground;
+  const Heading = isPrimaryHeading ? "h1" : "h2";
 
   return (
     <section
@@ -189,7 +210,7 @@ function EditableHeroSection({ section }: { section: CmsSection }) {
       <div className={cn("container-shell grid gap-8", showSplitMedia && "lg:grid-cols-[0.92fr_1.08fr] lg:items-center")}>
         <div className={cn(section.layout.alignment === "center" && !showSplitMedia ? "mx-auto max-w-4xl text-center" : "max-w-3xl")}>
           {section.content.eyebrow ? <p className={cn("text-sm font-black uppercase tracking-[0.14em]", isDark ? "text-yellow" : "text-green")} data-cms-edit-field="eyebrow">{String(section.content.eyebrow)}</p> : null}
-          <h1 className="mt-3 font-display text-5xl font-black leading-tight md:text-6xl" data-cms-edit-field="title">{String(section.content.title || section.label)}</h1>
+          <Heading className="mt-3 font-display text-5xl font-black leading-tight md:text-6xl" data-cms-edit-field="title">{String(section.content.title || section.label)}</Heading>
           {section.content.body ? <p className={cn("mt-4 text-lg font-semibold", isDark ? "text-white/90" : "text-secondary")} data-cms-edit-field="body">{String(section.content.body)}</p> : null}
           <a className={cn("mt-7 inline-flex min-h-11 items-center justify-center rounded-pill px-7 py-3 text-sm font-black", isDark ? "bg-white text-primary" : "bg-blue text-white")} data-cms-edit-field="primaryCta" href={String(section.content.primaryCtaHref || "/shop")}>
             {String(section.content.primaryCtaLabel || "Shop now")}
@@ -207,26 +228,27 @@ function EditableHeroSection({ section }: { section: CmsSection }) {
   );
 }
 
-function EditableProductDetailSection({ section }: { section: CmsSection }) {
-  const product = section.dataSource.id ? getProductBySlug(section.dataSource.id) : null;
+function EditableProductDetailSection({ isPrimaryHeading, product: providedProduct, section }: { isPrimaryHeading: boolean; product?: StorefrontProduct; section: CmsSection }) {
+  const product = providedProduct ?? (section.dataSource.id ? getProductBySlug(section.dataSource.id) : null);
   const title = String(section.content.title || product?.name || section.label);
   const body = String(section.content.body || product?.description || "");
   const image = section.media.image || product?.imageUrl || "";
-  const price = product ? formatMoney(product.priceCents) : "$0.00";
+  const price = product ? (product.priceAvailable === false ? "Price unavailable" : formatMoney(product.priceCents)) : "$0.00";
   const fulfillmentModes = product?.fulfillmentModes ?? [];
   const inventoryStatus = product?.inventoryStatus ?? "in-stock";
+  const Heading = isPrimaryHeading ? "h1" : "h2";
 
   return (
     <section className="bg-surface py-16" data-cms-component="EditableProductDetailSection">
       <div className="container-shell grid gap-10 lg:grid-cols-[0.9fr_1fr] lg:items-start">
         <div className="overflow-hidden rounded-md border border-border bg-surface-muted" data-cms-edit-field="image">
-          {image ? <img alt={section.media.imageAlt || title} className="aspect-[4/3] h-full w-full object-cover" src={image} /> : <HeroFallbackPanel />}
+          {image ? <Image alt={section.media.imageAlt || title} className="aspect-[4/3] h-full w-full object-cover" height={900} src={image} unoptimized width={1200} /> : <HeroFallbackPanel />}
         </div>
         <section>
           <p className="text-xs font-semibold uppercase tracking-[0.14em] text-secondary" data-cms-edit-field="eyebrow">
             {String(section.content.eyebrow || product?.department || "Product")}
           </p>
-          <h1 className="mt-3 font-display text-4xl font-semibold leading-tight" data-cms-edit-field="title">{title}</h1>
+          <Heading className="mt-3 font-display text-4xl font-semibold leading-tight" data-cms-edit-field="title">{title}</Heading>
           {body ? <p className="mt-4 max-w-2xl text-lg text-secondary" data-cms-edit-field="body">{body}</p> : null}
           <p className="mt-6 text-2xl font-semibold" data-cms-edit-field="productPrice">{price}</p>
           <div className="mt-5 flex flex-wrap gap-2" data-cms-edit-field="items">
@@ -241,8 +263,10 @@ function EditableProductDetailSection({ section }: { section: CmsSection }) {
             )}
           </div>
           <div className="mt-8 max-w-sm" data-cms-edit-field="primaryCta">
-            {product ? (
-              <AddToCartButton label={String(section.content.primaryCtaLabel || "Add to cart")} squareVariationId={product.squareVariationId} />
+            {product && !product.previewOnly ? (
+              <AddToCartButton disabled={product.inventoryStatus === "out-of-stock" || product.priceAvailable === false} disabledReason={product.priceAvailable === false ? "Price unavailable" : "Out of stock"} label={String(section.content.primaryCtaLabel || "Add to cart")} squareVariationId={product.squareVariationId} />
+            ) : product?.previewOnly ? (
+              <div className="rounded-pill border border-blue/30 bg-cyan px-5 py-3 text-center font-black text-primary">Read-only Square preview</div>
             ) : (
               <Link className="inline-flex min-h-11 w-full items-center justify-center rounded-pill bg-blue px-6 py-3 text-sm font-black text-white" href="/contact">
                 Contact the store
@@ -263,14 +287,43 @@ function EditableProductDetailSection({ section }: { section: CmsSection }) {
   );
 }
 
-function EditableProductsSection({ section }: { section: CmsSection }) {
+function EditableProductModuleSection({ isPrimaryHeading, product: providedProduct, section }: { isPrimaryHeading: boolean; product?: StorefrontProduct; section: CmsSection }) {
+  const product = providedProduct ?? (section.dataSource.id ? getProductBySlug(section.dataSource.id) : null);
+  const title = String(section.content.title || product?.name || section.label);
+  const type = String(section.type);
+  const Heading = isPrimaryHeading ? "h1" : "h2";
+
+  if (type === "productImageGallery") {
+    const image = section.media.image || product?.imageUrl;
+    return <section className="container-shell py-8" data-cms-component="ProductImageGallery">{image ? <Image alt={section.media.imageAlt || title} className="aspect-[4/3] w-full rounded-md object-cover" height={900} src={image} unoptimized width={1200} /> : <HeroFallbackPanel />}</section>;
+  }
+  if (type === "productTitle") {
+    return <section className="container-shell py-6" data-cms-component="ProductTitle"><Heading className="font-display text-4xl font-semibold leading-tight">{title}</Heading></section>;
+  }
+  if (type === "productPrice") {
+    return <section className="container-shell py-4" data-cms-component="ProductPrice"><p className="text-2xl font-semibold">{product ? (product.priceAvailable === false ? "Price unavailable" : formatMoney(product.priceCents)) : "Price unavailable"}</p></section>;
+  }
+  if (type === "addToCartButton" || type === "buyNowButton") {
+    return <section className="container-shell py-4" data-cms-component="ProductPurchaseAction">{product && !product.previewOnly ? <div className="max-w-sm"><AddToCartButton disabled={product.inventoryStatus === "out-of-stock" || product.priceAvailable === false} disabledReason={product.priceAvailable === false ? "Price unavailable" : "Out of stock"} label={String(section.content.primaryCtaLabel || "Add to cart")} squareVariationId={product.squareVariationId} /></div> : <p className="text-secondary">Purchasing is unavailable for this preview.</p>}</section>;
+  }
+  if (type === "productDescription") {
+    return <section className="container-shell py-6" data-cms-component="ProductDescription"><h2 className="font-display text-2xl font-semibold">{title}</h2><p className="mt-3 max-w-3xl text-secondary">{String(section.content.body || product?.description || "Product details are being prepared.")}</p></section>;
+  }
+  if (type === "stockIndicator") {
+    return <section className="container-shell py-4" data-cms-component="ProductStockIndicator"><p><span className="font-semibold">Availability:</span> {inventoryLabel(product?.inventoryStatus ?? "special-order")}</p></section>;
+  }
+
+  return <EditableEditorialSection section={section} />;
+}
+
+function EditableProductsSection({ isPrimaryHeading, products: providedProducts, section }: { isPrimaryHeading: boolean; products?: StorefrontProduct[]; section: CmsSection }) {
   const limit = typeof section.dataSource.limit === "number" ? section.dataSource.limit : 4;
   const items = manualItems(section);
-  const products = productsForSection(section, limit);
+  const products = providedProducts ? providedProducts.slice(0, limit) : productsForSection(section, limit);
   const preset = productGridPresetForSection(section);
 
   if (section.id === "shop.index" || section.variant === "catalog") {
-    return <EditableShopCatalogSection products={products} section={section} />;
+    return <EditableShopCatalogSection isPrimaryHeading={isPrimaryHeading} products={products} section={section} />;
   }
 
   return (
@@ -285,9 +338,10 @@ function EditableProductsSection({ section }: { section: CmsSection }) {
   );
 }
 
-function EditableShopCatalogSection({ products, section }: { products: StorefrontProduct[]; section: CmsSection }) {
+function EditableShopCatalogSection({ isPrimaryHeading, products, section }: { isPrimaryHeading: boolean; products: StorefrontProduct[]; section: CmsSection }) {
   const departments = Array.from(new Set(getVisibleProducts().map((product) => product.department))).sort();
   const title = String(section.content.title || "Shop");
+  const Heading = isPrimaryHeading ? "h1" : "h2";
 
   return (
     <section className="bg-surface" data-cms-component="EditableShopCatalogSection">
@@ -301,7 +355,7 @@ function EditableShopCatalogSection({ products, section }: { products: Storefron
             <span className="text-primary">{title}</span>
           </nav>
           <div className="mb-8 max-w-3xl">
-            <h1 className="font-display text-4xl font-black leading-tight md:text-5xl" data-cms-edit-field="title">{title}</h1>
+            <Heading className="font-display text-4xl font-black leading-tight md:text-5xl" data-cms-edit-field="title">{title}</Heading>
             <p className="mt-3 text-lg text-secondary">Browse toys, balloons, party supplies, stationery, gifts, and neighborhood favorites.</p>
           </div>
 
@@ -675,6 +729,10 @@ function productGridPresetForSection(section: CmsSection): ProductGridPresetId {
 }
 
 function inventoryLabel(status: StorefrontProduct["inventoryStatus"]) {
+  if (status === "out-of-stock") {
+    return "Out of stock";
+  }
+
   if (status === "limited") {
     return "Limited quantities available";
   }

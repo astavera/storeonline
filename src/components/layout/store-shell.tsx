@@ -21,8 +21,9 @@ export async function StoreShell({ children }: { children: ReactNode }) {
 
   return (
     <div className="min-h-screen bg-background">
+      <a className="skip-link" href="#main-content">Skip to main content</a>
       <SiteHeader navigation={homepageState.headerNavigation} />
-      {children}
+      <div id="main-content" tabIndex={-1}>{children}</div>
       <SiteFooter />
     </div>
   );

@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  ArrowLeft,
   ArrowDown,
   ArrowUp,
   CheckCircle2,
@@ -8,6 +9,7 @@ import {
   Copy,
   Eye,
   EyeOff,
+  ExternalLink,
   GripVertical,
   History,
   Image,
@@ -15,25 +17,30 @@ import {
   Link2,
   ListChecks,
   Monitor,
+  Palette,
+  PanelLeftClose,
+  PanelLeftOpen,
   PanelRight,
   Plus,
-  Rocket,
+  Redo2,
   Save,
   Search,
   Trash2,
   ShieldCheck,
   Smartphone,
   Tablet,
+  Undo2,
   Upload
 } from "lucide-react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState, type ChangeEvent, type DragEvent, type MouseEvent as ReactMouseEvent } from "react";
+import { SiteFooter } from "@/components/layout/site-footer";
 import { SiteHeader } from "@/components/layout/site-header";
-import { StorefrontPageSwitcher } from "@/components/admin/storefront-page-switcher";
 import { HomePageTemplate } from "@/components/templates/home-page-template";
 import { Button } from "@/components/ui/button";
 import { defaultHeaderNavigation, type HeaderNavigationConfig, type HeaderNavigationLink } from "@/config/header-navigation.config";
-import { storefrontEditablePages } from "@/config/storefront-pages.config";
+import { storefrontEditablePages, type StorefrontEditablePage } from "@/config/storefront-pages.config";
 import {
   defaultHomepageImage,
   homepageImagePresets,
@@ -68,11 +75,14 @@ type HomepageVersionSummary = {
 };
 
 type HomepageStudioEditorProps = {
+  additionalPages?: StorefrontEditablePage[];
   initialHeaderNavigation?: HeaderNavigationConfig;
   initialPhotoPresets?: HomepageImagePreset[];
   initialSections: HomepageSectionConfig[];
   initialSeo?: HomepageSeoConfig;
   initialVersions?: HomepageVersionSummary[];
+  previewFeaturedBrandItems?: HomepageSectionItem[];
+  previewProducts?: StorefrontProduct[];
 };
 
 type PreviewMode = "desktop" | "tablet" | "mobile";
@@ -135,29 +145,6 @@ const defaultSeo: HomepageSeoConfig = {
   indexable: true
 };
 
-const sectionPurpose: Record<string, string> = {
-  "home.hero": "First viewport, primary campaign copy, hero image, and main CTA.",
-  "home.departments": "Guides shoppers into the core store departments.",
-  "home.featured-products": "Highlights products and online merchandising picks.",
-  "home.balloon-promo": "Promotes guided balloon orders and fulfillment rules.",
-  "home.local-storefront": "Shows the physical stores, pickup context, and local trust."
-};
-
-const sectionTypePurpose: Record<NonNullable<HomepageSectionConfig["sectionType"]>, string> = {
-  hero: "First viewport with campaign copy, image, and CTA.",
-  departments: "Department navigation tied to the public store categories.",
-  "product-grid": "Merchandised products from the storefront catalog.",
-  promo: "Promotional copy with editable supporting cards.",
-  storefront: "Physical store context, pickup trust, and local details.",
-  content: "Flexible editorial, SEO, or informational copy.",
-  "image-banner": "Full-width visual campaign banner.",
-  "feature-grid": "Editable cards for benefits, services, or collections.",
-  "split-media": "Image and copy block for storytelling or services.",
-  "trust-bar": "Compact proof points for checkout confidence.",
-  newsletter: "Reusable signup or customer-service CTA.",
-  faq: "Editable questions and answers."
-};
-
 const coreHomepageSectionIds = new Set(homepageSections.map((section) => section.sectionId));
 
 const panelTabs: Array<{ id: EditorPanel; label: string; icon: typeof PanelRight }> = [
@@ -171,11 +158,14 @@ const panelTabs: Array<{ id: EditorPanel; label: string; icon: typeof PanelRight
 ];
 
 export function HomepageStudioEditor({
+  additionalPages = [],
   initialHeaderNavigation = defaultHeaderNavigation,
   initialPhotoPresets = homepageImagePresets,
   initialSections,
   initialSeo = defaultSeo,
-  initialVersions = []
+  initialVersions = [],
+  previewFeaturedBrandItems = [],
+  previewProducts = []
 }: HomepageStudioEditorProps) {
   const router = useRouter();
   const editorRef = useRef<HTMLDivElement>(null);
@@ -188,6 +178,7 @@ export function HomepageStudioEditor({
   const [versions, setVersions] = useState<HomepageVersionSummary[]>(initialVersions);
   const [selectedSectionId, setSelectedSectionId] = useState(initialSections[0]?.sectionId ?? "home.hero");
   const [activePanel, setActivePanel] = useState<EditorPanel>("content");
+  const [sidebarMode, setSidebarMode] = useState<"sections" | "inspector">("sections");
   const [focusRequest, setFocusRequest] = useState<EditorFocusRequest | null>(null);
   const [selectedNavigationItemId, setSelectedNavigationItemId] = useState(headerNavigation.primary[0]?.id ?? "shop-all");
   const [previewMode, setPreviewMode] = useState<PreviewMode>("desktop");
@@ -197,6 +188,7 @@ export function HomepageStudioEditor({
   const [isHydrated, setIsHydrated] = useState(false);
   const [previewFrameWidth, setPreviewFrameWidth] = useState(0);
   const [previewCanvasHeight, setPreviewCanvasHeight] = useState(0);
+  const [canvasExpanded, setCanvasExpanded] = useState(false);
   const [draggingSectionId, setDraggingSectionId] = useState<string | null>(null);
   const selectedSection = useMemo(() => sections.find((section) => section.sectionId === selectedSectionId) ?? sections[0], [sections, selectedSectionId]);
   const visibleSections = sections.filter((section) => section.isVisible);
@@ -292,8 +284,10 @@ export function HomepageStudioEditor({
   }
 
   function openPreviewTarget(target: PreviewEditTarget) {
+    setCanvasExpanded(false);
     setSelectedSectionId(target.sectionId);
     setActivePanel(target.panel);
+    setSidebarMode("inspector");
     setFocusRequest({ field: target.focus, token: Date.now() });
   }
 
@@ -310,8 +304,10 @@ export function HomepageStudioEditor({
       return;
     }
 
+    setCanvasExpanded(false);
     setSelectedNavigationItemId(navigationItemId);
     setActivePanel("navigation");
+    setSidebarMode("inspector");
   }
 
   function moveSelected(direction: -1 | 1) {
@@ -364,6 +360,7 @@ export function HomepageStudioEditor({
     commitSections((current) => withSequentialSortOrder([...current, nextSection]));
     setSelectedSectionId(sectionId);
     setActivePanel("content");
+    setSidebarMode("inspector");
   }
 
   function duplicateSelectedSection() {
@@ -475,22 +472,95 @@ export function HomepageStudioEditor({
   }
 
   return (
-    <main className="p-4 lg:h-screen lg:overflow-hidden lg:p-4 xl:p-6">
+    <main className="min-h-screen bg-[#f7f7f7] lg:h-screen lg:overflow-hidden">
       <div
         ref={editorRef}
-        className="grid gap-4 lg:h-full lg:min-h-0 lg:grid-rows-[auto_minmax(0,1fr)]"
+        className={cn(
+          "grid min-h-screen transition-[grid-template-columns] duration-300 lg:h-full lg:min-h-0 lg:grid-rows-[80px_minmax(0,1fr)]",
+          canvasExpanded ? "lg:grid-cols-[0_minmax(0,1fr)]" : "lg:grid-cols-[304px_minmax(0,1fr)]"
+        )}
         data-hydrated={isHydrated ? "true" : "false"}
         data-store-area="Admin"
         data-store-component="HomepageVisualEditor"
         data-store-section="admin.homepage-visual-editor"
       >
+        <aside
+          className={cn(
+            "border-b border-border bg-surface lg:col-start-1 lg:row-span-2 lg:flex lg:min-h-0 lg:flex-col lg:overflow-hidden lg:border-b-0 lg:border-r",
+            canvasExpanded && "lg:pointer-events-none lg:invisible lg:border-0"
+          )}
+        >
+          <div className="flex h-20 shrink-0 items-center gap-3 border-b border-border px-5">
+            <Link aria-label="Back to Admin" className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-surface-muted text-secondary transition hover:text-primary" href="/admin">
+              <ArrowLeft aria-hidden="true" size={20} />
+            </Link>
+            <div className="flex h-12 min-w-0 flex-1 items-center gap-3 rounded-md bg-surface-muted px-4">
+              <Palette aria-hidden="true" size={18} />
+              <span className="truncate font-semibold">Site design</span>
+            </div>
+          </div>
+
+          <div className="min-h-0 flex-1 overflow-y-auto p-5">
+            {sidebarMode === "sections" ? (
+              <div className="grid gap-5">
+                <EditorPageSelector additionalPages={additionalPages} isDirty={isDirty} />
+                <SectionsPanel
+                  addSectionFromTemplate={addSectionFromTemplate}
+                  duplicateSelectedSection={duplicateSelectedSection}
+                  draggingSectionId={draggingSectionId}
+                  moveSelected={moveSelected}
+                  onDragEnd={() => setDraggingSectionId(null)}
+                  onDragStart={setDraggingSectionId}
+                  onDropSection={reorderSection}
+                  removeSelectedSection={removeSelectedSection}
+                  onSelectSection={(sectionId) => {
+                    setSelectedSectionId(sectionId);
+                    setActivePanel("content");
+                    setSidebarMode("inspector");
+                    setFocusRequest({ field: "section", token: Date.now() });
+                  }}
+                  sections={sections}
+                  selectedSection={selectedSection}
+                  selectedSectionId={selectedSection.sectionId}
+                />
+              </div>
+            ) : (
+              <InspectorPanel
+                activePanel={activePanel}
+                addPhotoPreset={(preset) => commitPhotoPresets((current) => [...current, preset])}
+                changeSummary={changeSummary}
+                focusRequest={focusRequest}
+                headerNavigation={headerNavigation}
+                onDone={() => setSidebarMode("sections")}
+                onDuplicate={duplicateSelectedSection}
+                onRemove={removeSelectedSection}
+                photoPresets={photoPresets}
+                removePhotoPreset={(presetId) => commitPhotoPresets((current) => (current.length > 1 ? current.filter((preset) => preset.id !== presetId) : current))}
+                section={selectedSection}
+                selectedNavigationItemId={selectedNavigationItemId}
+                seo={seo}
+                setActivePanel={setActivePanel}
+                setChangeSummary={(summary) => {
+                  setIsDirty(true);
+                  setChangeSummary(summary);
+                }}
+                updatePhotoPreset={(presetId, patch) => commitPhotoPresets((current) => current.map((preset) => (preset.id === presetId ? { ...preset, ...patch } : preset)))}
+                updateHeaderNavigation={commitHeaderNavigation}
+                updateSection={updateSelected}
+                updateSeo={commitSeo}
+                validation={validation}
+                versions={versions}
+              />
+            )}
+          </div>
+        </aside>
+
         <EditorTopBar
-          activePanel={activePanel}
           canPublish={validation.errors.length === 0}
+          canvasExpanded={canvasExpanded}
           isDirty={isDirty}
-          onOpenStorefront={() => window.open("/", "_blank", "noopener,noreferrer")}
-          onPanelChange={setActivePanel}
-          onPreview={() => submit("preview")}
+          onOpenLiveSite={() => window.open("/", "_blank", "noopener,noreferrer")}
+          onPreview={() => setCanvasExpanded((current) => !current)}
           onPublish={() => submit("publish")}
           onSaveDraft={() => submit("save_draft")}
           previewMode={previewMode}
@@ -499,48 +569,9 @@ export function HomepageStudioEditor({
           validation={validation}
         />
 
-        <div className="grid min-h-[720px] gap-4 lg:min-h-0 lg:grid-cols-[280px_minmax(440px,1fr)_minmax(360px,420px)] lg:overflow-hidden">
-          <aside className="grid content-start gap-4 lg:min-h-0 lg:overflow-y-auto lg:pr-1">
-            <StorefrontPageSwitcher currentEntityId="home" currentScope="homepage" onBeforeNavigate={() => !isDirty || window.confirm("You have unsaved homepage changes. Continue to another store area editor?")} />
-            <SectionsPanel
-              addSectionFromTemplate={addSectionFromTemplate}
-              duplicateSelectedSection={duplicateSelectedSection}
-              draggingSectionId={draggingSectionId}
-              moveSelected={moveSelected}
-              onDragEnd={() => setDraggingSectionId(null)}
-              onDragStart={setDraggingSectionId}
-              onDropSection={reorderSection}
-              removeSelectedSection={removeSelectedSection}
-              onSelectSection={(sectionId) => {
-                setSelectedSectionId(sectionId);
-                setActivePanel("content");
-                setFocusRequest({ field: "section", token: Date.now() });
-              }}
-              sections={sections}
-              selectedSection={selectedSection}
-              selectedSectionId={selectedSection.sectionId}
-            />
-          </aside>
-
-          <section className="min-w-0 rounded-md border border-border bg-surface-muted p-3 lg:flex lg:min-h-0 lg:flex-col lg:overflow-hidden">
-            <div className="mb-3 flex shrink-0 flex-wrap items-center justify-between gap-2">
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.12em] text-secondary">Live preview</p>
-                <h2 className="font-display text-lg font-semibold">{previewModeLabel(previewMode)}</h2>
-              </div>
-              <div className="flex gap-2">
-                <Button className="h-9 gap-2 px-3" onClick={() => moveSelected(-1)} type="button" variant="secondary">
-                  <ArrowUp aria-hidden="true" size={16} />
-                  Up
-                </Button>
-                <Button className="h-9 gap-2 px-3" onClick={() => moveSelected(1)} type="button" variant="secondary">
-                  <ArrowDown aria-hidden="true" size={16} />
-                  Down
-                </Button>
-              </div>
-            </div>
-
-            <div className="mx-auto w-full overflow-auto rounded-md border border-border bg-surface shadow-sm transition-all lg:min-h-0 lg:flex-1" data-preview-frame="true" ref={previewFrameRef}>
+        <section className="min-w-0 p-2 lg:col-start-2 lg:row-start-2 lg:flex lg:min-h-0 lg:flex-col lg:overflow-hidden lg:p-3">
+          <div className="min-h-[720px] flex-1 rounded-[24px] border border-border bg-surface p-3 shadow-sm lg:min-h-0 lg:overflow-hidden">
+            <div className="mx-auto h-full w-full overflow-auto rounded-[16px] border border-border bg-surface transition-all" data-preview-frame="true" ref={previewFrameRef}>
               <div className="relative mx-auto" style={{ height: scaledPreviewHeight ? `${scaledPreviewHeight}px` : undefined, width: previewFrameWidth ? `${Math.min(previewFrameWidth, previewDesignWidth)}px` : "100%" }}>
                 <div
                   data-preview-canvas="true"
@@ -551,47 +582,63 @@ export function HomepageStudioEditor({
                     width: `${previewDesignWidth}px`
                   }}
                 >
-                  <StorefrontPreview headerNavigation={headerNavigation} onEditNavigationTarget={openNavigationTarget} onEditTarget={openPreviewTarget} sections={visibleSections} selectedSectionId={selectedSection.sectionId} />
+                  <StorefrontPreview
+                    featuredBrandItems={previewFeaturedBrandItems}
+                    headerNavigation={headerNavigation}
+                    onEditNavigationTarget={openNavigationTarget}
+                    onEditTarget={openPreviewTarget}
+                    products={previewProducts}
+                    sections={visibleSections}
+                    selectedSectionId={selectedSection.sectionId}
+                  />
                 </div>
               </div>
             </div>
-          </section>
-
-          <InspectorPanel
-            activePanel={activePanel}
-            addPhotoPreset={(preset) => commitPhotoPresets((current) => [...current, preset])}
-            changeSummary={changeSummary}
-            focusRequest={focusRequest}
-            headerNavigation={headerNavigation}
-            photoPresets={photoPresets}
-            removePhotoPreset={(presetId) => commitPhotoPresets((current) => (current.length > 1 ? current.filter((preset) => preset.id !== presetId) : current))}
-            section={selectedSection}
-            selectedNavigationItemId={selectedNavigationItemId}
-            seo={seo}
-            setActivePanel={setActivePanel}
-            setChangeSummary={(summary) => {
-              setIsDirty(true);
-              setChangeSummary(summary);
-            }}
-            updatePhotoPreset={(presetId, patch) => commitPhotoPresets((current) => current.map((preset) => (preset.id === presetId ? { ...preset, ...patch } : preset)))}
-            updateHeaderNavigation={commitHeaderNavigation}
-            updateSection={updateSelected}
-            updateSeo={commitSeo}
-            validation={validation}
-            versions={versions}
-          />
-        </div>
+          </div>
+        </section>
       </div>
     </main>
   );
 }
 
+function EditorPageSelector({ additionalPages, isDirty }: { additionalPages: StorefrontEditablePage[]; isDirty: boolean }) {
+  const router = useRouter();
+  const pages = [...storefrontEditablePages, ...additionalPages].filter((page, index, allPages) => allPages.findIndex((candidate) => candidate.scope === page.scope && candidate.entityId === page.entityId) === index);
+
+  function navigate(value: string) {
+    if (isDirty && !window.confirm("You have unsaved homepage changes. Continue to another page?")) {
+      return;
+    }
+
+    if (value === "homepage:home") {
+      router.push("/admin/homepage");
+      return;
+    }
+
+    const [scope, entityId] = value.split(":");
+    router.push(`/admin/homepage?scope=${encodeURIComponent(scope)}&id=${encodeURIComponent(entityId)}`);
+  }
+
+  return (
+    <label className="block">
+      <span className="sr-only">Page</span>
+      <select className="min-h-12 w-full rounded-md border border-border bg-surface px-4 text-sm font-semibold outline-none focus:border-primary" onChange={(event) => navigate(event.target.value)} value="homepage:home">
+        <option value="homepage:home">Home</option>
+        {pages.map((page) => (
+          <option key={`${page.scope}:${page.entityId}`} value={`${page.scope}:${page.entityId}`}>
+            {page.title}
+          </option>
+        ))}
+      </select>
+    </label>
+  );
+}
+
 function EditorTopBar({
-  activePanel,
   canPublish,
+  canvasExpanded,
   isDirty,
-  onOpenStorefront,
-  onPanelChange,
+  onOpenLiveSite,
   onPreview,
   onPublish,
   onSaveDraft,
@@ -600,11 +647,10 @@ function EditorTopBar({
   setPreviewMode,
   validation
 }: {
-  activePanel: EditorPanel;
   canPublish: boolean;
+  canvasExpanded: boolean;
   isDirty: boolean;
-  onOpenStorefront: () => void;
-  onPanelChange: (panel: EditorPanel) => void;
+  onOpenLiveSite: () => void;
   onPreview: () => void;
   onPublish: () => void;
   onSaveDraft: () => void;
@@ -614,55 +660,44 @@ function EditorTopBar({
   validation: ValidationResult;
 }) {
   return (
-    <header className="rounded-md border border-border bg-surface p-4 shadow-sm">
-      <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.12em] text-secondary">Website editor</p>
-          <h1 className="mt-1 font-display text-2xl font-semibold">Editor</h1>
-        </div>
-
-        <div className="flex flex-wrap items-center gap-2">
-          <StatusPill isDirty={isDirty} saveState={saveState} validation={validation} />
-          <SegmentedPreviewMode previewMode={previewMode} setPreviewMode={setPreviewMode} />
-          <Button className="h-10 gap-2 px-3" onClick={onOpenStorefront} type="button" variant="secondary">
-            <Eye aria-hidden="true" size={16} />
-            Open
-          </Button>
-          <Button className="h-10 gap-2 px-3" onClick={onSaveDraft} type="button" variant="secondary">
-            <Save aria-hidden="true" size={16} />
-            Draft
-          </Button>
-          <Button className="h-10 gap-2 px-3" onClick={onPreview} type="button" variant="secondary">
-            <Monitor aria-hidden="true" size={16} />
-            Preview
-          </Button>
-          <Button className="h-10 gap-2 px-3" disabled={!canPublish} onClick={onPublish} type="button">
-            <Rocket aria-hidden="true" size={16} />
-            Publish
-          </Button>
+    <header className="flex min-h-20 items-center justify-between gap-4 border-b border-border bg-[#f7f7f7] px-5 py-3 lg:col-start-2 lg:row-start-1">
+      <div className="flex items-center gap-3">
+        <button
+          aria-label={canvasExpanded ? "Show editor panel" : "Expand preview"}
+          className="grid h-10 w-10 place-items-center rounded-full bg-surface text-secondary shadow-sm transition hover:text-primary"
+          onClick={onPreview}
+          title={canvasExpanded ? "Show editor panel" : "Expand preview"}
+          type="button"
+        >
+          {canvasExpanded ? <PanelLeftOpen aria-hidden="true" size={18} /> : <PanelLeftClose aria-hidden="true" size={18} />}
+        </button>
+        <SegmentedPreviewMode previewMode={previewMode} setPreviewMode={setPreviewMode} />
+        <div className="inline-flex rounded-full bg-surface-muted p-1">
+          <button aria-label="Undo" className="grid h-9 w-9 place-items-center rounded-full text-secondary opacity-45" disabled title="Undo will become available after the next saved change" type="button">
+            <Undo2 aria-hidden="true" size={17} />
+          </button>
+          <button aria-label="Redo" className="grid h-9 w-9 place-items-center rounded-full text-secondary opacity-45" disabled title="Redo will become available after undo" type="button">
+            <Redo2 aria-hidden="true" size={17} />
+          </button>
         </div>
       </div>
 
-      <div className="mt-4 flex gap-2 overflow-x-auto pb-1">
-        {panelTabs.map((tab) => {
-          const Icon = tab.icon;
-
-          return (
-            <button
-              aria-pressed={activePanel === tab.id}
-              className={cn(
-                "inline-flex h-9 shrink-0 items-center gap-2 rounded-md border px-3 text-sm font-semibold transition",
-                activePanel === tab.id ? "border-primary bg-surface-muted text-primary" : "border-border text-secondary hover:border-primary hover:text-primary"
-              )}
-              key={tab.id}
-              onClick={() => onPanelChange(tab.id)}
-              type="button"
-            >
-              <Icon aria-hidden="true" size={15} />
-              {tab.label}
-            </button>
-          );
-        })}
+      <div className="flex flex-wrap items-center justify-end gap-2">
+        <div className="hidden xl:block">
+          <StatusPill isDirty={isDirty} saveState={saveState} validation={validation} />
+        </div>
+        <Button className="h-11 w-11 rounded-full px-0" onClick={onSaveDraft} title="Save draft" type="button" variant="quiet">
+          <Save aria-hidden="true" size={17} />
+        </Button>
+        <Button className="h-11 rounded-full px-5" onClick={onPreview} type="button" variant="secondary">
+          {canvasExpanded ? "Exit preview" : "Preview"}
+        </Button>
+        <Button aria-label="Open live site" className="h-11 w-11 rounded-full px-0" onClick={onOpenLiveSite} title="Open the live production site" type="button" variant="quiet">
+          <ExternalLink aria-hidden="true" size={17} />
+        </Button>
+        <Button className="h-11 rounded-full bg-primary px-5 text-white hover:bg-primary/90" disabled={!canPublish} onClick={onPublish} type="button">
+          Publish
+        </Button>
       </div>
     </header>
   );
@@ -751,44 +786,30 @@ function SectionsPanel({
   selectedSection: HomepageSectionConfig;
   selectedSectionId: string;
 }) {
-  return (
-    <aside className="rounded-md border border-border bg-surface p-3 lg:flex lg:min-h-0 lg:flex-col lg:overflow-hidden">
-      <div className="shrink-0">
-        <div className="flex items-center justify-between gap-2">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.12em] text-secondary">Sections</p>
-            <h2 className="font-display text-lg font-semibold">Page blocks</h2>
-          </div>
-          <div className="flex gap-1">
-            <Button className="h-9 w-9 px-0" onClick={() => moveSelected(-1)} title="Move up" type="button" variant="quiet">
-              <ArrowUp aria-hidden="true" size={16} />
-            </Button>
-            <Button className="h-9 w-9 px-0" onClick={() => moveSelected(1)} title="Move down" type="button" variant="quiet">
-              <ArrowDown aria-hidden="true" size={16} />
-            </Button>
-          </div>
-        </div>
+  const [libraryOpen, setLibraryOpen] = useState(false);
 
-        <div className="mt-3 grid grid-cols-2 gap-2">
-          <Button className="h-9 gap-2 px-2 text-xs" onClick={duplicateSelectedSection} title="Duplicate selected section" type="button" variant="secondary">
-            <Copy aria-hidden="true" size={15} />
-            Duplicate
-          </Button>
-          <Button className="h-9 gap-2 px-2 text-xs" onClick={removeSelectedSection} title={coreHomepageSectionIds.has(selectedSection.sectionId) ? "Hide selected core section" : "Remove selected section"} type="button" variant="quiet">
-            <Trash2 aria-hidden="true" size={15} />
-            {coreHomepageSectionIds.has(selectedSection.sectionId) ? "Hide" : "Remove"}
-          </Button>
+  return (
+    <aside className="grid gap-4">
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-[0.12em] text-secondary">Page structure</p>
+          <h2 className="mt-1 text-lg font-semibold">Home sections</h2>
+        </div>
+        <div className="flex rounded-full bg-surface-muted p-1">
+          <button className="grid h-8 w-8 place-items-center rounded-full hover:bg-surface" onClick={() => moveSelected(-1)} title="Move selected section up" type="button"><ArrowUp aria-hidden="true" size={15} /></button>
+          <button className="grid h-8 w-8 place-items-center rounded-full hover:bg-surface" onClick={() => moveSelected(1)} title="Move selected section down" type="button"><ArrowDown aria-hidden="true" size={15} /></button>
+          <button className="grid h-8 w-8 place-items-center rounded-full hover:bg-surface" onClick={duplicateSelectedSection} title="Duplicate selected section" type="button"><Copy aria-hidden="true" size={15} /></button>
+          <button className="grid h-8 w-8 place-items-center rounded-full hover:bg-surface hover:text-red" onClick={removeSelectedSection} title={coreHomepageSectionIds.has(selectedSection.sectionId) ? "Hide selected core section" : "Remove selected section"} type="button"><Trash2 aria-hidden="true" size={15} /></button>
         </div>
       </div>
 
-      <div className="mt-4 grid gap-2 lg:min-h-0 lg:flex-1 lg:overflow-y-auto lg:pr-1">
-        <div className="grid gap-2">
+      <div className="grid gap-2 rounded-md bg-surface-muted p-2">
           {sections.map((section, index) => (
             <button
               aria-pressed={section.sectionId === selectedSectionId}
               className={cn(
-                "grid gap-1 rounded-md border p-3 text-left text-sm transition",
-                section.sectionId === selectedSectionId ? "border-primary bg-surface-muted text-primary" : "border-border text-secondary hover:border-primary hover:text-primary",
+                "flex min-h-14 items-center gap-3 rounded-md px-3 text-left text-sm transition",
+                section.sectionId === selectedSectionId ? "bg-surface text-primary shadow-sm" : "text-primary hover:bg-surface/75",
                 draggingSectionId === section.sectionId && "opacity-60"
               )}
               draggable
@@ -812,59 +833,63 @@ function SectionsPanel({
               }}
               type="button"
             >
-              <span className="flex items-center justify-between gap-3">
-                <span className="flex min-w-0 items-center gap-2">
-                  <GripVertical aria-hidden="true" className="shrink-0 text-secondary" size={16} />
-                  <span className="truncate font-semibold">{sectionLabel(section.sectionId)}</span>
-                </span>
-                <span className="flex shrink-0 items-center gap-2 text-xs">
-                  {section.isVisible ? <Eye aria-hidden="true" size={15} /> : <EyeOff aria-hidden="true" size={15} />}
-                  {index + 1}
-                </span>
+              <GripVertical aria-hidden="true" className="shrink-0 text-secondary" size={16} />
+              <span className="min-w-0 flex-1 truncate font-semibold">{sectionLabel(section.sectionId)}</span>
+              <span className="flex shrink-0 items-center gap-2 text-xs text-secondary">
+                {section.isVisible ? <Eye aria-hidden="true" size={15} /> : <EyeOff aria-hidden="true" size={15} />}
+                {index + 1}
               </span>
-              <span className="text-xs text-secondary">{sectionDescription(section)}</span>
             </button>
           ))}
-        </div>
+      </div>
 
-        <div className="border-t border-border pt-4">
-          <div className="flex items-center gap-2">
-            <Plus aria-hidden="true" className="text-secondary" size={16} />
-            <p className="text-sm font-semibold">Add section</p>
-          </div>
-          <div className="mt-3 grid gap-2">
+      <button className="flex min-h-12 w-full items-center justify-center gap-2 rounded-md bg-surface-muted px-4 text-sm font-semibold transition hover:bg-border" onClick={() => setLibraryOpen((current) => !current)} type="button">
+        <Plus aria-hidden="true" size={17} />
+        {libraryOpen ? "Close section library" : "Add section"}
+      </button>
+
+      {libraryOpen ? (
+        <div className="grid gap-2 border-t border-border pt-4">
+          <p className="text-xs font-semibold uppercase tracking-[0.12em] text-secondary">Section library</p>
             {homepageSectionTemplates.map((template) => (
               <button
                 className="rounded-md border border-border bg-surface-muted p-3 text-left text-sm transition hover:border-primary hover:text-primary"
                 key={template.id}
-                onClick={() => addSectionFromTemplate(template)}
+                onClick={() => {
+                  addSectionFromTemplate(template);
+                  setLibraryOpen(false);
+                }}
                 type="button"
               >
                 <span className="font-semibold">{template.title}</span>
                 <span className="mt-1 block text-xs text-secondary">{template.description}</span>
               </button>
             ))}
-          </div>
         </div>
-      </div>
+      ) : null}
     </aside>
   );
 }
 
 function StorefrontPreview({
+  featuredBrandItems,
   headerNavigation,
   onEditNavigationTarget,
+  onEditTarget,
+  products,
   sections,
-  selectedSectionId,
-  onEditTarget
+  selectedSectionId
 }: {
+  featuredBrandItems: HomepageSectionItem[];
   headerNavigation: HeaderNavigationConfig;
   onEditNavigationTarget: (navigationItemId: string) => void;
+  onEditTarget: (target: PreviewEditTarget) => void;
+  products: StorefrontProduct[];
   sections: HomepageSectionConfig[];
   selectedSectionId: string;
-  onEditTarget: (target: PreviewEditTarget) => void;
 }) {
   const previewRef = useRef<HTMLDivElement>(null);
+  const storefrontSections = featuredBrandItems.length > 0 ? sections.map((section) => (section.sectionId === "home.hero" ? { ...section, items: featuredBrandItems } : section)) : sections;
 
   useEffect(() => {
     const preview = previewRef.current;
@@ -874,13 +899,20 @@ function StorefrontPreview({
     }
 
     const scrollContainer = preview.closest<HTMLElement>("[data-preview-frame='true']");
+    const previewSections = Array.from(preview.querySelectorAll<HTMLElement>("[data-cms-section-id]"));
+    const selectedPreviewSection = previewSections.find((element) => element.dataset.cmsSectionId === selectedSectionId);
+
+    previewSections.forEach((element) => {
+      const isSelected = element === selectedPreviewSection;
+      element.style.outline = isSelected ? "2px solid var(--color-text-primary)" : "";
+      element.style.outlineOffset = isSelected ? "-2px" : "";
+    });
 
     if (selectedSectionId === "home.hero") {
       scrollContainer?.scrollTo({ top: 0, behavior: "smooth" });
       return;
     }
 
-    const selectedPreviewSection = Array.from(preview.querySelectorAll<HTMLElement>("[data-cms-section-id]")).find((element) => element.dataset.cmsSectionId === selectedSectionId);
     selectedPreviewSection?.scrollIntoView({ block: "nearest", behavior: "smooth" });
   }, [selectedSectionId]);
 
@@ -911,7 +943,8 @@ function StorefrontPreview({
   return (
     <div className="bg-background text-primary" onClickCapture={handlePreviewClick} ref={previewRef}>
       <SiteHeader navigation={headerNavigation} />
-      <HomePageTemplate sections={sections} />
+      <HomePageTemplate products={products} sections={storefrontSections} />
+      <SiteFooter />
     </div>
   );
 }
@@ -1127,6 +1160,9 @@ function InspectorPanel({
   versions,
   changeSummary,
   focusRequest,
+  onDone,
+  onDuplicate,
+  onRemove,
   setChangeSummary,
   setActivePanel
 }: {
@@ -1146,6 +1182,9 @@ function InspectorPanel({
   versions: HomepageVersionSummary[];
   changeSummary: string;
   focusRequest: EditorFocusRequest | null;
+  onDone: () => void;
+  onDuplicate: () => void;
+  onRemove: () => void;
   setChangeSummary: (summary: string) => void;
   setActivePanel: (panel: EditorPanel) => void;
 }) {
@@ -1159,12 +1198,47 @@ function InspectorPanel({
     inspectorRef.current?.scrollIntoView({ block: "nearest", behavior: "smooth" });
   }, [focusRequest]);
 
+  const inspectorTitle =
+    activePanel === "navigation"
+      ? "Header navigation"
+      : activePanel === "seo"
+        ? "Homepage SEO"
+        : activePanel === "history"
+          ? "Version history"
+          : sectionLabel(section.sectionId);
+
   return (
-    <aside className="rounded-md border border-border bg-surface p-4 lg:min-h-0 lg:overflow-y-auto lg:overscroll-contain" ref={inspectorRef}>
-      <div className="mb-4 lg:sticky lg:top-0 lg:z-20 lg:-mx-4 lg:-mt-4 lg:border-b lg:border-border lg:bg-surface/95 lg:p-4 lg:backdrop-blur">
-        <p className="text-xs font-semibold uppercase tracking-[0.12em] text-secondary">Inspector</p>
-        <h2 className="mt-1 font-display text-xl font-semibold">{activePanel === "navigation" ? "Header navigation" : activePanel === "seo" ? "Homepage SEO" : activePanel === "history" ? "Version history" : sectionLabel(section.sectionId)}</h2>
-        <p className="mt-1 text-xs text-secondary">{activePanel === "navigation" ? "Edit the public header links shown in the website preview." : activePanel === "seo" ? "Search and social metadata for the public homepage." : activePanel === "history" ? "Recent draft, preview, and publish snapshots." : sectionDescription(section)}</p>
+    <aside className="min-h-0" ref={inspectorRef}>
+      <div className="sticky top-0 z-20 -mx-5 -mt-5 border-b border-border bg-surface/95 px-5 py-4 backdrop-blur">
+        <div className="flex items-center justify-between gap-3">
+          <h2 className="truncate font-display text-lg font-semibold">{inspectorTitle}</h2>
+          <Button className="h-10 shrink-0 rounded-full px-4" onClick={onDone} variant="quiet">
+            Done
+          </Button>
+        </div>
+      </div>
+
+      <div className="my-4 grid grid-cols-4 gap-1">
+        {panelTabs.map((tab) => {
+          const Icon = tab.icon;
+          const selected = activePanel === tab.id;
+
+          return (
+            <button
+              aria-pressed={selected}
+              className={cn(
+                "inline-flex h-9 min-w-0 items-center justify-center gap-1 rounded-full px-2 text-[11px] font-semibold transition",
+                selected ? "bg-primary text-white" : "bg-surface-muted text-secondary hover:text-primary"
+              )}
+              key={tab.id}
+              onClick={() => setActivePanel(tab.id)}
+              type="button"
+            >
+              <Icon aria-hidden="true" className="size-3.5" />
+              {tab.label}
+            </button>
+          );
+        })}
       </div>
 
       {activePanel === "content" ? <ContentPanel focusRequest={focusRequest} section={section} setActivePanel={setActivePanel} updateSection={updateSection} /> : null}
@@ -1184,6 +1258,17 @@ function InspectorPanel({
       {activePanel === "seo" ? <SeoPanel seo={seo} updateSeo={updateSeo} /> : null}
       {activePanel === "checks" ? <ChecksPanel changeSummary={changeSummary} setChangeSummary={setChangeSummary} validation={validation} /> : null}
       {activePanel === "history" ? <HistoryPanel versions={versions} /> : null}
+
+      <div className="mt-6 grid grid-cols-2 gap-2 border-t border-border pt-4">
+        <Button className="justify-center" onClick={onDuplicate} variant="quiet">
+          <Copy aria-hidden="true" className="size-4" />
+          Duplicate
+        </Button>
+        <Button className="justify-center" onClick={onRemove} variant="quiet">
+          <Trash2 aria-hidden="true" className="size-4" />
+          Remove
+        </Button>
+      </div>
     </aside>
   );
 }
@@ -2477,10 +2562,6 @@ function sectionTypeFromSection(section: HomepageSectionConfig): NonNullable<Hom
   return "content";
 }
 
-function sectionDescription(section: HomepageSectionConfig) {
-  return sectionPurpose[section.sectionId] ?? sectionTypePurpose[sectionTypeFromSection(section)] ?? section.variant;
-}
-
 function sectionLabel(sectionId: string) {
   return sectionId
     .replace("home.", "")
@@ -2493,18 +2574,6 @@ function sectionLabel(sectionId: string) {
     .join(" ");
 }
 
-function previewModeLabel(previewMode: PreviewMode) {
-  if (previewMode === "mobile") {
-    return "Mobile canvas";
-  }
-
-  if (previewMode === "tablet") {
-    return "Tablet canvas";
-  }
-
-  return "Desktop canvas";
-}
-
 function previewCanvasDesignWidth(previewMode: PreviewMode) {
   if (previewMode === "mobile") {
     return 390;
@@ -2514,7 +2583,7 @@ function previewCanvasDesignWidth(previewMode: PreviewMode) {
     return 760;
   }
 
-  return 1120;
+  return 1440;
 }
 
 function previewPaddingClass(section: HomepageSectionConfig) {

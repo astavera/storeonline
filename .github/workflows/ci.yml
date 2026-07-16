@@ -50,11 +50,13 @@ jobs:
         run: npm run prisma:validate
         env:
           DATABASE_URL: postgresql://ci:ci@127.0.0.1:5432/storeonline_ci
+          DIRECT_URL: postgresql://ci:ci@127.0.0.1:5432/storeonline_ci
 
       - name: Generate Prisma client
         run: npm run prisma:generate
         env:
           DATABASE_URL: postgresql://ci:ci@127.0.0.1:5432/storeonline_ci
+          DIRECT_URL: postgresql://ci:ci@127.0.0.1:5432/storeonline_ci
 
       - name: Audit production dependencies
         run: npm run audit:prod
@@ -83,6 +85,7 @@ jobs:
         run: npm run prisma:generate
         env:
           DATABASE_URL: postgresql://ci:ci@127.0.0.1:5432/storeonline_ci
+          DIRECT_URL: postgresql://ci:ci@127.0.0.1:5432/storeonline_ci
 
       - name: Build production application
         run: npm run build
@@ -111,6 +114,7 @@ jobs:
         run: npm run prisma:generate
         env:
           DATABASE_URL: postgresql://ci:ci@127.0.0.1:5432/storeonline_ci
+          DIRECT_URL: postgresql://ci:ci@127.0.0.1:5432/storeonline_ci
 
       - name: Build application for browser tests
         run: npm run build

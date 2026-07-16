@@ -156,8 +156,22 @@ export function builderHrefForStorefrontPage(page: Pick<StorefrontEditablePage, 
   return `/admin/builder/${page.scope}/${page.entityId}`;
 }
 
-export function storefrontEditablePagesByGroup() {
-  return storefrontEditablePages.reduce<Record<StorefrontEditablePageGroup, StorefrontEditablePage[]>>(
+export function websiteHolidayEditorPages(websiteHolidays: Array<{ description: string; name: string; slug: string }>): StorefrontEditablePage[] {
+  return websiteHolidays.map((holiday) => ({
+    title: holiday.name,
+    route: `/holidays/${holiday.slug}`,
+    scope: "holiday",
+    entityId: holiday.slug,
+    group: "Holidays",
+    description: holiday.description || `${holiday.name} storefront design.`
+  }));
+}
+
+export function storefrontEditablePagesByGroup(additionalPages: StorefrontEditablePage[] = []) {
+  const pageByKey = new Map(storefrontEditablePages.map((page) => [`${page.scope}:${page.entityId}`, page]));
+  for (const page of additionalPages) pageByKey.set(`${page.scope}:${page.entityId}`, page);
+
+  return Array.from(pageByKey.values()).reduce<Record<StorefrontEditablePageGroup, StorefrontEditablePage[]>>(
     (groups, page) => {
       groups[page.group].push(page);
       return groups;

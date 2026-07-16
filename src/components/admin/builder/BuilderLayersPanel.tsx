@@ -21,9 +21,9 @@ export function BuilderLayersPanel({
   selectedSectionId: string;
 }) {
   return (
-    <section className="rounded-md border border-border bg-surface p-3">
+    <section>
       <div className="mb-3">
-        <p className="text-xs font-semibold uppercase tracking-[0.14em] text-secondary">Layers</p>
+        <p className="text-xs font-semibold uppercase tracking-[0.14em] text-secondary">Page structure</p>
         <h2 className="font-display text-lg font-semibold">Page sections</h2>
       </div>
       <BuilderSectionList

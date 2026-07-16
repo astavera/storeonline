@@ -1,40 +1,78 @@
-import { ChevronDown, SlidersHorizontal } from "lucide-react";
+import { ChevronDown } from "lucide-react";
+import Image from "next/image";
 import Link from "next/link";
-import type { ReactNode } from "react";
 import { ProductCard } from "@/components/commerce/product-card";
+import { ShopFilterPanel } from "@/components/commerce/shop-filter-panel";
 import { StorefrontCmsPage } from "@/components/cms/storefront-cms-page";
 import { SectionFrame } from "@/components/sections/section-frame";
-import { storefrontProducts, type StorefrontProduct } from "@/features/catalog/product-catalog";
-import { cn } from "@/lib/utils";
+import { productAgeGroupIds, storefrontProducts, type FulfillmentMode, type ProductAgeGroup, type StorefrontProduct } from "@/features/catalog/product-catalog";
+import { filterWebsiteCatalogProducts, resolveWebsiteCatalog, slugifyWebsiteCategory } from "@/features/catalog/services/website-merchandising-service";
 import { readLatestCmsDocument } from "@/server/admin/admin-cms-document-service";
+import { readWebsiteMerchandising, readWebsiteMerchandisingSnapshot } from "@/server/admin/website-merchandising-store";
+import { readSquareCatalogPreview } from "@/server/square/catalog-preview-store";
+import { readSquareCatalogCacheSummary, readSquareStorefrontProductsByVariationIds } from "@/server/square/catalog-test-cache-store";
 
 export const metadata = {
   title: "Shop",
   description: "Shop Modern State toys, balloons, party supplies, stationery, gifts, and creative essentials."
 };
 
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 type ShopPageProps = {
   searchParams?: Promise<Record<string, string | string[] | undefined>>;
 };
 
 export default async function ShopPage({ searchParams }: ShopPageProps) {
+  const useE2eFixture = process.env.E2E_CATALOG_FIXTURE === "true";
+  const squarePreview = useE2eFixture ? null : await readSquareCatalogPreview();
+  const fullCatalogSummary = useE2eFixture
+    ? { available: false, categoryCount: 0, itemCount: 0, variationCount: 0, inventoryCount: 0, updatedAt: null }
+    : readSquareCatalogCacheSummary();
+  const hasSquareCatalog = fullCatalogSummary.available || Boolean(squarePreview);
   const publishedDocument = await readLatestCmsDocument({ entityType: "landing", entityId: "shop", statuses: ["PUBLISHED"] });
 
-  if (publishedDocument) {
-    return <StorefrontCmsPage document={publishedDocument} />;
-  }
-
   const params = await searchParams;
+  const merchandisingSnapshot = fullCatalogSummary.available ? await readWebsiteMerchandisingSnapshot() : null;
+  const visibleVariationIds = merchandisingSnapshot?.placements.filter((placement) => placement.visible).map((placement) => placement.squareVariationId) ?? [];
+  const fullCatalogProducts = fullCatalogSummary.available ? readSquareStorefrontProductsByVariationIds(visibleVariationIds) : [];
+  const sourceProducts = fullCatalogSummary.available ? fullCatalogProducts : squarePreview?.products ?? [];
+  const websiteMerchandising = merchandisingSnapshot ?? (squarePreview ? await readWebsiteMerchandising(squarePreview.products) : null);
+  const resolvedCatalog = hasSquareCatalog && websiteMerchandising ? resolveWebsiteCatalog(sourceProducts, websiteMerchandising) : null;
+  const catalogProducts = resolvedCatalog?.products.length ? resolvedCatalog.products : hasSquareCatalog ? [] : storefrontProducts;
   const selectedDepartment = paramValue(params?.department);
+  const selectedBrandSlug = paramValue(params?.brand);
+  const selectedAge = validAgeGroup(paramValue(params?.age));
+  const selectedFulfillment = validFulfillmentMode(paramValue(params?.fulfillment));
   const selectedSort = paramValue(params?.sort) || "featured";
-  const departments = Array.from(new Set(storefrontProducts.map((product) => product.department))).sort();
-  const filteredProducts = selectedDepartment ? storefrontProducts.filter((product) => product.department.toLowerCase() === selectedDepartment.toLowerCase()) : storefrontProducts;
+  const categories = resolvedCatalog
+    ? resolvedCatalog.categories.map((category) => ({ id: category.id, name: category.name, slug: category.slug, description: category.description, parentId: category.parentId, productCount: resolvedCatalog.productVariationIdsByCategory[category.id]?.length ?? 0 }))
+    : Array.from(new Set(catalogProducts.map((product) => product.department))).sort().map((name) => ({ id: name, name, slug: slugifyWebsiteCategory(name), description: "", parentId: null, productCount: catalogProducts.filter((product) => product.department === name).length }));
+  const selectedCategory = selectedDepartment ? categories.find((category) => category.slug.toLowerCase() === selectedDepartment.toLowerCase()) : undefined;
+  const brands = resolvedCatalog ? resolvedCatalog.brands.map((brand) => ({ id: brand.id, name: brand.name, slug: brand.slug, description: brand.description, logoUrl: brand.logoUrl, imageAlt: brand.imageAlt, productCount: resolvedCatalog.productVariationIdsByBrand[brand.id]?.length ?? 0 })) : [];
+  const selectedBrand = selectedBrandSlug ? brands.find((brand) => brand.slug.toLowerCase() === selectedBrandSlug.toLowerCase()) : undefined;
+  const filteredProducts = resolvedCatalog
+    ? filterWebsiteCatalogProducts(resolvedCatalog, { categoryId: selectedCategory?.id, brandId: selectedBrand?.id, ageGroup: selectedAge, fulfillmentMode: selectedFulfillment, surface: "shop" })
+    : catalogProducts.filter((product) => {
+        const matchesCategory = !selectedCategory || slugifyWebsiteCategory(product.department) === selectedCategory.slug;
+        const matchesAge = !selectedAge || product.ageGroups?.includes(selectedAge);
+        const matchesFulfillment = !selectedFulfillment || product.fulfillmentModes.includes(selectedFulfillment);
+        return matchesCategory && matchesAge && matchesFulfillment;
+      });
   const products = sortProducts(filteredProducts, selectedSort);
+  const shopProductsForCounts = resolvedCatalog ? filterWebsiteCatalogProducts(resolvedCatalog, { surface: "shop" }) : catalogProducts;
+  const ageCounts = Object.fromEntries(productAgeGroupIds.map((age) => [age, shopProductsForCounts.filter((product) => product.ageGroups?.includes(age)).length]));
+  const fulfillmentCounts = Object.fromEntries((["pickup", "local-delivery", "shipping"] as const).map((mode) => [mode, shopProductsForCounts.filter((product) => product.fulfillmentModes.includes(mode)).length]));
+
+  if (publishedDocument) {
+    return <StorefrontCmsPage document={publishedDocument} products={products} />;
+  }
 
   return (
     <main className="bg-surface">
       <SectionFrame area="Shop" className="py-8 md:py-12" component="ShopPageSection" sectionId="shop.index" variant="product-grid">
-        <div className="container-shell">
+        <div className="mx-auto w-[calc(100%_-_2rem)] max-w-[1720px]">
           <nav aria-label="Breadcrumb" className="mb-5 text-sm font-black text-primary [&_*]:text-primary">
             <Link className="text-primary hover:underline" href="/">
               Home
@@ -42,47 +80,39 @@ export default async function ShopPage({ searchParams }: ShopPageProps) {
             <span className="mx-2 text-secondary">›</span>
             <span className="text-primary">Shop</span>
           </nav>
-          <div className="mb-8 max-w-3xl">
-            <h1 className="font-display text-4xl font-black leading-tight md:text-5xl">Shop Modern State</h1>
-            <p className="mt-3 text-lg text-secondary">Browse toys, balloons, party supplies, stationery, gifts, and neighborhood favorites.</p>
-          </div>
-
+          <h1 className="sr-only">Shop Modern State</h1>
           <div className="grid gap-8 lg:grid-cols-[260px_minmax(0,1fr)]">
-            <aside className="lg:sticky lg:top-[170px] lg:self-start">
-              <details className="rounded-md border border-border bg-surface lg:hidden">
-                <summary className="flex min-h-14 cursor-pointer list-none items-center justify-between gap-3 px-5 py-4 font-black [&::-webkit-details-marker]:hidden">
-                  <span className="flex items-center gap-2">
-                    <SlidersHorizontal aria-hidden="true" className="text-blue" size={18} />
-                    Filters
-                  </span>
-                  <ChevronDown aria-hidden="true" size={18} />
-                </summary>
-                <div className="border-t border-border px-5 pb-2">
-                  <ShopFilterOptions departments={departments} selectedDepartment={selectedDepartment} selectedSort={selectedSort} />
-                </div>
-              </details>
-              <div className="hidden rounded-md border border-border bg-surface p-5 lg:block">
-                <div className="mb-4 flex items-center justify-between border-b border-border pb-4">
-                  <h2 className="font-black">Filter</h2>
-                  <SlidersHorizontal aria-hidden="true" className="text-blue" size={18} />
-                </div>
-                <ShopFilterOptions departments={departments} selectedDepartment={selectedDepartment} selectedSort={selectedSort} />
-              </div>
-            </aside>
+            <ShopFilterPanel ageCounts={ageCounts} brands={brands} categories={categories} fulfillmentCounts={fulfillmentCounts} selectedAge={selectedAge} selectedBrand={selectedBrandSlug} selectedCategory={selectedDepartment} selectedFulfillment={selectedFulfillment} selectedSort={selectedSort} />
 
             <section aria-label="Products">
+              {selectedCategory ? (
+                <div className="mb-6 rounded-md border border-border bg-surface-muted p-5">
+                  <p className="text-xs font-black uppercase tracking-[0.12em] text-blue">Website category</p>
+                  <h2 className="mt-1 font-display text-2xl font-black">{selectedCategory.name}</h2>
+                  {selectedCategory.description ? <p className="mt-2 text-sm text-secondary">{selectedCategory.description}</p> : null}
+                </div>
+              ) : null}
+              {selectedBrand ? <div className="mb-6 flex items-center gap-4 rounded-md border border-border bg-surface-muted p-5">{selectedBrand.logoUrl ? <Image alt={selectedBrand.imageAlt || `${selectedBrand.name} logo`} className="h-16 w-24 rounded-md bg-white object-contain p-2" height={64} src={selectedBrand.logoUrl} unoptimized width={96} /> : null}<div><p className="text-xs font-black uppercase tracking-[0.12em] text-blue">Website brand</p><h2 className="mt-1 font-display text-2xl font-black">{selectedBrand.name}</h2>{selectedBrand.description ? <p className="mt-2 text-sm text-secondary">{selectedBrand.description}</p> : null}</div></div> : null}
               <div className="mb-6 flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
-                <p className="text-lg font-black">{products.length} products</p>
+                <p className="text-lg font-black">{products.length} {products.length === 1 ? "product" : "products"}</p>
                 <div className="flex flex-wrap items-center gap-3">
                   {selectedDepartment ? (
-                    <Link className="rounded-pill border border-border px-4 py-2 text-sm font-black hover:bg-surface-muted" href={hrefWithParams({ sort: selectedSort })}>
+                    <Link className="rounded-pill border border-border px-4 py-2 text-sm font-black hover:bg-surface-muted" href={hrefWithParams({ age: selectedAge, brand: selectedBrandSlug, fulfillment: selectedFulfillment, sort: selectedSort })}>
                       Clear category
                     </Link>
                   ) : null}
-                  <SortMenu selectedDepartment={selectedDepartment} selectedSort={selectedSort} />
+                  {selectedBrandSlug ? <Link className="rounded-pill border border-border px-4 py-2 text-sm font-black hover:bg-surface-muted" href={hrefWithParams({ age: selectedAge, department: selectedDepartment, fulfillment: selectedFulfillment, sort: selectedSort })}>Clear brand</Link> : null}
+                  {selectedAge ? (
+                    <Link className="rounded-pill border border-border px-4 py-2 text-sm font-black hover:bg-surface-muted" href={hrefWithParams({ brand: selectedBrandSlug, department: selectedDepartment, fulfillment: selectedFulfillment, sort: selectedSort })}>
+                      Clear age
+                    </Link>
+                  ) : null}
+                  {selectedFulfillment ? <Link className="rounded-pill border border-border px-4 py-2 text-sm font-black hover:bg-surface-muted" href={hrefWithParams({ age: selectedAge, brand: selectedBrandSlug, department: selectedDepartment, sort: selectedSort })}>Clear fulfillment</Link> : null}
+                  {[selectedDepartment, selectedBrandSlug, selectedAge, selectedFulfillment].filter(Boolean).length > 1 ? <Link className="rounded-pill bg-primary px-4 py-2 text-sm font-black text-white hover:opacity-90" href="/shop">Clear all</Link> : null}
+                  <SortMenu selectedAge={selectedAge} selectedBrand={selectedBrandSlug} selectedDepartment={selectedDepartment} selectedFulfillment={selectedFulfillment} selectedSort={selectedSort} />
                 </div>
               </div>
-              <div className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3">
+              <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
                 {products.map((product) => (
                   <ProductCard key={product.squareVariationId} product={product} variant="premium" />
                 ))}
@@ -95,74 +125,7 @@ export default async function ShopPage({ searchParams }: ShopPageProps) {
   );
 }
 
-function ShopFilterOptions({
-  departments,
-  selectedDepartment,
-  selectedSort
-}: {
-  departments: string[];
-  selectedDepartment?: string;
-  selectedSort: string;
-}) {
-  return (
-    <>
-      <FilterGroup label="Category">
-        <FilterLink active={!selectedDepartment} href={hrefWithParams({ sort: selectedSort })}>
-          All products
-        </FilterLink>
-        {departments.map((department) => (
-          <FilterLink active={selectedDepartment?.toLowerCase() === department.toLowerCase()} href={hrefWithParams({ department, sort: selectedSort })} key={department}>
-            {department}
-          </FilterLink>
-        ))}
-      </FilterGroup>
-      <FilterGroup label="Age">
-        {["0-2", "3-4", "5-7", "8-10", "11-12", "13+"].map((age) => (
-          <span className="rounded-pill bg-surface-muted px-3 py-1 text-sm font-bold text-secondary" key={age}>
-            {age}
-          </span>
-        ))}
-      </FilterGroup>
-      <FilterGroup label="Fulfillment">
-        {["Pickup", "Local delivery", "Shipping"].map((mode) => (
-          <span className="rounded-pill bg-surface-muted px-3 py-1 text-sm font-bold text-secondary" key={mode}>
-            {mode}
-          </span>
-        ))}
-      </FilterGroup>
-      <FilterGroup label="Price">
-        <Link className="text-sm font-bold text-blue hover:underline" href={hrefWithParams({ department: selectedDepartment, sort: "price-low" })}>
-          Low to high
-        </Link>
-        <Link className="text-sm font-bold text-blue hover:underline" href={hrefWithParams({ department: selectedDepartment, sort: "price-high" })}>
-          High to low
-        </Link>
-      </FilterGroup>
-    </>
-  );
-}
-
-function FilterGroup({ children, label }: { children: ReactNode; label: string }) {
-  return (
-    <details className="border-b border-border py-4 last:border-b-0" open>
-      <summary className="flex cursor-pointer list-none items-center justify-between text-sm font-black">
-        {label}
-        <ChevronDown aria-hidden="true" size={16} />
-      </summary>
-      <div className="mt-3 flex flex-wrap gap-2">{children}</div>
-    </details>
-  );
-}
-
-function FilterLink({ active, children, href }: { active: boolean; children: ReactNode; href: string }) {
-  return (
-    <Link className={cn("rounded-pill px-3 py-1 text-sm font-black", active ? "bg-blue text-white" : "bg-surface-muted text-secondary hover:bg-cyan hover:text-primary")} href={href}>
-      {children}
-    </Link>
-  );
-}
-
-function SortMenu({ selectedDepartment, selectedSort }: { selectedDepartment?: string; selectedSort: string }) {
+function SortMenu({ selectedAge, selectedBrand, selectedDepartment, selectedFulfillment, selectedSort }: { selectedAge?: ProductAgeGroup; selectedBrand?: string; selectedDepartment?: string; selectedFulfillment?: FulfillmentMode; selectedSort: string }) {
   const label = sortLabel(selectedSort);
 
   return (
@@ -178,7 +141,7 @@ function SortMenu({ selectedDepartment, selectedSort }: { selectedDepartment?: s
           ["price-low", "Price: low to high"],
           ["price-high", "Price: high to low"]
         ].map(([value, optionLabel]) => (
-          <Link className="rounded-md px-3 py-2 text-sm font-bold hover:bg-surface-muted" href={hrefWithParams({ department: selectedDepartment, sort: value })} key={value}>
+          <Link className="rounded-md px-3 py-2 text-sm font-bold hover:bg-surface-muted" href={hrefWithParams({ age: selectedAge, brand: selectedBrand, department: selectedDepartment, fulfillment: selectedFulfillment, sort: value })} key={value}>
             {optionLabel}
           </Link>
         ))}
@@ -191,11 +154,23 @@ function paramValue(value: string | string[] | undefined) {
   return Array.isArray(value) ? value[0] : value;
 }
 
-function hrefWithParams(input: { department?: string; sort?: string }) {
+function hrefWithParams(input: { age?: ProductAgeGroup; brand?: string; department?: string; fulfillment?: FulfillmentMode; sort?: string }) {
   const params = new URLSearchParams();
 
   if (input.department) {
     params.set("department", input.department);
+  }
+
+  if (input.brand) {
+    params.set("brand", input.brand);
+  }
+
+  if (input.age) {
+    params.set("age", input.age);
+  }
+
+  if (input.fulfillment) {
+    params.set("fulfillment", input.fulfillment);
   }
 
   if (input.sort && input.sort !== "featured") {
@@ -230,4 +205,12 @@ function sortLabel(sort: string) {
   }
 
   return "Featured";
+}
+
+function validAgeGroup(value: string | undefined): ProductAgeGroup | undefined {
+  return productAgeGroupIds.find((ageGroup) => ageGroup === value);
+}
+
+function validFulfillmentMode(value: string | undefined): FulfillmentMode | undefined {
+  return (["pickup", "local-delivery", "shipping"] as const).find((mode) => mode === value);
 }

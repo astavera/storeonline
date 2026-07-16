@@ -1,5 +1,16 @@
 export type FulfillmentMode = "pickup" | "local-delivery" | "shipping";
 
+export const productAgeGroupIds = ["0-2", "3-4", "5-7", "8-10", "11-12", "13+"] as const;
+export type ProductAgeGroup = (typeof productAgeGroupIds)[number];
+export const productAgeGroups: ReadonlyArray<{ id: ProductAgeGroup; label: string; shortLabel: string }> = [
+  { id: "0-2", label: "Baby & toddler (0–2)", shortLabel: "0–2" },
+  { id: "3-4", label: "Preschool (3–4)", shortLabel: "3–4" },
+  { id: "5-7", label: "Kids (5–7)", shortLabel: "5–7" },
+  { id: "8-10", label: "Kids (8–10)", shortLabel: "8–10" },
+  { id: "11-12", label: "Tweens (11–12)", shortLabel: "11–12" },
+  { id: "13+", label: "Teens & adults (13+)", shortLabel: "13+" }
+];
+
 export type StorefrontProduct = {
   id: string;
   squareVariationId: string;
@@ -12,7 +23,16 @@ export type StorefrontProduct = {
   priceCents: number;
   badge?: string;
   fulfillmentModes: FulfillmentMode[];
-  inventoryStatus: "in-stock" | "limited" | "special-order";
+  inventoryStatus: "in-stock" | "limited" | "special-order" | "out-of-stock";
+  inventoryTracked?: boolean;
+  availableQuantity?: number | null;
+  priceAvailable?: boolean;
+  ageGroups?: ProductAgeGroup[];
+  websiteSurfaces?: string[];
+  websiteBrandIds?: string[];
+  squareVendorIds?: string[];
+  squareVendorNames?: string[];
+  previewOnly?: boolean;
 };
 
 export const storefrontProducts: StorefrontProduct[] = [
@@ -27,6 +47,7 @@ export const storefrontProducts: StorefrontProduct[] = [
     imageUrl: "https://images.unsplash.com/photo-1560961911-ba7ef651a56c?auto=format&fit=crop&w=900&q=80",
     priceCents: 2499,
     badge: "Best seller",
+    ageGroups: ["5-7", "8-10"],
     fulfillmentModes: ["pickup", "local-delivery", "shipping"],
     inventoryStatus: "in-stock"
   },
@@ -41,6 +62,7 @@ export const storefrontProducts: StorefrontProduct[] = [
     imageUrl: "https://images.unsplash.com/photo-1513151233558-d860c5398176?auto=format&fit=crop&w=900&q=80",
     priceCents: 1899,
     badge: "Party ready",
+    ageGroups: ["13+"],
     fulfillmentModes: ["pickup", "local-delivery", "shipping"],
     inventoryStatus: "in-stock"
   },
@@ -55,6 +77,7 @@ export const storefrontProducts: StorefrontProduct[] = [
     imageUrl: "https://images.unsplash.com/photo-1527529482837-4698179dc6ce?auto=format&fit=crop&w=900&q=80",
     priceCents: 799,
     badge: "Pickup",
+    ageGroups: ["3-4", "5-7", "8-10", "11-12", "13+"],
     fulfillmentModes: ["pickup", "local-delivery"],
     inventoryStatus: "limited"
   },
@@ -69,6 +92,7 @@ export const storefrontProducts: StorefrontProduct[] = [
     imageUrl: "https://images.unsplash.com/photo-1513364776144-60967b0f800f?auto=format&fit=crop&w=900&q=80",
     priceCents: 2199,
     badge: "Staff pick",
+    ageGroups: ["5-7", "8-10", "11-12"],
     fulfillmentModes: ["pickup", "local-delivery", "shipping"],
     inventoryStatus: "in-stock"
   },
@@ -83,6 +107,7 @@ export const storefrontProducts: StorefrontProduct[] = [
     imageUrl: "https://images.unsplash.com/photo-1513475382585-d06e58bcb0e0?auto=format&fit=crop&w=900&q=80",
     priceCents: 1699,
     badge: "Giftable",
+    ageGroups: ["8-10", "11-12", "13+"],
     fulfillmentModes: ["pickup", "local-delivery", "shipping"],
     inventoryStatus: "in-stock"
   },
@@ -97,6 +122,7 @@ export const storefrontProducts: StorefrontProduct[] = [
     imageUrl: "https://images.unsplash.com/photo-1513201099705-a9746e1e201f?auto=format&fit=crop&w=900&q=80",
     priceCents: 1299,
     badge: "Local favorite",
+    ageGroups: ["13+"],
     fulfillmentModes: ["pickup", "local-delivery", "shipping"],
     inventoryStatus: "in-stock"
   }
@@ -132,6 +158,10 @@ export function fulfillmentModeLabel(mode: FulfillmentMode) {
   }
 
   return mode.charAt(0).toUpperCase() + mode.slice(1);
+}
+
+export function productAgeGroupLabel(ageGroup: ProductAgeGroup) {
+  return productAgeGroups.find((option) => option.id === ageGroup)?.label ?? ageGroup;
 }
 
 function normalizeProductKey(value: string) {

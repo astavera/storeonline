@@ -44,8 +44,8 @@ npm run build
 When the Prisma schema changes:
 
 ```bash
-DATABASE_URL=postgresql://user:password@127.0.0.1:5432/storeonline npm run prisma:validate
-DATABASE_URL=postgresql://user:password@127.0.0.1:5432/storeonline npm run prisma:generate
+DATABASE_URL=postgresql://user:password@127.0.0.1:5432/storeonline DIRECT_URL=postgresql://user:password@127.0.0.1:5432/storeonline npm run prisma:validate
+DATABASE_URL=postgresql://user:password@127.0.0.1:5432/storeonline DIRECT_URL=postgresql://user:password@127.0.0.1:5432/storeonline npm run prisma:generate
 ```
 
 Phase 1 establishes the reviewed PostgreSQL baseline at
@@ -54,8 +54,8 @@ shared database, inspect that SQL and prove it against an empty, disposable loca
 PostgreSQL database:
 
 ```bash
-DATABASE_URL=postgresql://user:password@127.0.0.1:5432/storeonline_phase1 npm run prisma:migrate:deploy
-DATABASE_URL=postgresql://user:password@127.0.0.1:5432/storeonline_phase1 npx prisma migrate status
+DATABASE_URL=postgresql://user:password@127.0.0.1:5432/storeonline_phase1 DIRECT_URL=postgresql://user:password@127.0.0.1:5432/storeonline_phase1 npm run prisma:migrate:deploy
+DATABASE_URL=postgresql://user:password@127.0.0.1:5432/storeonline_phase1 DIRECT_URL=postgresql://user:password@127.0.0.1:5432/storeonline_phase1 npx prisma migrate status
 ```
 
 Use `npm run prisma:migrate:dev` only against a disposable local database. Once
@@ -78,5 +78,10 @@ read/write smoke test on disposable PostgreSQL 17.10 on 2026-07-12. The test
 created 26 application tables, 8 enums, 25 foreign keys, and the manual
 `SlotHold_exactly_one_owner_check`; the test data was rolled back. No shared
 database was changed.
+
+Runtime database access must use the shared client in `src/server/db/prisma.ts`.
+Request handlers and services must not create and disconnect a new Prisma client
+for each operation; serverless connection limits and the selected pooling
+strategy remain part of the Phase 1 production database decision.
 
 Admin authentication is intentionally scheduled near launch. Until it is implemented and verified, `/admin` and `/api/admin/*` must not be exposed to untrusted users; use only local development or an access-controlled preview.

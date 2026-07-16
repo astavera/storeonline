@@ -1,5 +1,7 @@
 "use client";
 
+import { ArrowLeft, Palette } from "lucide-react";
+import Link from "next/link";
 import { useMemo, useState } from "react";
 import {
   addCmsSection,
@@ -23,6 +25,7 @@ import { BuilderInspector } from "./BuilderInspector";
 import { BuilderSidebar } from "./BuilderSidebar";
 import { BuilderTopbar } from "./BuilderTopbar";
 import type { BuilderDevice, BuilderDocumentHistoryEntry, BuilderInspectorTab, BuilderSaveState } from "./types";
+import type { StorefrontEditablePage } from "@/config/storefront-pages.config";
 
 type CmsSaveResponse = {
   ok: boolean;
@@ -34,7 +37,7 @@ type CmsSaveResponse = {
   errors?: string[];
 };
 
-export function BuilderShell({ initialDocument, publicPreviewRoute, scope }: { initialDocument: CmsPageDocument; publicPreviewRoute?: string; scope: CmsScope }) {
+export function BuilderShell({ additionalPages = [], initialDocument, publicPreviewRoute, scope }: { additionalPages?: StorefrontEditablePage[]; initialDocument: CmsPageDocument; publicPreviewRoute?: string; scope: CmsScope }) {
   const normalizedInitialDocument = useMemo(() => {
     if (initialDocument.sections.length > 0) {
       return initialDocument;
@@ -55,6 +58,7 @@ export function BuilderShell({ initialDocument, publicPreviewRoute, scope }: { i
   const [isDirty, setIsDirty] = useState(false);
   const [saveState, setSaveState] = useState<BuilderSaveState>({ tone: "idle", message: "Ready" });
   const [history, setHistory] = useState<BuilderDocumentHistoryEntry[]>([]);
+  const [sidebarMode, setSidebarMode] = useState<"sections" | "inspector">("sections");
   const selectedSection = documentState.sections.find((section) => section.id === selectedSectionId) ?? documentState.sections[0] ?? createCmsSection("emptyState", { id: "builder.empty" });
 
   function commit(nextDocument: CmsPageDocument) {
@@ -69,6 +73,7 @@ export function BuilderShell({ initialDocument, publicPreviewRoute, scope }: { i
     commit(nextDocument);
     setSelectedSectionId(nextSection.id);
     setActiveTab("content");
+    setSidebarMode("inspector");
   }
 
   function duplicateSection(sectionId: string) {
@@ -79,6 +84,7 @@ export function BuilderShell({ initialDocument, publicPreviewRoute, scope }: { i
     commit(nextDocument);
     setSelectedSectionId(duplicatedSection.id);
     setActiveTab("content");
+    setSidebarMode("inspector");
   }
 
   function removeSection(sectionId: string) {
@@ -99,6 +105,7 @@ export function BuilderShell({ initialDocument, publicPreviewRoute, scope }: { i
   function editFromCanvas(sectionId: string, tab: BuilderInspectorTab) {
     setSelectedSectionId(sectionId);
     setActiveTab(tab);
+    setSidebarMode("inspector");
   }
 
   async function persist(operation: "save_draft" | "preview" | "publish") {
@@ -152,8 +159,55 @@ export function BuilderShell({ initialDocument, publicPreviewRoute, scope }: { i
   }
 
   return (
-    <main className="p-3 lg:p-4">
-      <div className="grid gap-4" data-store-area="Admin" data-store-component="BuilderShell" data-store-section={`admin.builder.${scope}`}>
+    <main className="min-h-screen bg-[#f7f7f7] lg:h-screen lg:overflow-hidden" data-store-area="Admin" data-store-component="BuilderShell" data-store-section={`admin.builder.${scope}`}>
+      <div className="grid min-h-screen lg:h-full lg:min-h-0 lg:grid-cols-[344px_minmax(0,1fr)] lg:grid-rows-[80px_minmax(0,1fr)]">
+        <aside className="border-b border-border bg-surface lg:row-span-2 lg:flex lg:min-h-0 lg:flex-col lg:border-b-0 lg:border-r">
+          <div className="flex h-20 shrink-0 items-center gap-3 border-b border-border px-5">
+            <Link aria-label="Back to Admin" className="grid size-11 shrink-0 place-items-center rounded-full bg-surface-muted text-secondary transition hover:text-primary" href="/admin">
+              <ArrowLeft aria-hidden="true" className="size-5" />
+            </Link>
+            <div className="flex h-12 min-w-0 flex-1 items-center gap-3 rounded-md bg-surface-muted px-4">
+              <Palette aria-hidden="true" className="size-5" />
+              <span className="truncate font-semibold">Site design</span>
+            </div>
+          </div>
+          <div className="p-5 lg:min-h-0 lg:flex-1 lg:overflow-y-auto lg:overscroll-contain">
+            {sidebarMode === "sections" ? (
+              <BuilderSidebar
+                additionalPages={additionalPages}
+                currentEntityId={documentState.entityId}
+                document={documentState}
+                onBeforeNavigate={() => !isDirty || window.confirm("You have unsaved page changes. Continue to another store area editor?")}
+                onAddSection={addSection}
+                onDuplicate={duplicateSection}
+                onMove={(sectionId, direction) => commit(moveCmsSection(documentState, sectionId, direction))}
+                onRemove={removeSection}
+                onSelect={(sectionId) => {
+                  setSelectedSectionId(sectionId);
+                  setActiveTab("content");
+                  setSidebarMode("inspector");
+                }}
+                onToggleHidden={(sectionId, hidden) => commit(setCmsSectionHidden(documentState, sectionId, hidden))}
+                scope={scope}
+                selectedSectionId={selectedSection.id}
+              />
+            ) : (
+              <BuilderInspector
+                activeTab={activeTab}
+                document={documentState}
+                history={history}
+                onApplySectionPreset={(preset) => commit(applySectionPresetToSection(documentState, selectedSection.id, preset))}
+                onApplyThemePreset={(preset) => commit(applyThemePresetToDocument(documentState, preset))}
+                onDone={() => setSidebarMode("sections")}
+                selectedSection={selectedSection}
+                setActiveTab={setActiveTab}
+                updateSection={updateSelectedSection}
+                updateSeo={(seo) => commit(updateCmsSeo(documentState, seo))}
+                updateTheme={(theme) => commit(updateCmsThemeOverrides(documentState, theme))}
+              />
+            )}
+          </div>
+        </aside>
         <BuilderTopbar
           device={device}
           document={documentState}
@@ -165,37 +219,18 @@ export function BuilderShell({ initialDocument, publicPreviewRoute, scope }: { i
           saveState={saveState}
           setDevice={setDevice}
         />
-        <div className="grid min-h-[760px] gap-3 xl:grid-cols-[260px_minmax(0,1fr)_340px]">
-          <BuilderSidebar
-            currentEntityId={documentState.entityId}
-            document={documentState}
-            onBeforeNavigate={() => !isDirty || window.confirm("You have unsaved page changes. Continue to another store area editor?")}
-            onAddSection={addSection}
-            onDuplicate={duplicateSection}
-            onMove={(sectionId, direction) => commit(moveCmsSection(documentState, sectionId, direction))}
-            onRemove={removeSection}
-            onSelect={(sectionId) => {
-              setSelectedSectionId(sectionId);
-              setActiveTab("content");
-            }}
-            onToggleHidden={(sectionId, hidden) => commit(setCmsSectionHidden(documentState, sectionId, hidden))}
-            scope={scope}
-            selectedSectionId={selectedSection.id}
-          />
-          <BuilderCanvas device={device} document={documentState} onEdit={editFromCanvas} onSelect={setSelectedSectionId} publicPreviewRoute={publicPreviewRoute} selectedSectionId={selectedSection.id} />
-          <BuilderInspector
-            activeTab={activeTab}
-            document={documentState}
-            history={history}
-            onApplySectionPreset={(preset) => commit(applySectionPresetToSection(documentState, selectedSection.id, preset))}
-            onApplyThemePreset={(preset) => commit(applyThemePresetToDocument(documentState, preset))}
-            selectedSection={selectedSection}
-            setActiveTab={setActiveTab}
-            updateSection={updateSelectedSection}
-            updateSeo={(seo) => commit(updateCmsSeo(documentState, seo))}
-            updateTheme={(theme) => commit(updateCmsThemeOverrides(documentState, theme))}
-          />
-        </div>
+        <BuilderCanvas
+          device={device}
+          document={documentState}
+          onEdit={editFromCanvas}
+          onSelect={(sectionId) => {
+            setSelectedSectionId(sectionId);
+            setActiveTab("content");
+            setSidebarMode("inspector");
+          }}
+          publicPreviewRoute={publicPreviewRoute}
+          selectedSectionId={selectedSection.id}
+        />
       </div>
     </main>
   );

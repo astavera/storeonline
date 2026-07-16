@@ -4,6 +4,8 @@ import { defaultHeaderNavigation, normalizeHeaderNavigation, type HeaderNavigati
 import { defaultHomepageImage, homepageImagePresets, homepageSectionElements, homepageSections, type HomepageImagePreset, type HomepageSectionConfig } from "@/config/homepage.config";
 import type { CmsVersionStatus } from "@/lib/cms";
 import { readLocalCmsVersions, type LocalCmsVersion } from "@/server/admin/admin-local-cms-store";
+import { getPrismaClient } from "@/server/db/prisma";
+import { isDevelopmentLocalPersistenceEnabled, PersistenceUnavailableError, requireDatabaseOrDevelopmentFallback } from "@/server/db/persistence-policy";
 
 type CmsHomepagePayload = {
   changeSummary?: string;
@@ -112,10 +114,10 @@ export async function getPublishedHomepageState(): Promise<HomepageVisualEditorS
 }
 
 async function readHomepageVersions(status?: CmsVersionStatus): Promise<HomepageStoredVersion[]> {
-  if (process.env.DATABASE_URL) {
+  const persistence = requireDatabaseOrDevelopmentFallback("Homepage CMS");
+  if (persistence === "database") {
     try {
-      const { PrismaClient } = await import("@prisma/client");
-      const prisma = new PrismaClient();
+      const prisma = getPrismaClient();
       const cmsContentVersion = prisma.cmsContentVersion;
       const records = await cmsContentVersion.findMany({
         where: {
@@ -126,8 +128,6 @@ async function readHomepageVersions(status?: CmsVersionStatus): Promise<Homepage
         orderBy: [{ versionNumber: "desc" }, { createdAt: "desc" }],
         take: 12
       });
-      await prisma.$disconnect();
-
       return records.map((record) => ({
         entityType: "ADMIN_MODULE" as const,
         entityId: "homepage",
@@ -138,8 +138,9 @@ async function readHomepageVersions(status?: CmsVersionStatus): Promise<Homepage
         createdAt: record.createdAt instanceof Date ? record.createdAt.toISOString() : new Date().toISOString(),
         publishedAt: record.publishedAt instanceof Date ? record.publishedAt.toISOString() : null
       }));
-    } catch {
-      return readLocalHomepageVersions(status);
+    } catch (error) {
+      if (!isDevelopmentLocalPersistenceEnabled()) throw new PersistenceUnavailableError("Homepage CMS", { cause: error });
+      console.warn("[development-local-persistence] Homepage CMS database read failed; reading the explicit local fallback.");
     }
   }
 

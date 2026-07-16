@@ -1,11 +1,15 @@
 "use client";
 
+import { Plus } from "lucide-react";
+import { useState } from "react";
 import type { CmsKnownSectionType, CmsPageDocument, CmsScope } from "@/lib/cms";
+import type { StorefrontEditablePage } from "@/config/storefront-pages.config";
 import { StorefrontPageSwitcher } from "../storefront-page-switcher";
 import { BuilderLayersPanel } from "./BuilderLayersPanel";
 import { BuilderSectionLibrary } from "./BuilderSectionLibrary";
 
 export function BuilderSidebar({
+  additionalPages = [],
   currentEntityId,
   document,
   onBeforeNavigate,
@@ -18,6 +22,7 @@ export function BuilderSidebar({
   scope,
   selectedSectionId
 }: {
+  additionalPages?: StorefrontEditablePage[];
   currentEntityId: string;
   document: CmsPageDocument;
   onBeforeNavigate?: (href: string) => boolean;
@@ -30,9 +35,11 @@ export function BuilderSidebar({
   scope: CmsScope;
   selectedSectionId: string;
 }) {
+  const [libraryOpen, setLibraryOpen] = useState(false);
+
   return (
     <aside className="grid content-start gap-4">
-      <StorefrontPageSwitcher currentEntityId={currentEntityId} currentScope={scope} onBeforeNavigate={onBeforeNavigate} />
+      <StorefrontPageSwitcher additionalPages={additionalPages} currentEntityId={currentEntityId} currentScope={scope} onBeforeNavigate={onBeforeNavigate} />
       <BuilderLayersPanel
         document={document}
         onDuplicate={onDuplicate}
@@ -42,7 +49,24 @@ export function BuilderSidebar({
         onToggleHidden={onToggleHidden}
         selectedSectionId={selectedSectionId}
       />
-      <BuilderSectionLibrary onAddSection={onAddSection} scope={scope} />
+      <button
+        aria-expanded={libraryOpen}
+        className="flex h-12 w-full items-center justify-center gap-2 rounded-md bg-surface-muted text-sm font-semibold transition hover:bg-border"
+        onClick={() => setLibraryOpen((current) => !current)}
+        type="button"
+      >
+        <Plus aria-hidden="true" className="size-4" />
+        Add section
+      </button>
+      {libraryOpen ? (
+        <BuilderSectionLibrary
+          onAddSection={(type) => {
+            onAddSection(type);
+            setLibraryOpen(false);
+          }}
+          scope={scope}
+        />
+      ) : null}
     </aside>
   );
 }

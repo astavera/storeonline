@@ -2,12 +2,17 @@ import { Search } from "lucide-react";
 import Link from "next/link";
 import { ProductCard } from "@/components/commerce/product-card";
 import { SectionFrame } from "@/components/sections/section-frame";
-import { storefrontProducts } from "@/features/catalog/product-catalog";
+import { storefrontProducts, type StorefrontProduct } from "@/features/catalog/product-catalog";
+import { filterWebsiteCatalogProducts } from "@/features/catalog/services/website-merchandising-service";
+import { readResolvedSquareWebsiteCatalog } from "@/server/square/website-catalog-store";
 
 export const metadata = {
   title: "Search",
   description: "Search Modern State toys, balloons, party supplies, stationery, gifts, and creative essentials."
 };
+
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
 
 type SearchPageProps = {
   searchParams?: Promise<Record<string, string | string[] | undefined>>;
@@ -16,7 +21,10 @@ type SearchPageProps = {
 export default async function SearchPage({ searchParams }: SearchPageProps) {
   const params = await searchParams;
   const query = paramValue(params?.q).trim().slice(0, 100);
-  const products = query ? searchProducts(query) : [];
+  const squareCatalog = await readResolvedSquareWebsiteCatalog();
+  const resolvedCatalog = squareCatalog?.catalog ?? null;
+  const searchableProducts = resolvedCatalog ? filterWebsiteCatalogProducts(resolvedCatalog, { surface: "search" }) : storefrontProducts;
+  const products = query ? searchProducts(searchableProducts, query) : [];
 
   return (
     <main className="bg-surface">
@@ -96,10 +104,10 @@ function paramValue(value: string | string[] | undefined) {
   return (Array.isArray(value) ? value[0] : value) ?? "";
 }
 
-function searchProducts(query: string) {
+function searchProducts(products: StorefrontProduct[], query: string) {
   const terms = normalizeSearchValue(query).split(" ").filter(Boolean);
 
-  return storefrontProducts.filter((product) => {
+  return products.filter((product) => {
     const searchableValue = normalizeSearchValue([product.name, product.department, product.shortDescription, product.description, product.badge, product.slug].filter(Boolean).join(" "));
     return terms.every((term) => searchableValue.includes(term));
   });
