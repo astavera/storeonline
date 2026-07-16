@@ -61,9 +61,54 @@ jobs:
       - name: Audit production dependencies
         run: npm run audit:prod
 
+  postgres-integration:
+    name: Integration / PostgreSQL
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: storeonline_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/storeonline_test?schema=public
+      DIRECT_URL: postgresql://postgres:postgres@127.0.0.1:5432/storeonline_test?schema=public
+      TEST_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/storeonline_test?schema=public
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Install locked dependencies
+        run: npm ci
+
+      - name: Apply migrations to disposable PostgreSQL
+        run: npm run prisma:migrate:deploy
+
+      - name: Run PostgreSQL integration tests
+        run: npm run test:integration:postgres
+
   build:
     name: Quality / production build
-    needs: quality
+    needs:
+      - quality
+      - postgres-integration
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
