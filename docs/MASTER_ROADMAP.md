@@ -184,6 +184,10 @@ Estado: `EN CURSO` por existencia de schema y helpers; falta operación completa
   migraciones a PostgreSQL 17 efímero y validó concurrencia real sin sobreventa;
   no se usó Supabase compartido. Faltan zonas/versiones, AddressEvaluation y
   generación idempotente de occurrences para completar 2B.
+- Routing walking probado con selección de la tienda elegible más cercana,
+  tarifa server-side y slots de esa ubicación: 6 pruebas focalizadas y 165/165
+  pruebas totales. La captura naranja es referencia; falta aprobar el GeoJSON
+  productivo antes de crear zonas compartidas.
 
 ### Decisiones requeridas del propietario
 
@@ -427,6 +431,7 @@ riesgo.
 
 - Estado técnico: `docs/phase-1-handoff.md`
 - Plan de implementación de Fase 2: `docs/phase-2-implementation-plan.md`
+- Política de balloon delivery: `docs/balloon-delivery-pricing-policy.md`
 - Square y publicación: `docs/square-integration.md`
 - Fulfillment: `docs/fulfillment.md`
 - Delivery: `docs/delivery-zones.md`

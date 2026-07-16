@@ -56,6 +56,19 @@ con datos versionados. Esta fase no crea órdenes ni pagos en Square.
 Gate: unit tests cubren geometría, prioridades, mínimos, límites, cutoffs,
 lead-time y capacidad; no existe acceso a red o base de datos.
 
+Avance adicional: el routing walking selecciona la tienda elegible con menor
+ruta calculada en servidor, conserva su tarifa versionada y devuelve solo sus
+slots disponibles. Se validó con 6 pruebas focalizadas y 165/165 pruebas totales.
+El polígono naranja utilizado en tests es un fixture deliberadamente aproximado;
+producción todavía requiere GeoJSON exacto y aprobación visual.
+
+La auditoría posterior de la lista de balloon delivery agregó un evaluador puro
+de tarifas por feet y pruebas deterministas de su calibración. El draft V2 usa
+0–1,200/$0, >1,200–2,300/$10, >2,300–3,250/$15 y un tier final abierto de $25
+dentro del ZIP/polígono elegible. Reproduce las nueve muestras longitudinales de
+3rd Avenue, pero deliberadamente no reproduce los recargos por avenida. Sigue
+sin estar conectado al checkout ni publicado en OrderPro.
+
 ### 2B — Persistencia y versionado
 
 - Repositorios PostgreSQL para zonas, versiones y reglas activas.
@@ -130,6 +143,13 @@ Estas decisiones no se sustituyen con valores inventados:
 | Capacidad | Puntos por slot y pesos por tipo de producto/pedido |
 | Mixed carts | Bloquear, dividir o seleccionar una tienda alternativa |
 | Excepciones | Balloon orders, cierres de emergencia y overrides auditados |
+
+Avance de decisiones comerciales: el 2026-07-16 el propietario proporcionó la
+tabla interna de balloon delivery de Third Avenue e indicó que 86th Street usa
+una lógica similar con límite norte en 96th Street. La transcripción,
+normalización propuesta y ambigüedades que requieren confirmación están en
+`docs/balloon-delivery-pricing-policy.md`. Todavía no se ha activado ninguna
+zona ni tarifa en el entorno compartido.
 
 Hasta recibir estas decisiones, los tests usarán fixtures claramente marcados y
 el entorno compartido seguirá con cero configuración activa de Fase 2.
