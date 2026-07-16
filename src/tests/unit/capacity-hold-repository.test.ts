@@ -1,9 +1,12 @@
 import { describe, expect, it, vi } from "vitest";
 import {
   CapacityHoldConflictError,
+  CapacityHoldUnavailableError,
   InvalidCapacityHoldRequestError,
   SlotCapacityUnavailableError,
   SlotOccurrenceUnavailableError,
+  confirmCapacityHold,
+  releaseCapacityHold,
   reserveCapacityHold,
   type CapacityHoldTransactionRunner,
   type ReserveCapacityHoldInput
@@ -23,6 +26,16 @@ const baseInput: ReserveCapacityHoldInput = {
 function createHarness(options: {
   occurrence?: { id: string; active: boolean; startsAt: Date; capacityPoints: number } | null;
   existing?: { id: string; status: "ACTIVE" | "CONFIRMED"; capacityPoints: number; expiresAt: Date } | null;
+  transition?: {
+    id: string;
+    status: "ACTIVE" | "CONFIRMED" | "RELEASED" | "EXPIRED";
+    expiresAt: Date;
+    confirmedAt: Date | null;
+    releasedAt: Date | null;
+    cartId: string | null;
+    checkoutAttemptId: string | null;
+    orderId: string | null;
+  } | null;
   usedCapacityPoints?: number;
 } = {}) {
   const slotFindUnique = vi.fn().mockResolvedValue(options.occurrence === undefined
@@ -30,6 +43,7 @@ function createHarness(options: {
     : options.occurrence);
   const updateMany = vi.fn().mockResolvedValue({ count: 0 });
   const findFirst = vi.fn().mockResolvedValue(options.existing ?? null);
+  const findUnique = vi.fn().mockResolvedValue(options.transition ?? null);
   const aggregate = vi.fn().mockResolvedValue({ _sum: { capacityPoints: options.usedCapacityPoints ?? 4 } });
   const create = vi.fn().mockResolvedValue({
     id: "hold-1",
@@ -39,12 +53,12 @@ function createHarness(options: {
   });
   const transaction = {
     slotOccurrence: { findUnique: slotFindUnique },
-    capacityHold: { updateMany, findFirst, aggregate, create }
+    capacityHold: { updateMany, findFirst, findUnique, aggregate, create }
   };
   const transactionRunner = vi.fn(async (operation: (value: never) => Promise<unknown>) => operation(transaction as never));
   const runner = { $transaction: transactionRunner } as unknown as CapacityHoldTransactionRunner;
 
-  return { runner, transactionRunner, slotFindUnique, updateMany, findFirst, aggregate, create, transaction };
+  return { runner, transactionRunner, slotFindUnique, updateMany, findFirst, findUnique, aggregate, create, transaction };
 }
 
 describe("capacity hold repository", () => {
@@ -162,5 +176,129 @@ describe("capacity hold repository", () => {
     await expect(reserveCapacityHold({ ...baseInput, holdTtlMinutes: 0 }, harness.runner)).rejects.toBeInstanceOf(InvalidCapacityHoldRequestError);
     await expect(reserveCapacityHold({ ...baseInput, owner: { kind: "cart", cartId: "" } }, harness.runner)).rejects.toBeInstanceOf(InvalidCapacityHoldRequestError);
     expect(harness.transactionRunner).not.toHaveBeenCalled();
+  });
+
+  it("confirms a live hold and replays an already confirmed hold", async () => {
+    const confirmedAt = new Date("2026-07-16T13:05:00.000Z");
+    const activeHarness = createHarness({
+      transition: {
+        id: "hold-1",
+        status: "ACTIVE",
+        expiresAt: new Date("2026-07-16T13:15:00.000Z"),
+        confirmedAt: null,
+        releasedAt: null,
+        cartId: "cart-1",
+        checkoutAttemptId: null,
+        orderId: null
+      }
+    });
+    activeHarness.updateMany.mockResolvedValue({ count: 1 });
+
+    await expect(confirmCapacityHold({ holdId: "hold-1", owner: baseInput.owner, now: confirmedAt }, activeHarness.runner)).resolves.toEqual({
+      holdId: "hold-1",
+      status: "CONFIRMED",
+      confirmedAt,
+      releasedAt: null,
+      replayed: false
+    });
+    expect(activeHarness.updateMany).toHaveBeenCalledWith(expect.objectContaining({
+      data: { status: "CONFIRMED", confirmedAt }
+    }));
+
+    const replayHarness = createHarness({
+      transition: {
+        id: "hold-1",
+        status: "CONFIRMED",
+        expiresAt: new Date("2026-07-16T13:15:00.000Z"),
+        confirmedAt,
+        releasedAt: null,
+        cartId: "cart-1",
+        checkoutAttemptId: null,
+        orderId: null
+      }
+    });
+    await expect(confirmCapacityHold({ holdId: "hold-1", owner: baseInput.owner, now: confirmedAt }, replayHarness.runner)).resolves.toMatchObject({
+      status: "CONFIRMED",
+      replayed: true
+    });
+    expect(replayHarness.updateMany).not.toHaveBeenCalled();
+  });
+
+  it("releases active or confirmed holds idempotently", async () => {
+    const releasedAt = new Date("2026-07-16T13:06:00.000Z");
+    const confirmedAt = new Date("2026-07-16T13:05:00.000Z");
+    const confirmedHarness = createHarness({
+      transition: {
+        id: "hold-1",
+        status: "CONFIRMED",
+        expiresAt: new Date("2026-07-16T13:15:00.000Z"),
+        confirmedAt,
+        releasedAt: null,
+        cartId: "cart-1",
+        checkoutAttemptId: null,
+        orderId: null
+      }
+    });
+    confirmedHarness.updateMany.mockResolvedValue({ count: 1 });
+
+    await expect(releaseCapacityHold({ holdId: "hold-1", owner: baseInput.owner, now: releasedAt }, confirmedHarness.runner)).resolves.toEqual({
+      holdId: "hold-1",
+      status: "RELEASED",
+      confirmedAt,
+      releasedAt,
+      replayed: false
+    });
+
+    const replayHarness = createHarness({
+      transition: {
+        id: "hold-1",
+        status: "RELEASED",
+        expiresAt: new Date("2026-07-16T13:15:00.000Z"),
+        confirmedAt,
+        releasedAt,
+        cartId: "cart-1",
+        checkoutAttemptId: null,
+        orderId: null
+      }
+    });
+    await expect(releaseCapacityHold({ holdId: "hold-1", owner: baseInput.owner, now: releasedAt }, replayHarness.runner)).resolves.toMatchObject({
+      status: "RELEASED",
+      replayed: true
+    });
+    expect(replayHarness.updateMany).not.toHaveBeenCalled();
+  });
+
+  it("rejects transition by another owner and expires a stale active hold", async () => {
+    const wrongOwnerHarness = createHarness({
+      transition: {
+        id: "hold-1",
+        status: "ACTIVE",
+        expiresAt: new Date("2026-07-16T13:15:00.000Z"),
+        confirmedAt: null,
+        releasedAt: null,
+        cartId: "another-cart",
+        checkoutAttemptId: null,
+        orderId: null
+      }
+    });
+    await expect(confirmCapacityHold({ holdId: "hold-1", owner: baseInput.owner, now }, wrongOwnerHarness.runner)).rejects.toBeInstanceOf(CapacityHoldUnavailableError);
+
+    const expiredHarness = createHarness({
+      transition: {
+        id: "hold-1",
+        status: "ACTIVE",
+        expiresAt: new Date("2026-07-16T12:59:00.000Z"),
+        confirmedAt: null,
+        releasedAt: null,
+        cartId: "cart-1",
+        checkoutAttemptId: null,
+        orderId: null
+      }
+    });
+    expiredHarness.updateMany.mockResolvedValue({ count: 1 });
+    await expect(confirmCapacityHold({ holdId: "hold-1", owner: baseInput.owner, now }, expiredHarness.runner)).rejects.toBeInstanceOf(CapacityHoldUnavailableError);
+    expect(expiredHarness.updateMany).toHaveBeenCalledWith(expect.objectContaining({
+      data: { status: "EXPIRED", releasedAt: now }
+    }));
   });
 });

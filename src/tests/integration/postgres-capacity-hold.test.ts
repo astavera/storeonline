@@ -3,6 +3,8 @@ import { PrismaClient } from "@prisma/client";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import {
   SlotCapacityUnavailableError,
+  confirmCapacityHold,
+  releaseCapacityHold,
   reserveCapacityHold,
   type CapacityHoldTransactionRunner
 } from "@/server/fulfillment/capacity-hold-repository";
@@ -98,5 +100,39 @@ describePostgres("PostgreSQL capacity hold concurrency", () => {
       _sum: { capacityPoints: true }
     });
     expect(aggregate._sum.capacityPoints).toBe(3);
+
+    const reservation = (fulfilled[0] as PromiseFulfilledResult<Awaited<ReturnType<typeof reserveCapacityHold>>>).value;
+    const winningCartId = cartIds.find((cartId) => results[cartIds.indexOf(cartId)].status === "fulfilled");
+    expect(winningCartId).toBeDefined();
+    if (!winningCartId) throw new Error("A winning cart is required.");
+    const owner = { kind: "cart" as const, cartId: winningCartId };
+    const confirmedAt = new Date(now.getTime() + 5_000);
+    const releasedAt = new Date(now.getTime() + 10_000);
+
+    await expect(confirmCapacityHold({ holdId: reservation.holdId, owner, now: confirmedAt }, runner)).resolves.toMatchObject({
+      status: "CONFIRMED",
+      replayed: false
+    });
+    await expect(confirmCapacityHold({ holdId: reservation.holdId, owner, now: confirmedAt }, runner)).resolves.toMatchObject({
+      status: "CONFIRMED",
+      replayed: true
+    });
+    await expect(releaseCapacityHold({ holdId: reservation.holdId, owner, now: releasedAt }, runner)).resolves.toMatchObject({
+      status: "RELEASED",
+      replayed: false
+    });
+    await expect(releaseCapacityHold({ holdId: reservation.holdId, owner, now: releasedAt }, runner)).resolves.toMatchObject({
+      status: "RELEASED",
+      replayed: true
+    });
+
+    const liveAfterRelease = await prisma.capacityHold.aggregate({
+      where: {
+        slotOccurrenceId: occurrenceId,
+        status: { in: ["ACTIVE", "CONFIRMED"] }
+      },
+      _sum: { capacityPoints: true }
+    });
+    expect(liveAfterRelease._sum.capacityPoints).toBeNull();
   });
 });
