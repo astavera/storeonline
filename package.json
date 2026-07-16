@@ -8,6 +8,7 @@
     "npm": ">=11 <12"
   },
   "scripts": {
+    "postinstall": "prisma generate",
     "dev": "next dev",
     "build": "next build",
     "start": "next start",

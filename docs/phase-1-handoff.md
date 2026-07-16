@@ -1,12 +1,17 @@
 # Phase 1 Handoff
 
-Snapshot date: July 15, 2026 (America/New_York).
+Snapshot date: July 16, 2026 (America/New_York).
 
 This document is the starting point for another engineer joining the current
 branch. It records deployed shared state, the safety boundaries that must remain
 in place, and the next incomplete work. Re-run the listed read-only commands
 before relying on counts because Square and the database can change after this
 snapshot.
+
+The program-level phases, dependencies, and release gates are maintained in
+`docs/MASTER_ROADMAP.md`. When an older document disagrees about current status,
+use the master roadmap and this dated handoff, then verify external state with
+the read-only commands below.
 
 ## Current shared state
 
@@ -57,6 +62,10 @@ npm run sync:square:postgres:readonly -- --status
 npm run sync:square:postgres:readonly -- --checkout-readiness
 ```
 
+The root `postinstall` runs `prisma generate`, so a clean `npm ci` must leave a
+generated Prisma Client ready for typechecking. If client generation fails, the
+installation is not a successful reproduction and must not be treated as one.
+
 The Square commands require the ignored local environment values documented in
 `docs/environments.md`, including the Production read-only kill switch. The
 readiness command exits nonzero while the reviewed content remains a DRAFT or
@@ -71,9 +80,19 @@ npm run build
 npm run test:e2e
 ```
 
-At this snapshot, the unit suite passed 135 tests across 44 files, the production
-build passed, and Playwright passed 8 tests across desktop and mobile projects.
-ESLint still carries a documented warning budget; new work must not increase it.
+At this snapshot, a clean `npm ci` completed with Prisma Client generation and
+zero dependency vulnerabilities. Typechecking and the production build passed;
+the unit suite passed 135 tests across 44 files; and Playwright passed 8 tests
+across desktop and mobile projects. Playwright uses the stable Webpack dev server
+because the Turbopack server can panic nondeterministically after a production
+build. ESLint reported 46 warnings within the documented budget of 51; new work
+must not increase it.
+
+The 2026-07-16 operational recheck found all six migrations current, all 24
+constraints validated with zero violations, and the read-only incremental Square
+sync completed with 185 catalog changes and 236 inventory changes. Checkout
+readiness remained 585 eligible products at 3rd Avenue and 618 at 86th Street.
+The audit exits nonzero only because DRAFT 4 remains intentionally unpublished.
 
 ## Safe merchandising workflow
 
@@ -98,7 +117,9 @@ work and tests can continue while it remains a DRAFT. See
    rules for pickup and local delivery.
 3. Approve and map the warehouse before restoring shipping availability.
 4. Add and verify a production admin identity provider.
-5. Review the no-shipping DRAFT and explicitly decide when to publish it.
+5. Keep no-shipping DRAFT 4 unpublished during Phase 1 closure and the orderly
+   start of Phase 2, per the owner's 2026-07-16 decision. Any future publication
+   requires a separate explicit approval.
 6. Design Square order creation and Payments as a separate guarded phase. Tests
    that could charge a card must use Square Sandbox, never Production.
 

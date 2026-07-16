@@ -52,16 +52,26 @@ inside the holiday campaign window.
 
 The Admin placement workspace at `/admin/product-placement` uses that snapshot as
 a read-only product source. Website categories, visibility, order, and product
-assignments are stored separately in `data/admin-merchandising.json`; saving those
-settings never writes category or catalog changes back to Square. The Shop page
-uses the saved website merchandising configuration for its category filters.
+assignments are stored in PostgreSQL outside development; the ignored local JSON
+store is an explicit development-only fallback. Saving those settings never
+writes category or catalog changes back to Square. The Shop page uses the saved
+website merchandising configuration for its category filters.
 Product placements can also carry one or more website-only recommended age
 groups (`0–2`, `3–4`, `5–7`, `8–10`, `11–12`, and `13+`). Those values feed the
 shared catalog resolver and the Shop age filter; they are not written to Square.
 
+## Subsequent production read-only completion
+
+On July 15, 2026, the separately approved durable Production read-only workflow
+completed the full backfill into shared PostgreSQL: 66,141 active items, 74,640
+active variations, and 223,920 inventory rows. The two storefront locations were
+mapped, checkout readiness was evaluated per location, and later incremental
+runs completed without Square writes. See `docs/phase-1-handoff.md` for the dated
+state and exact operational commands.
+
 ## Remaining audit work
 
-- Retrieve real inventory counts by variation and location.
-- Audit image objects, taxes, and modifiers with bounded summaries.
-- Run the first full backfill into a disposable PostgreSQL database.
-- Compare repeat runs to prove idempotent upserts and soft deletion behavior.
+- Audit images, taxes, modifiers, and location overrides with bounded summaries.
+- Continue scheduled incremental reconciliation and alert on stale inventory,
+  abandoned leases, webhook backlog, and soft-deletion drift.
+- Re-run checkout readiness after material Square or merchandising changes.

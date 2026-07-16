@@ -73,6 +73,7 @@ GitHub Actions repeats these checks on Node 24 and tests Playwright against the 
 
 ## Working agreements
 
+- [Master project roadmap](docs/MASTER_ROADMAP.md)
 - [Current Phase 1 handoff](docs/phase-1-handoff.md)
 - [Engineering workflow](docs/engineering-workflow.md)
 - [Environments and configuration](docs/environments.md)

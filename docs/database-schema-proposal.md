@@ -34,8 +34,13 @@ It covers:
 On 2026-07-12 the baseline was applied from an empty database to disposable
 PostgreSQL 17.10. Prisma reported the schema up to date, PostgreSQL contained 26
 application tables, 8 enums, and 25 foreign keys, and a transactional catalog
-write/read smoke test passed before rolling back all test rows. No shared database
-was changed.
+write/read smoke test passed before rolling back all test rows.
+
+On 2026-07-15 all six committed migrations were applied to the shared Supabase
+database. `prisma migrate status` reported the schema up to date, and the
+read-only operational audit confirmed all 24 expected check constraints present,
+validated, and free of known violations. Use `docs/MASTER_ROADMAP.md` and
+`docs/phase-1-handoff.md` for the current program status.
 
 GeoJSON is stored as JSON in the first proposal. Production can add PostGIS geometry columns through a SQL migration once the deployment database is selected.
 
@@ -89,10 +94,18 @@ use `startsAt` and `endsAt` for product-specific campaign windows. The database
 defaults for age groups and website surfaces are empty so a catalog sync cannot
 make a product visible by implication.
 
-## Phase 0 operational hardening (not applied)
+## Phase 0 operational hardening (applied)
 
-`20260715123000_phase0_operational_hardening` is a new migration after the three existing migrations. It does not rewrite them. It adds durable `CheckoutAttempt`, `WebhookInboxEvent`, `SlotOccurrence`, `CapacityHold`, `DeliveryZoneVersion`, `DeliveryRateRule`, `AddressEvaluation`, `BalloonOrderDraft`, `BalloonDraftLine`, and `BalloonQuote` tables.
+`20260715123000_phase0_operational_hardening` follows the three original
+migrations without rewriting them. It adds durable `CheckoutAttempt`,
+`WebhookInboxEvent`, `SlotOccurrence`, `CapacityHold`, `DeliveryZoneVersion`,
+`DeliveryRateRule`, `AddressEvaluation`, `BalloonOrderDraft`, `BalloonDraftLine`,
+and `BalloonQuote` tables.
 
-The migration adds nonnegative money/capacity checks, positive quantities, valid date and schedule ranges, compatible state/timestamp checks, operational indexes, and restrictive foreign keys for order, slot, and delivery records. Checks on existing tables use PostgreSQL `NOT VALID`: new or updated rows are enforced immediately without pretending unknown historical rows were already audited. A later, separately approved reconciliation must validate historical rows and then run `VALIDATE CONSTRAINT`.
-
-No migration in this repository has been applied to Supabase during this remediation.
+The migration adds nonnegative money/capacity checks, positive quantities, valid
+date and schedule ranges, compatible state/timestamp checks, operational indexes,
+and restrictive foreign keys for order, slot, and delivery records. Checks on
+existing tables were introduced with PostgreSQL `NOT VALID`, audited, and then
+validated by `20260715180000_validate_operational_constraints` after the runtime
+foundation migration. Future schema changes must use new migrations; never edit
+these applied files.
