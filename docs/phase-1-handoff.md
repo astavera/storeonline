@@ -94,6 +94,11 @@ sync completed with 185 catalog changes and 236 inventory changes. Checkout
 readiness remained 585 eligible products at 3rd Avenue and 618 at 86th Street.
 The audit exits nonzero only because DRAFT 4 remains intentionally unpublished.
 
+Phase 1 closed on 2026-07-16. Branch `codex/phase-1-real-catalog` is published,
+draft PR #2 records the complete Phase 0/1 diff, and remote CI run #2 passed the
+quality, production build, and browser jobs. The owner accepted closure and
+directed the project to proceed to Phase 2 without publishing DRAFT 4.
+
 ## Safe merchandising workflow
 
 Audit commands do not mutate data:

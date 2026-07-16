@@ -56,7 +56,7 @@ sus criterios de cierre y registrarse las verificaciones correspondientes.
 | Fase | Resultado | Estado actual | Barrera principal |
 | --- | --- | --- | --- |
 | 0 | Scaffold, seguridad base y modelo de dominios | `COMPLETA` | Ninguna |
-| 1 | PostgreSQL operativo, Square real read-only y checkout de validación | `EN CIERRE` | Compartir rama, CI remoto y aceptación explícita de cierre |
+| 1 | PostgreSQL operativo, Square real read-only y checkout de validación | `COMPLETA` | Ninguna; cierre aceptado el 2026-07-16 |
 | 2 | Pickup y local delivery cotizables con zonas, slots y capacity | `EN CURSO` | Datos y reglas operativas del propietario |
 | 3 | Sync y webhooks automatizados, durables y observables | `EN CURSO` | Scheduler, secretos y alertas de plataforma |
 | 4 | Balloon Order guiado y conectado a fulfillment | `PENDIENTE` | Depende de Fase 2 |
@@ -107,7 +107,7 @@ Estado: `COMPLETA`.
 
 ## Fase 1 — Base operativa y catálogo real
 
-Estado: `EN CIERRE`. GO técnico para continuar desarrollando; NO-GO para tráfico
+Estado: `COMPLETA`. GO técnico para iniciar Fase 2; NO-GO para tráfico
 transaccional de producción.
 
 ### Completado
@@ -132,22 +132,26 @@ transaccional de producción.
   constraints validados sin violaciones, sync incremental read-only completado y
   readiness de 585/618 productos. DRAFT 4 permanece intencionalmente sin publicar.
 
-### Pendiente para cerrar
+### Gates de cierre cumplidos
 
-- [ ] Publicar la rama en el remoto y ejecutar los checks de CI desde el commit
-      compartido.
-- [ ] Confirmar que otro desarrollador puede reconstruir el proyecto desde
-      `npm ci` siguiendo `phase-1-handoff.md`.
+- [x] Rama `codex/phase-1-real-catalog` publicada y PR borrador #2 abierto. CI
+      remoto completó quality, build y browser en verde el 2026-07-16.
+- [x] Reproducción independiente confirmada en GitHub Actions sobre Ubuntu:
+      `npm ci`, generación Prisma, lint, typecheck, 135 tests, build y 8 E2E.
 - [x] Decisión del propietario registrada el 2026-07-16: mantener DRAFT 4 sin
       publicar durante el cierre de Fase 1 y el inicio ordenado de Fase 2. Toda
       publicación futura requiere una aprobación separada.
-- [ ] Aceptación explícita del cierre de Fase 1 después de revisar las evidencias.
+- [x] Aceptación explícita registrada el 2026-07-16 mediante la instrucción del
+      propietario de completar Fase 1 y continuar a Fase 2 solo tras sus gates.
 
 ### Criterio de cierre
 
 La rama está compartida, CI está verde, el handoff es reproducible y el
 propietario acepta formalmente la base read-only. Cerrar esta fase no habilita
 Orders, Payments, shipping, Admin público ni deployment.
+
+Cierre demostrado el 2026-07-16 en el PR #2 y su ejecución CI #2. La siguiente
+implementación autorizada pertenece a Fase 2.
 
 ## Fase 2 — Fulfillment core: pickup y local delivery
 
