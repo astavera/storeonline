@@ -170,6 +170,15 @@ Estado: `EN CURSO` por existencia de schema y helpers; falta operación completa
 - Cotizar pickup y local delivery desde checkout sin cobrar todavía.
 - Crear herramientas administrativas para zonas, tarifas, calendarios y capacity.
 
+### Avance verificado
+
+- Bloque 2A completado el 2026-07-16: validación Polygon/MultiPolygon, huecos y
+  bordes; selección determinista de zonas y tarifas; reason codes fail-closed;
+  y evaluación de lead time, cutoff y capacity.
+- Evidencia: 17 pruebas focalizadas, 148/148 pruebas totales, lint/typecheck y
+  build aprobados. Supabase compartido permanece con cero configuración activa
+  de Fase 2.
+
 ### Decisiones requeridas del propietario
 
 - Polígonos y prioridad de zonas por tienda.
@@ -411,6 +420,7 @@ riesgo.
 ## Documentos de soporte
 
 - Estado técnico: `docs/phase-1-handoff.md`
+- Plan de implementación de Fase 2: `docs/phase-2-implementation-plan.md`
 - Square y publicación: `docs/square-integration.md`
 - Fulfillment: `docs/fulfillment.md`
 - Delivery: `docs/delivery-zones.md`
