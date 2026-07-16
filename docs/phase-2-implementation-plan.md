@@ -36,7 +36,7 @@ con datos versionados. Esta fase no crea órdenes ni pagos en Square.
 | Paquete | Estado | Evidencia |
 | --- | --- | --- |
 | 2A — Contratos y evaluadores puros | `COMPLETO` | 17 pruebas focalizadas, 148/148 suite completa, lint/typecheck y build aprobados el 2026-07-16 |
-| 2B — Persistencia y versionado | `EN CURSO` | Repositorio serializable de capacity holds con 8 pruebas; falta PostgreSQL desechable e integración real |
+| 2B — Persistencia y versionado | `EN CURSO` | Ciclo de capacity holds validado con 11 unit tests y concurrencia real en PostgreSQL 17 efímero; faltan zonas, AddressEvaluation y occurrences |
 | 2C — Adaptadores externos | `PENDIENTE` | Mapbox no está conectado al flujo |
 | 2D — API y checkout | `PENDIENTE` | El API actual no cotiza fulfillment |
 | 2E — Admin | `PENDIENTE` | Las rutas son shells informativos |
@@ -64,11 +64,16 @@ lead-time y capacidad; no existe acceso a red o base de datos.
 - Holds transaccionales con expiración, confirmación y liberación.
 - Pruebas de concurrencia contra PostgreSQL desechable.
 
-Avance actual: la reserva de holds usa aislamiento serializable, expira holds
-vencidos antes de sumar capacidad, hace replay por owner, rechaza cambios de
-capacity points y reintenta conflictos `P2034`. Sus 8 pruebas unitarias pasan.
-Todavía no se considera completo porque esta máquina no dispone de Docker,
-`psql` ni una base PostgreSQL local desechable para demostrar concurrencia real.
+Avance actual: el ciclo reserve/confirm/release usa aislamiento serializable,
+expira holds vencidos antes de sumar capacidad, hace replay por owner, rechaza
+cambios de capacity points y reintenta conflictos `P2034`. Sus 11 pruebas
+unitarias pasan. CI #7 aplicó las seis migraciones desde cero a PostgreSQL 17
+efímero y demostró que dos reservas concurrentes de 3 puntos sobre un slot de 5
+producen exactamente un ganador; confirmación y liberación idempotentes también
+pasaron contra las constraints reales. El contenedor fue destruido al terminar.
+
+2B todavía no se considera completo: faltan repositorios de zonas/versiones,
+AddressEvaluation, generación idempotente de occurrences y sus pruebas.
 
 Gate: dos intentos concurrentes nunca superan capacity y una versión histórica
 no cambia después de ser utilizada.
@@ -134,6 +139,6 @@ el entorno compartido seguirá con cero configuración activa de Fase 2.
 El primer bloque implementó 2A únicamente: contratos puros, reason codes y
 pruebas deterministas. No escribió en Supabase, Square, Mapbox ni el CMS.
 
-El siguiente paso de 2B es habilitar PostgreSQL desechable y demostrar la
-concurrencia real. Cualquier configuración compartida seguirá bloqueada hasta
+El siguiente paso de 2B es persistir zonas/versiones y generar occurrences en
+PostgreSQL efímero. Cualquier configuración compartida seguirá bloqueada hasta
 contar con valores operativos aprobados.
