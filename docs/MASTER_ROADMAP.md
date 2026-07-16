@@ -178,6 +178,10 @@ Estado: `EN CURSO` por existencia de schema y helpers; falta operación completa
 - Evidencia: 17 pruebas focalizadas, 148/148 pruebas totales, lint/typecheck y
   build aprobados. Supabase compartido permanece con cero configuración activa
   de Fase 2.
+- Bloque 2B iniciado: repositorio serializable de capacity holds, expiración de
+  holds stale, replay por owner, protección de sobreventa y retry `P2034`, con 8
+  pruebas nuevas y 156/156 pruebas totales. Falta validar concurrencia contra
+  PostgreSQL desechable; no se usó Supabase compartido como base de pruebas.
 
 ### Decisiones requeridas del propietario
 

@@ -36,7 +36,7 @@ con datos versionados. Esta fase no crea órdenes ni pagos en Square.
 | Paquete | Estado | Evidencia |
 | --- | --- | --- |
 | 2A — Contratos y evaluadores puros | `COMPLETO` | 17 pruebas focalizadas, 148/148 suite completa, lint/typecheck y build aprobados el 2026-07-16 |
-| 2B — Persistencia y versionado | `PENDIENTE` | No se han escrito datos de Fase 2 en Supabase |
+| 2B — Persistencia y versionado | `EN CURSO` | Repositorio serializable de capacity holds con 8 pruebas; falta PostgreSQL desechable e integración real |
 | 2C — Adaptadores externos | `PENDIENTE` | Mapbox no está conectado al flujo |
 | 2D — API y checkout | `PENDIENTE` | El API actual no cotiza fulfillment |
 | 2E — Admin | `PENDIENTE` | Las rutas son shells informativos |
@@ -63,6 +63,12 @@ lead-time y capacidad; no existe acceso a red o base de datos.
 - Generación idempotente de SlotOccurrence desde SlotTemplate.
 - Holds transaccionales con expiración, confirmación y liberación.
 - Pruebas de concurrencia contra PostgreSQL desechable.
+
+Avance actual: la reserva de holds usa aislamiento serializable, expira holds
+vencidos antes de sumar capacidad, hace replay por owner, rechaza cambios de
+capacity points y reintenta conflictos `P2034`. Sus 8 pruebas unitarias pasan.
+Todavía no se considera completo porque esta máquina no dispone de Docker,
+`psql` ni una base PostgreSQL local desechable para demostrar concurrencia real.
 
 Gate: dos intentos concurrentes nunca superan capacity y una versión histórica
 no cambia después de ser utilizada.
@@ -128,6 +134,6 @@ el entorno compartido seguirá con cero configuración activa de Fase 2.
 El primer bloque implementó 2A únicamente: contratos puros, reason codes y
 pruebas deterministas. No escribió en Supabase, Square, Mapbox ni el CMS.
 
-El siguiente bloque es 2B, pero cualquier configuración compartida seguirá
-bloqueada hasta contar con valores operativos aprobados. Puede desarrollarse y
-probarse el repositorio transaccional contra PostgreSQL desechable.
+El siguiente paso de 2B es habilitar PostgreSQL desechable y demostrar la
+concurrencia real. Cualquier configuración compartida seguirá bloqueada hasta
+contar con valores operativos aprobados.
