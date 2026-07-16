@@ -170,6 +170,25 @@ Estado: `EN CURSO` por existencia de schema y helpers; falta operación completa
 - Cotizar pickup y local delivery desde checkout sin cobrar todavía.
 - Crear herramientas administrativas para zonas, tarifas, calendarios y capacity.
 
+### Avance verificado
+
+- Bloque 2A completado el 2026-07-16: validación Polygon/MultiPolygon, huecos y
+  bordes; selección determinista de zonas y tarifas; reason codes fail-closed;
+  y evaluación de lead time, cutoff y capacity.
+- Evidencia: 17 pruebas focalizadas, 148/148 pruebas totales, lint/typecheck y
+  build aprobados. Supabase compartido permanece con cero configuración activa
+  de Fase 2.
+- Bloque 2B en curso: reserve/confirm/release serializable de capacity holds,
+  expiración stale, replay por owner, protección de sobreventa y retry `P2034`,
+  con 11 pruebas unitarias y 159/159 pruebas totales. CI #7 aplicó las seis
+  migraciones a PostgreSQL 17 efímero y validó concurrencia real sin sobreventa;
+  no se usó Supabase compartido. Faltan zonas/versiones, AddressEvaluation y
+  generación idempotente de occurrences para completar 2B.
+- Routing walking probado con selección de la tienda elegible más cercana,
+  tarifa server-side y slots de esa ubicación: 6 pruebas focalizadas y 165/165
+  pruebas totales. La captura naranja es referencia; falta aprobar el GeoJSON
+  productivo antes de crear zonas compartidas.
+
 ### Decisiones requeridas del propietario
 
 - Polígonos y prioridad de zonas por tienda.
@@ -411,6 +430,8 @@ riesgo.
 ## Documentos de soporte
 
 - Estado técnico: `docs/phase-1-handoff.md`
+- Plan de implementación de Fase 2: `docs/phase-2-implementation-plan.md`
+- Política de balloon delivery: `docs/balloon-delivery-pricing-policy.md`
 - Square y publicación: `docs/square-integration.md`
 - Fulfillment: `docs/fulfillment.md`
 - Delivery: `docs/delivery-zones.md`

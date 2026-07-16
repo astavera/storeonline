@@ -19,6 +19,7 @@
     "check": "npm run lint && npm run typecheck && npm run test",
     "verify": "npm run check && npm run build",
     "test": "vitest run",
+    "test:integration:postgres": "vitest run src/tests/integration/postgres-capacity-hold.test.ts",
     "test:watch": "vitest",
     "test:square:catalog": "vitest run --config vitest.live.config.ts --reporter=verbose",
     "sync:square:catalog": "node --disable-warning=ExperimentalWarning scripts/sync-square-catalog-read-only.mjs",
