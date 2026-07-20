@@ -22,7 +22,7 @@ const fulfillmentLabels = {
   shipping: "Shipping"
 };
 
-export function CheckoutClient() {
+export function CheckoutClient({ localDeliveryCheckoutEnabled }: { localDeliveryCheckoutEnabled: boolean }) {
   const [items, setItems] = useState<StoredCartItem[]>([]);
   const [quote, setQuote] = useState<CartQuote | null>(null);
   const [fulfillmentMode, setFulfillmentMode] = useState<"pickup" | "local-delivery" | "shipping">("pickup");
@@ -52,8 +52,11 @@ export function CheckoutClient() {
         const nextQuote = result.quote ?? null;
         setQuote(nextQuote);
 
-        if (nextQuote?.compatibleFulfillmentModes?.length) {
-          setFulfillmentMode(nextQuote.compatibleFulfillmentModes[0]);
+        const availableModes = nextQuote?.compatibleFulfillmentModes?.filter(
+          (mode: "pickup" | "local-delivery" | "shipping") => mode !== "local-delivery" || localDeliveryCheckoutEnabled
+        );
+        if (availableModes?.length) {
+          setFulfillmentMode(availableModes[0]);
         }
       })
       .catch(() => {
@@ -65,7 +68,7 @@ export function CheckoutClient() {
     return () => {
       ignore = true;
     };
-  }, [items]);
+  }, [items, localDeliveryCheckoutEnabled]);
 
   async function submitCheckout(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -113,7 +116,9 @@ export function CheckoutClient() {
     );
   }
 
-  const canSubmit = quote.errors.length === 0 && quote.compatibleFulfillmentModes.length > 0;
+  const availableFulfillmentModes = quote.compatibleFulfillmentModes.filter((mode) => mode !== "local-delivery" || localDeliveryCheckoutEnabled);
+  const canSubmit = quote.errors.length === 0 && availableFulfillmentModes.includes(fulfillmentMode);
+  const fulfillmentSummary = availableFulfillmentModes.includes(fulfillmentMode) ? fulfillmentLabels[fulfillmentMode] : "Not available";
 
   return (
     <form className="grid gap-6 lg:grid-cols-[1fr_380px]" onSubmit={submitCheckout}>
@@ -133,13 +138,16 @@ export function CheckoutClient() {
             <h2 className="font-display text-2xl font-semibold">Fulfillment</h2>
           </div>
           <div className="mt-5 grid gap-3 sm:grid-cols-3">
-            {quote.compatibleFulfillmentModes.map((mode) => (
+            {availableFulfillmentModes.map((mode) => (
               <label className={`rounded-md border p-3 text-sm font-semibold ${fulfillmentMode === mode ? "border-primary bg-surface-muted text-primary" : "border-border text-secondary"}`} key={mode}>
                 <input checked={fulfillmentMode === mode} className="sr-only" name="fulfillmentMode" onChange={() => setFulfillmentMode(mode)} type="radio" value={mode} />
                 {fulfillmentLabels[mode]}
               </label>
             ))}
           </div>
+          {!localDeliveryCheckoutEnabled && quote.compatibleFulfillmentModes.includes("local-delivery") ? (
+            <p className="mt-4 rounded-md border border-border bg-surface-muted p-3 text-sm text-secondary">Local delivery is being connected to OrderPRO and is not available at checkout yet.</p>
+          ) : null}
           {quote.errors.length > 0 ? <p className="mt-4 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-900">{quote.errors.join(" ")}</p> : null}
         </section>
 
@@ -161,7 +169,7 @@ export function CheckoutClient() {
           <SummaryRow label="Items" value={String(quote.itemCount)} />
           <SummaryRow label="Subtotal" value={formatMoney(quote.subtotalCents)} />
           <SummaryRow label="Estimated tax" value={formatMoney(quote.estimatedTaxCents)} />
-          <SummaryRow label="Fulfillment" value={fulfillmentLabels[fulfillmentMode]} />
+          <SummaryRow label="Fulfillment" value={fulfillmentSummary} />
           <div className="border-t border-border pt-3">
             <SummaryRow label="Estimated total" value={formatMoney(quote.totalCents)} strong />
           </div>

@@ -14,6 +14,18 @@
 - `SENTRY_DSN`
 - `ADMIN_SESSION_SECRET`
 
+OrderPRO STAGING uses these server-only variables. Keep checkout disabled while OrderPRO reports `DEPENDENCY_BLOCKED`:
+
+- `ORDERPRO_M2M_AUTH_MODE`
+- `ORDERPRO_INTEGRATION_ENVIRONMENT`
+- `ORDERPRO_API_BASE_URL`
+- `ORDERPRO_AUTH0_ISSUER`
+- `ORDERPRO_AUTH0_AUDIENCE`
+- `ORDERPRO_AUTH0_CLIENT_ID`
+- `ORDERPRO_AUTH0_CLIENT_SECRET`
+- `ORDERPRO_AUTH0_SCOPES`
+- `ORDERPRO_LOCAL_DELIVERY_CHECKOUT_ENABLED=false`
+
 ## Launch checks
 
 - Run unit, integration, and Playwright tests.
@@ -22,4 +34,7 @@
 - Verify old URL redirects.
 - Verify security headers.
 - Verify no secrets in frontend bundle.
+- Run the isolated OrderPRO `auth-check` certification and confirm the access token, Client Secret and Authorization header are absent from logs and build artifacts.
+- Confirm `ORDERPRO_LOCAL_DELIVERY_CHECKOUT_ENABLED=false` until quote, slots and holds pass their separate release review.
+- Confirm `/api/checkout` returns `local_delivery_not_available` for Local Delivery throughout this handshake-only release.
 - Verify mobile navigation and checkout accessibility.

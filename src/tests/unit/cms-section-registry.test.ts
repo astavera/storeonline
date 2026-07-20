@@ -95,7 +95,7 @@ const requiredSectionTypes = [
   "modalPopup",
   "cookieBanner",
   "customCodeEmbed"
-];
+] as const;
 
 describe("cms section registry", () => {
   it("registers every required builder section type", () => {

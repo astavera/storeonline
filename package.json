@@ -2,14 +2,21 @@
   "name": "modern-state-ecommerce",
   "version": "0.1.0",
   "private": true,
+  "engines": {
+    "node": ">=20.9.0"
+  },
   "scripts": {
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint",
+    "lint": "eslint .",
+    "lint:orderpro": "eslint scripts/run-orderpro-live-test.mjs src/server/orderpro src/app/api/checkout/route.ts \"src/app/(checkout)/checkout/page.tsx\" src/components/checkout/checkout-client.tsx src/components/checkout/checkout-page-template.tsx src/tests/unit/orderpro-config.test.ts src/tests/unit/orderpro-token-provider.test.ts src/tests/integration/orderpro-client.test.ts src/tests/integration/orderpro-auth-check.live.test.ts src/tests/integration/checkout-local-delivery-guard.test.ts --max-warnings=0",
+    "typecheck": "next typegen && tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
+    "test:orderpro:live": "node scripts/run-orderpro-live-test.mjs",
     "test:e2e": "playwright test",
+    "check": "npm run lint && npm run lint:orderpro && npm run typecheck && npm run test",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev"
   },

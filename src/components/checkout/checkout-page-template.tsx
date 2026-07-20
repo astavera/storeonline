@@ -14,7 +14,7 @@ BUSINESS LOGIC FILES: src/server/checkout/checkout-service.ts, src/server/square
 import { SectionFrame } from "../sections/section-frame";
 import { CheckoutClient } from "./checkout-client";
 
-export function CheckoutPageTemplate() {
+export function CheckoutPageTemplate({ localDeliveryCheckoutEnabled }: { localDeliveryCheckoutEnabled: boolean }) {
   return (
     <main>
       <SectionFrame area="Checkout" className="py-16" component="CheckoutCustomerInfoSection" sectionId="checkout.customer-info" variant="form">
@@ -22,7 +22,7 @@ export function CheckoutPageTemplate() {
           <h1 className="font-display text-4xl font-semibold">Secure checkout</h1>
           <p className="mt-3 max-w-2xl text-secondary">Cart contents, prices, fulfillment compatibility, and totals are validated before payment.</p>
           <div className="mt-8">
-            <CheckoutClient />
+            <CheckoutClient localDeliveryCheckoutEnabled={localDeliveryCheckoutEnabled} />
           </div>
         </div>
       </SectionFrame>

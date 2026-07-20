@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { quoteCart } from "@/server/checkout/cart-service";
+import { isOrderProLocalDeliveryCheckoutEnabled } from "@/server/orderpro/config";
 import { getSquareRuntimeConfig } from "@/server/square/client";
 
 const checkoutRequestSchema = z.object({
@@ -16,6 +17,18 @@ const checkoutRequestSchema = z.object({
 export async function POST(request: NextRequest) {
   try {
     const parsed = checkoutRequestSchema.parse(await request.json());
+
+    if (parsed.fulfillmentMode === "local-delivery" && !isOrderProLocalDeliveryCheckoutEnabled()) {
+      return NextResponse.json(
+        {
+          ok: false,
+          status: "local_delivery_not_available",
+          errors: ["Local delivery checkout is not available yet. Please select pickup or shipping."]
+        },
+        { status: 503 }
+      );
+    }
+
     const quote = quoteCart({ items: parsed.items });
 
     if (quote.errors.length > 0) {
