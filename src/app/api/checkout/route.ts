@@ -7,7 +7,8 @@ import {
 } from "@/server/checkout/checkout-attempt-repository";
 import { quoteCartFromOperationalCatalog } from "@/server/checkout/cart-service";
 import { PersistenceUnavailableError } from "@/server/db/persistence-policy";
-import { validateOrderProLocalDeliverySelection } from "@/server/orderpro/orderpro-local-delivery-service";
+import { isOrderProLocalDeliveryCheckoutEnabled } from "@/server/orderpro/config";
+import { isOrderProDeliveryTestMode, validateOrderProLocalDeliverySelection } from "@/server/orderpro/orderpro-local-delivery-service";
 import { validateOrderProPickupSelection } from "@/server/orderpro/orderpro-pickup-slot-service";
 
 const checkoutRequestSchema = z.object({
@@ -46,6 +47,17 @@ export async function POST(request: NextRequest) {
     const idempotencyKey = request.headers.get("idempotency-key")?.trim();
     if (!idempotencyKey || idempotencyKey.length < 8 || idempotencyKey.length > 200) {
       return NextResponse.json({ ok: false, status: "validation_only", errors: ["A valid Idempotency-Key header is required."] }, { status: 400 });
+    }
+
+    if (parsed.fulfillmentMode === "local-delivery" && !isOrderProDeliveryTestMode() && !isOrderProLocalDeliveryCheckoutEnabled()) {
+      return NextResponse.json(
+        {
+          ok: false,
+          status: "local_delivery_not_available",
+          errors: ["Local delivery checkout is not available yet. Please select pickup or shipping."]
+        },
+        { status: 503 }
+      );
     }
 
     const quote = await quoteCartFromOperationalCatalog({ items: parsed.items, locationId: parsed.locationId });

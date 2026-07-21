@@ -2,10 +2,11 @@
 
 ## Core rules
 
-- No Square access tokens, webhook secrets, carrier keys, or admin secrets may be exposed to the frontend.
+- No Square access tokens, webhook secrets, carrier keys, Auth0 Client Secrets, OrderPRO bearer tokens, or admin secrets may be exposed to the frontend.
 - No raw card data is collected or stored.
 - Checkout is validation-only. It does not accept payment tokens, create Square orders, or capture payments.
 - Backend revalidates price, inventory, fulfillment mode, delivery fee, shipping rate, taxes, and slot capacity.
+- The browser never calls Auth0 or OrderPRO directly. The server-only OrderPRO client acquires short-lived Client Credentials tokens, caches them only in memory, and sends them only in the `Authorization` header.
 - Admin mutations require RBAC, CSRF protection, secure cookies, rate limiting, validation, and audit logging.
 
 ## Headers

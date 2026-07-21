@@ -7,6 +7,7 @@ Next.js ecommerce scaffold for Modern State, the evolution of State News on NYC'
 - App Router, TypeScript, Tailwind, design tokens, route tree, admin shell, checkout shell, and tests are scaffolded.
 - Square is server-only by design. Production catalog and inventory reads are
   supported behind an explicit kill switch; no Production Square writes are enabled.
+- The OrderPRO STAGING M2M client is server-only and fail-closed. It can certify `auth-check`; walking quote, holds and checkout remain disabled.
 - Website departments are independent from Square categories and `reporting_category`.
 - Candy & Snacks is preserved as legacy/search/SEO context, not a main department.
 - The six Phase 1 migrations are applied to the shared Supabase database and all

@@ -14,9 +14,8 @@ test-results/
 .playwright-results/
 /tmp/
 *.tsbuildinfo
-.env
-.env.local
-.env.*.local
+.env*
+!.env.example
 *.log
 prisma/dev.db
 data/admin-cms/

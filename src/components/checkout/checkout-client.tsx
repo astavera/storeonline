@@ -36,7 +36,7 @@ const fulfillmentLabels = {
   shipping: "Shipping"
 };
 
-export function CheckoutClient({ locations, deliveryTestMode = false }: { locations: CheckoutLocation[]; deliveryTestMode?: boolean }) {
+export function CheckoutClient({ locations, deliveryTestMode = false, localDeliveryCheckoutEnabled = false }: { locations: CheckoutLocation[]; deliveryTestMode?: boolean; localDeliveryCheckoutEnabled?: boolean }) {
   const [cartState, setCartState] = useState<{ hydrated: boolean; items: StoredCartItem[] }>({ hydrated: false, items: [] });
   const [quote, setQuote] = useState<CartQuote | null>(null);
   const [isCartQuoteLoading, setIsCartQuoteLoading] = useState(true);
@@ -97,8 +97,11 @@ export function CheckoutClient({ locations, deliveryTestMode = false }: { locati
         setQuote(nextQuote);
         setIsCartQuoteLoading(false);
 
-        if (nextQuote?.compatibleFulfillmentModes?.length) {
-          setFulfillmentMode((current) => nextQuote.compatibleFulfillmentModes.includes(current) ? current : nextQuote.compatibleFulfillmentModes[0]);
+        const availableModes = nextQuote?.compatibleFulfillmentModes?.filter(
+          (mode: "pickup" | "local-delivery" | "shipping") => mode !== "local-delivery" || localDeliveryCheckoutEnabled
+        );
+        if (availableModes?.length) {
+          setFulfillmentMode((current) => availableModes.includes(current) ? current : availableModes[0]);
         }
       })
       .catch(() => {
@@ -111,7 +114,7 @@ export function CheckoutClient({ locations, deliveryTestMode = false }: { locati
     return () => {
       ignore = true;
     };
-  }, [cartState.hydrated, items, locationId]);
+  }, [cartState.hydrated, items, localDeliveryCheckoutEnabled, locationId]);
 
   async function submitCheckout(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -194,10 +197,12 @@ export function CheckoutClient({ locations, deliveryTestMode = false }: { locati
     );
   }
 
+  const availableFulfillmentModes = quote.compatibleFulfillmentModes.filter((mode) => mode !== "local-delivery" || localDeliveryCheckoutEnabled);
   const selectedLocation = locations.find((location) => location.id === locationId);
   const deliveryReady = fulfillmentMode !== "local-delivery" || Boolean(localDeliverySelection);
-  const canSubmit = Boolean(selectedLocation) && deliveryReady && quote.errors.length === 0 && quote.compatibleFulfillmentModes.length > 0;
+  const canSubmit = Boolean(selectedLocation) && deliveryReady && quote.errors.length === 0 && availableFulfillmentModes.includes(fulfillmentMode);
   const deliveryFeeCents = fulfillmentMode === "local-delivery" ? localDeliverySelection?.quote.feeCents ?? 0 : 0;
+  const fulfillmentSummary = availableFulfillmentModes.includes(fulfillmentMode) ? fulfillmentLabels[fulfillmentMode] : "Not available";
 
   return (
     <form className="grid gap-6 lg:grid-cols-[1fr_380px]" onSubmit={submitCheckout}>
@@ -225,7 +230,7 @@ export function CheckoutClient({ locations, deliveryTestMode = false }: { locati
             </label>
           ) : locations.length === 0 ? <p className="mt-4 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-900">No Square-mapped fulfillment location is currently available.</p> : null}
           <div className="mt-5 grid gap-3 sm:grid-cols-3">
-            {quote.compatibleFulfillmentModes.map((mode) => (
+            {availableFulfillmentModes.map((mode) => (
               <label className={`rounded-md border p-3 text-sm font-semibold ${fulfillmentMode === mode ? "border-primary bg-surface-muted text-primary" : "border-border text-secondary"}`} key={mode}>
                 <input checked={fulfillmentMode === mode} className="sr-only" name="fulfillmentMode" onChange={() => {
                   setFulfillmentMode(mode);
@@ -243,6 +248,9 @@ export function CheckoutClient({ locations, deliveryTestMode = false }: { locati
                 <p className="mt-1 text-sm text-secondary">{formatPickupDate(pickupSchedule.requestedDate)} · {pickupSchedule.slotLabel}</p>
               </div>
             </div>
+          ) : null}
+          {!localDeliveryCheckoutEnabled && quote.compatibleFulfillmentModes.includes("local-delivery") ? (
+            <p className="mt-4 rounded-md border border-border bg-surface-muted p-3 text-sm text-secondary">Local delivery is being connected to OrderPRO and is not available at checkout yet.</p>
           ) : null}
           {quote.errors.length > 0 ? <p className="mt-4 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-900">{quote.errors.join(" ")}</p> : null}
           {quote.warnings?.length > 0 ? <p className="mt-4 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">{quote.warnings.join(" ")}</p> : null}
@@ -281,7 +289,7 @@ export function CheckoutClient({ locations, deliveryTestMode = false }: { locati
           <SummaryRow label="Store" value={fulfillmentMode === "local-delivery" && !localDeliverySelection ? "Assigned after address check" : selectedLocation?.name ?? "Unavailable"} />
           <SummaryRow label="Subtotal" value={formatMoney(quote.subtotalCents)} />
           <SummaryRow label="Estimated tax" value={formatMoney(quote.estimatedTaxCents)} />
-          <SummaryRow label="Fulfillment" value={fulfillmentLabels[fulfillmentMode]} />
+          <SummaryRow label="Fulfillment" value={fulfillmentSummary} />
           {fulfillmentMode === "pickup" && pickupSchedule ? <SummaryRow label="Pickup time" value={`${formatPickupDate(pickupSchedule.requestedDate)} · ${pickupSchedule.slotLabel}`} /> : null}
           {fulfillmentMode === "local-delivery" ? <SummaryRow label="Delivery fee" value={localDeliverySelection ? formatMoney(deliveryFeeCents) : "Check address"} /> : null}
           <div className="border-t border-border pt-3">

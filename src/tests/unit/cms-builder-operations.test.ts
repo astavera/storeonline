@@ -50,7 +50,7 @@ describe("cms builder operations", () => {
       layout: { alignment: "center" },
       media: { image: "/uploads/admin/hero.jpg" },
       dataSource: { type: "manual", id: "manual-hero" },
-      visibility: { mobile: false },
+      visibility: { desktop: true, tablet: true, mobile: false },
       advanced: { anchorId: "hero" }
     });
     const renamed = renameCmsSection(edited, "landing.hero", "Hero renamed");

@@ -18,16 +18,20 @@ import { LocalDeliveryQuotePanel } from "@/components/fulfillment/local-delivery
 import { balloonBuilderStepLabels, balloonBuilderSteps, balloonFlows } from "@/config/balloons.config";
 import { getDepartmentBySlug } from "@/config/departments.config";
 import { readLatestCmsDocument } from "@/server/admin/admin-cms-document-service";
-import { isOrderProDeliveryTestMode } from "@/server/orderpro/orderpro-local-delivery-service";
 import { ButtonLink } from "../ui/button";
 import { SectionFrame } from "../sections/section-frame";
 
 type BalloonsPageTemplateProps = {
   flowSlug?: string;
   initialCollection?: string;
+  orderProDeliveryTestMode?: boolean;
 };
 
-export async function BalloonsPageTemplate({ flowSlug, initialCollection }: BalloonsPageTemplateProps) {
+export async function BalloonsPageTemplate({
+  flowSlug,
+  initialCollection,
+  orderProDeliveryTestMode = false
+}: BalloonsPageTemplateProps) {
   const publishedDocument = await readLatestCmsDocument({
     entityType: flowSlug ? "landing" : "department",
     entityId: flowSlug ? `balloons-${flowSlug}` : "balloons",
@@ -117,7 +121,7 @@ export async function BalloonsPageTemplate({ flowSlug, initialCollection }: Ball
       <SectionFrame area="Balloons" className="py-14" component="BalloonFulfillmentSelectorSection" sectionId="balloons.fulfillment-selector" variant="pickup-delivery">
         <div className="container-shell">
           {flowSlug === "local-delivery" ? (
-            <LocalDeliveryQuotePanel context="balloon-order" testMode={isOrderProDeliveryTestMode()} />
+            <LocalDeliveryQuotePanel context="balloon-order" testMode={orderProDeliveryTestMode} />
           ) : (
             <div className="grid gap-5 md:grid-cols-2">
               <div className="surface-card p-6">

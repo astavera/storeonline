@@ -34,6 +34,18 @@ All three GitHub checks documented in [engineering-workflow.md](engineering-work
 - `ADMIN_SESSION_SECRET`
 - `ADMIN_ALLOWED_ORIGINS`
 
+OrderPRO STAGING uses these server-only variables. Keep checkout disabled while OrderPRO reports `DEPENDENCY_BLOCKED`:
+
+- `ORDERPRO_M2M_AUTH_MODE`
+- `ORDERPRO_INTEGRATION_ENVIRONMENT`
+- `ORDERPRO_API_BASE_URL`
+- `ORDERPRO_AUTH0_ISSUER`
+- `ORDERPRO_AUTH0_AUDIENCE`
+- `ORDERPRO_AUTH0_CLIENT_ID`
+- `ORDERPRO_AUTH0_CLIENT_SECRET`
+- `ORDERPRO_AUTH0_SCOPES`
+- `ORDERPRO_LOCAL_DELIVERY_CHECKOUT_ENABLED=false`
+
 ## Launch checks
 
 - Verify `npx prisma migrate status` reports the shared database up to date.
@@ -51,6 +63,9 @@ All three GitHub checks documented in [engineering-workflow.md](engineering-work
 - Verify old URL redirects.
 - Verify security headers.
 - Verify no secrets in frontend bundle.
+- Run the isolated OrderPRO `auth-check` certification and confirm the access token, Client Secret and Authorization header are absent from logs and build artifacts.
+- Confirm `ORDERPRO_LOCAL_DELIVERY_CHECKOUT_ENABLED=false` until quote, slots and holds pass their separate release review.
+- Confirm `/api/checkout` returns `local_delivery_not_available` for Local Delivery throughout this handshake-only release.
 - Verify mobile navigation and checkout accessibility.
 - Confirm `/admin` and `/api/admin/*` have a configured identity issuer; the
   current containment layer fails closed when no production identity is available.
