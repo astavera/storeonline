@@ -17,3 +17,14 @@ Fulfillment statuses are represented in the Prisma schema and include `NEW`, `PA
 ## Staff app
 
 The internal app will support location dashboards, pickup queue, balloon prep queue, local delivery queue, route view, warehouse queue, pick/pack, label printing, order details, customer contact, capacity calendar, delivery zone editor, and audit log.
+
+## Implemented release boundary
+
+The current checkout is validation-only. It verifies the operational catalog,
+selected location, idempotency key, fulfillment compatibility, and available
+selection data, but it does not capture payment or create a Square or OrderPRO
+order. Production local delivery returns a fail-closed unavailable response
+until the code release gate and operational integration are both approved.
+
+See [Phase 2 and CMS Handoff](phase-2-handoff.md) for the implemented API flow,
+test-mode behavior, persistence policy, and remaining launch gates.

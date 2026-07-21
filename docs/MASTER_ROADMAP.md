@@ -193,6 +193,15 @@ Estado: `EN CURSO` por existencia de schema y helpers; falta operación completa
 
 ### Decisiones requeridas del propietario
 
+Actualización verificada el 2026-07-21: la entrega consolidada incluye el gate
+ZIP-first para balloons, contratos y endpoints de pickup/local delivery,
+checkout de validación con idempotencia, jerarquía de categorías web de cuatro
+niveles, CMS/homepage versionado y el cliente M2M fail-closed de OrderPRO
+STAGING. Evidencia: lint sin errores, typecheck aprobado y 256 pruebas
+aprobadas, con 5 pruebas adicionales omitidas por configuración. El checkout
+transaccional, slots operativos reales y la liberación productiva de OrderPRO
+continúan cerrados. Ver `docs/phase-2-handoff.md`.
+
 - Polígonos y prioridad de zonas por tienda.
 - Tarifas base, mínimos, distancia/tiempo máximo y política de propinas.
 - Horarios, feriados, lead times, cutoffs y capacidad por slot.

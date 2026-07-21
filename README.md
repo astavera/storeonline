@@ -2,7 +2,7 @@
 
 Next.js ecommerce scaffold for Modern State, the evolution of State News on NYC's Upper East Side.
 
-## First milestone status
+## Current implementation status
 
 - App Router, TypeScript, Tailwind, design tokens, route tree, admin shell, checkout shell, and tests are scaffolded.
 - Square is server-only by design. Production catalog and inventory reads are
@@ -75,7 +75,9 @@ GitHub Actions repeats these checks on Node 24 and tests Playwright against the 
 ## Working agreements
 
 - [Master project roadmap](docs/MASTER_ROADMAP.md)
-- [Current Phase 1 handoff](docs/phase-1-handoff.md)
+- [Current Phase 2 and CMS handoff](docs/phase-2-handoff.md)
+- [Admin and CMS operating guide](docs/admin-guide.md)
+- [Historical Phase 1 handoff](docs/phase-1-handoff.md)
 - [Engineering workflow](docs/engineering-workflow.md)
 - [Environments and configuration](docs/environments.md)
 - [Architecture](docs/architecture.md)
