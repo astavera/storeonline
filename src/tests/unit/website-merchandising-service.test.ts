@@ -3,9 +3,12 @@ import type { StorefrontProduct } from "@/features/catalog/product-catalog";
 import {
   createDefaultWebsiteMerchandising,
   filterWebsiteCatalogProducts,
+  orderWebsiteCategories,
   reconcileWebsiteMerchandising,
   resolveWebsiteCatalog,
   slugifyWebsiteCategory,
+  websiteCategoryDepth,
+  websiteCategoryLabel,
   websitePlacementIssues,
   type WebsiteBrand,
   type WebsiteCategory
@@ -101,14 +104,16 @@ describe("website merchandising service", () => {
     expect(resolved.products[0].websiteBrandIds).toEqual([websiteBrand.id]);
   });
 
-  it("rolls subcategory products up into their visible main category", () => {
+  it("orders four category levels and rolls products up through every ancestor", () => {
     const mainCategory: WebsiteCategory = { ...websiteCategory, id: "category-toys", name: "Toys", slug: "toys", parentId: null, sortOrder: 0 };
     const subcategory: WebsiteCategory = { ...websiteCategory, id: "category-games", name: "Games & Puzzles", slug: "games-and-puzzles", parentId: mainCategory.id, sortOrder: 0 };
+    const thirdLevel: WebsiteCategory = { ...websiteCategory, id: "category-board-games", name: "Board Games", slug: "board-games", parentId: subcategory.id, sortOrder: 0 };
+    const fourthLevel: WebsiteCategory = { ...websiteCategory, id: "category-strategy-games", name: "Strategy Games", slug: "strategy-games", parentId: thirdLevel.id, sortOrder: 0 };
     const config = createDefaultWebsiteMerchandising(products, "2026-07-13T15:00:00.000Z");
-    config.categories = [mainCategory, subcategory];
+    config.categories = [fourthLevel, subcategory, mainCategory, thirdLevel];
     config.placements[0] = {
       ...config.placements[0],
-      categoryIds: [subcategory.id],
+      categoryIds: [fourthLevel.id],
       fulfillmentModes: ["pickup"],
       surfaceIds: ["shop"],
       visible: true
@@ -116,22 +121,27 @@ describe("website merchandising service", () => {
 
     const resolved = resolveWebsiteCatalog(products, config);
 
-    expect(resolved.productVariationIdsByCategory[subcategory.id]).toEqual(["variation-balloon"]);
-    expect(resolved.productVariationIdsByCategory[mainCategory.id]).toEqual(["variation-balloon"]);
+    expect(orderWebsiteCategories(config.categories).map((category) => category.id)).toEqual([mainCategory.id, subcategory.id, thirdLevel.id, fourthLevel.id]);
+    expect(websiteCategoryDepth(fourthLevel, config.categories)).toBe(4);
+    expect(websiteCategoryLabel(fourthLevel, config.categories)).toBe("Toys › Games & Puzzles › Board Games › Strategy Games");
+    for (const category of [mainCategory, subcategory, thirdLevel, fourthLevel]) {
+      expect(resolved.productVariationIdsByCategory[category.id]).toEqual(["variation-balloon"]);
+    }
     expect(filterWebsiteCatalogProducts(resolved, { categoryId: mainCategory.id, surface: "shop" })).toHaveLength(1);
-    expect(resolved.products[0].department).toBe("Games & Puzzles");
+    expect(resolved.products[0].department).toBe("Strategy Games");
   });
 
-  it("keeps subcategories and their products private while the main category is hidden", () => {
-    const mainCategory: WebsiteCategory = { ...websiteCategory, id: "category-toys", name: "Toys", slug: "toys", parentId: null, visible: false };
-    const subcategory: WebsiteCategory = { ...websiteCategory, id: "category-games", name: "Games", slug: "games", parentId: mainCategory.id, visible: true };
+  it("keeps deep subcategories and their products private while any ancestor is hidden", () => {
+    const mainCategory: WebsiteCategory = { ...websiteCategory, id: "category-toys", name: "Toys", slug: "toys", parentId: null, visible: true };
+    const subcategory: WebsiteCategory = { ...websiteCategory, id: "category-games", name: "Games", slug: "games", parentId: mainCategory.id, visible: false };
+    const thirdLevel: WebsiteCategory = { ...websiteCategory, id: "category-board-games", name: "Board Games", slug: "board-games", parentId: subcategory.id, visible: true };
     const config = createDefaultWebsiteMerchandising(products, "2026-07-13T15:00:00.000Z");
-    config.categories = [mainCategory, subcategory];
-    config.placements[0] = { ...config.placements[0], categoryIds: [subcategory.id], fulfillmentModes: ["pickup"], surfaceIds: ["shop"], visible: true };
+    config.categories = [mainCategory, subcategory, thirdLevel];
+    config.placements[0] = { ...config.placements[0], categoryIds: [thirdLevel.id], fulfillmentModes: ["pickup"], surfaceIds: ["shop"], visible: true };
 
     const resolved = resolveWebsiteCatalog(products, config);
 
-    expect(resolved.categories).toEqual([]);
+    expect(resolved.categories).toEqual([mainCategory]);
     expect(resolved.products).toEqual([]);
   });
 

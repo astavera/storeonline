@@ -9,20 +9,28 @@ import type { BuilderDevice, BuilderSaveState } from "./types";
 export function BuilderTopbar({
   device,
   document,
+  canRedo,
+  canUndo,
   isDirty,
+  onRedo,
   onPreview,
   onPublish,
   onSaveDraft,
+  onUndo,
   publicPreviewRoute,
   saveState,
   setDevice
 }: {
   device: BuilderDevice;
   document: CmsPageDocument;
+  canRedo: boolean;
+  canUndo: boolean;
   isDirty: boolean;
+  onRedo: () => void;
   onPreview: () => void;
   onPublish: () => void;
   onSaveDraft: () => void;
+  onUndo: () => void;
   publicPreviewRoute?: string;
   saveState: BuilderSaveState;
   setDevice: (device: BuilderDevice) => void;
@@ -34,10 +42,10 @@ export function BuilderTopbar({
       <div className="flex min-w-0 items-center gap-3">
         <BuilderDevicePreview device={device} setDevice={setDevice} />
         <div className="hidden items-center gap-1 sm:flex">
-          <button aria-label="Undo" className="grid size-10 place-items-center rounded-full text-secondary opacity-40" disabled type="button">
+          <button aria-label="Undo" className="grid size-10 place-items-center rounded-full text-secondary transition hover:bg-surface disabled:cursor-not-allowed disabled:opacity-35" disabled={!canUndo} onClick={onUndo} title="Undo (Ctrl+Z)" type="button">
             <Undo2 aria-hidden="true" className="size-4" />
           </button>
-          <button aria-label="Redo" className="grid size-10 place-items-center rounded-full text-secondary opacity-40" disabled type="button">
+          <button aria-label="Redo" className="grid size-10 place-items-center rounded-full text-secondary transition hover:bg-surface disabled:cursor-not-allowed disabled:opacity-35" disabled={!canRedo} onClick={onRedo} title="Redo (Ctrl+Shift+Z)" type="button">
             <Redo2 aria-hidden="true" className="size-4" />
           </button>
         </div>

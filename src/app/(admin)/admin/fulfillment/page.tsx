@@ -1,5 +1,5 @@
-import { AdminPageShell } from "@/components/admin/admin-page-shell";
+import { OrderProManagedPanel } from "@/components/admin/orderpro-managed-panel";
 
 export default function AdminFulfillmentPage() {
-  return <AdminPageShell description="Pickup queue, balloon prep queue, local delivery queue, warehouse shipping queue, and staff status transitions." sectionId="admin.fulfillment-dashboard" title="Fulfillment" />;
+  return <OrderProManagedPanel description="Pickup, balloon preparation, delivery queues and status transitions are managed in OrderPro." title="Fulfillment" />;
 }

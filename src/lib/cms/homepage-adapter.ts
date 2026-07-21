@@ -61,10 +61,13 @@ export function homepageSectionToCmsSection(section: HomepageSectionConfig): Cms
       body: section.body,
       primaryCtaLabel: section.ctaLabel,
       primaryCtaHref: section.ctaHref,
+      secondaryCtaLabel: section.secondaryCtaLabel,
+      secondaryCtaHref: section.secondaryCtaHref,
       items: section.items?.map((item) => ({ ...item }))
     },
     design: {
-      backgroundTone: section.backgroundTone
+      backgroundTone: section.backgroundTone,
+      heroSize: section.heroSize
     },
     layout: {
       alignment: section.textPosition,

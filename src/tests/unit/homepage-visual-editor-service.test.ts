@@ -90,6 +90,40 @@ describe("homepage visual editor service", () => {
     expect(departments?.items?.[0]?.squareVariationId).toBe("seed-toy-building-set");
   });
 
+  it("preserves the four homepage promotional card destinations and colors", () => {
+    const cards = [
+      { id: "manual", title: "Manual", href: "/stationery", image: "/images/category-stationery.svg", linkType: "manual" as const, tone: "yellow" as const, presentation: "cutout" as const },
+      { id: "brand", title: "Crayola", href: "/shop?brand=crayola", linkType: "brand" as const, linkValue: "crayola", tone: "cyan" as const },
+      { id: "category", title: "Arts", href: "/shop?department=arts-and-crafts", linkType: "category" as const, linkValue: "arts-and-crafts", tone: "green" as const },
+      { id: "product", title: "Building set", href: "/products/premium-building-set", linkType: "product" as const, linkValue: "premium-building-set", tone: "red" as const, productSlug: "premium-building-set", squareVariationId: "seed-toy-building-set" }
+    ];
+    const merged = mergeHomepageSections(homepageSections, [{ ...homepageSections[0], items: cards }]);
+    const hero = merged.find((section) => section.sectionId === "home.hero");
+
+    expect(hero?.items).toHaveLength(4);
+    expect(hero?.items).toEqual(cards);
+  });
+
+  it("preserves both hero button links and the selected hero size", () => {
+    const merged = mergeHomepageSections(homepageSections, [{
+      ...homepageSections[0],
+      ctaLabel: "Shop Crayola",
+      ctaHref: "/shop?brand=crayola",
+      secondaryCtaLabel: "Browse arts",
+      secondaryCtaHref: "/shop?department=arts-and-crafts",
+      heroSize: "compact"
+    }]);
+    const hero = merged.find((section) => section.sectionId === "home.hero");
+
+    expect(hero).toMatchObject({
+      ctaLabel: "Shop Crayola",
+      ctaHref: "/shop?brand=crayola",
+      secondaryCtaLabel: "Browse arts",
+      secondaryCtaHref: "/shop?department=arts-and-crafts",
+      heroSize: "compact"
+    });
+  });
+
   it("keeps editable photo presets usable with fallback images", () => {
     const presets = normalizeHomepageImagePresets([
       { id: "hero", label: "Hero", url: "" },

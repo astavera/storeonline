@@ -1,5 +1,5 @@
-import { BalloonsPageTemplate } from "@/components/templates/balloons-page-template";
+import { redirect } from "next/navigation";
 
 export default function BalloonLocalDeliveryPage() {
-  return <BalloonsPageTemplate flowSlug="local-delivery" />;
+  redirect("/balloons");
 }

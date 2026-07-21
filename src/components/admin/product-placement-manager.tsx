@@ -17,7 +17,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useMemo, useState, useSyncExternalStore, type ChangeEvent, type ReactNode } from "react";
-import { AlertTriangle, ArrowDown, ArrowUp, Check, ChevronDown, ChevronRight, Download, Eye, EyeOff, FileSpreadsheet, Folder, FolderTree, Palette, Plus, Save, Search, Trash2, Upload } from "lucide-react";
+import { AlertTriangle, ArrowDown, ArrowUp, Check, ChevronRight, Download, Eye, EyeOff, FileSpreadsheet, Folder, FolderTree, Palette, Plus, Save, Search, Trash2, Upload } from "lucide-react";
 import { SectionFrame } from "@/components/sections/section-frame";
 import { Button } from "@/components/ui/button";
 import { BrandGtinImporter, type BrandGtinMutation } from "@/components/admin/brand-gtin-importer";
@@ -32,9 +32,13 @@ import {
   type StorefrontProduct
 } from "@/features/catalog/product-catalog";
 import {
+  MAX_WEBSITE_CATEGORY_DEPTH,
   orderWebsiteCategories,
   slugifyWebsiteCategory,
+  websiteCategoryDepth,
+  websiteCategoryDescendantIds,
   websiteCategoryLabel,
+  websiteCategoryPath,
   websitePlacementReadinessIssues,
   websiteSurfaceOptions,
   type WebsiteBrand,
@@ -130,9 +134,9 @@ export function ProductPlacementManager({ products, initialConfig, fetchedAt, ha
     }
 
     const parentId = newCategoryParentId || null;
-    const parent = parentId ? categories.find((category) => category.id === parentId && !category.parentId) : null;
-    if (parentId && !parent) {
-      return showError("Choose a valid main category for this subcategory.");
+    const parent = parentId ? categories.find((category) => category.id === parentId) : null;
+    if (parentId && (!parent || websiteCategoryDepth(parent, categories) >= MAX_WEBSITE_CATEGORY_DEPTH)) {
+      return showError(`Choose a valid parent within the first ${MAX_WEBSITE_CATEGORY_DEPTH - 1} levels.`);
     }
     const slug = uniqueSlug(name, categories.map((category) => category.slug));
     const siblings = categories.filter((category) => category.parentId === parentId);
@@ -157,12 +161,15 @@ export function ProductPlacementManager({ products, initialConfig, fetchedAt, ha
   function updateCategory(patch: Partial<WebsiteCategory>) {
     if (!selectedCategory) return;
     if (patch.parentId !== undefined && patch.parentId !== selectedCategory.parentId) {
-      if (patch.parentId && categories.some((category) => category.parentId === selectedCategory.id)) {
-        return showError("Move or remove this category's subcategories before turning it into a subcategory.");
-      }
+      const descendantIds = new Set(websiteCategoryDescendantIds(selectedCategory.id, categories));
       const parent = patch.parentId ? categories.find((category) => category.id === patch.parentId) : null;
-      if (patch.parentId && (!parent || parent.parentId)) {
-        return showError("Subcategories can only be placed under a main category.");
+      if (patch.parentId && (!parent || parent.id === selectedCategory.id || descendantIds.has(parent.id))) {
+        return showError("A category cannot be placed inside itself or one of its subcategories.");
+      }
+      const nextDepth = parent ? websiteCategoryDepth(parent, categories) + 1 : 1;
+      const subtreeHeight = websiteCategorySubtreeHeight(selectedCategory, categories);
+      if (!Number.isFinite(nextDepth) || nextDepth + subtreeHeight - 1 > MAX_WEBSITE_CATEGORY_DEPTH) {
+        return showError(`This move would exceed the ${MAX_WEBSITE_CATEGORY_DEPTH}-level category limit.`);
       }
       const nextSortOrder = categories.filter((category) => category.parentId === (patch.parentId ?? null) && category.id !== selectedCategory.id).length;
       patch = { ...patch, sortOrder: nextSortOrder };
@@ -170,7 +177,7 @@ export function ProductPlacementManager({ products, initialConfig, fetchedAt, ha
 
     setCategories((current) => normalizeCategorySiblingOrder(current.map((category) => (category.id === selectedCategory.id ? { ...category, ...patch } : category))));
     if (patch.visible === false || patch.parentId !== undefined) {
-      const affectedCategoryIds = new Set([selectedCategory.id, ...categories.filter((category) => category.parentId === selectedCategory.id).map((category) => category.id)]);
+      const affectedCategoryIds = new Set([selectedCategory.id, ...websiteCategoryDescendantIds(selectedCategory.id, categories)]);
       setPlacements((current) => current.map((placement) => (placement.categoryIds.some((id) => affectedCategoryIds.has(id)) ? { ...placement, visible: false } : placement)));
     }
     markChanged();
@@ -635,7 +642,7 @@ function BulkMerchandisingEditor({
         </section>
 
         <section className="min-w-0 p-4 md:p-6" aria-label="Bulk actions">
-          <div className="rounded-md border border-blue/25 bg-cyan p-4"><p className="font-semibold text-primary">Safe bulk draft</p><p className="mt-1 text-sm text-secondary">Structural edits return affected products to hidden. “Publish ready” publishes only records that pass every placement rule.</p></div>
+          <div className="rounded-md border border-blue/25 bg-cyan p-4"><p className="font-semibold text-primary">Safe bulk draft</p><p className="mt-1 text-sm text-secondary">Structural edits return affected products to hidden. Publishing approved products includes only records that pass every placement rule.</p></div>
           <div className="mt-5 grid gap-4">
             <BulkValueEditor description="Add, remove, or replace website-only category assignments." mode={categoryMode} onModeChange={setCategoryMode} title="Website categories"><ChoiceGrid>{categories.map((category) => <Choice checked={categoryIds.includes(category.id)} key={category.id} label={`${websiteCategoryLabel(category, categories)}${category.visible ? "" : " (hidden)"}`} onChange={(checked) => setCategoryIds(toggleValue(categoryIds, category.id, checked))} />)}</ChoiceGrid>{categories.length === 0 ? <EmptyDecision>Create website categories before assigning them in bulk.</EmptyDecision> : null}</BulkValueEditor>
             <BulkValueEditor description="Add, remove, or replace the public brands that contain the selected products." mode={brandMode} onModeChange={setBrandMode} title="Website brands"><ChoiceGrid>{brands.map((brand) => <Choice checked={brandIds.includes(brand.id)} key={brand.id} label={`${brand.name}${brand.visible ? "" : " (hidden)"}`} onChange={(checked) => setBrandIds(toggleValue(brandIds, brand.id, checked))} />)}</ChoiceGrid>{brands.length === 0 ? <EmptyDecision>Create website brands before assigning them in bulk.</EmptyDecision> : null}</BulkValueEditor>
@@ -647,7 +654,7 @@ function BulkMerchandisingEditor({
 
             <fieldset className="rounded-md border border-border bg-surface-muted p-4"><legend className="px-1 font-display text-lg font-semibold">Sort order</legend><label className="flex items-center gap-3 text-sm font-semibold"><input checked={sortOrderEnabled} className="h-5 w-5" onChange={(event) => setSortOrderEnabled(event.target.checked)} type="checkbox" />Set sequential sort order</label>{sortOrderEnabled ? <div className="mt-3 grid gap-3 sm:grid-cols-2"><Field label="Start at"><input className={inputClassName} min={0} onChange={(event) => setSortOrder(Number(event.target.value) || 0)} type="number" value={sortOrder} /></Field><Field label="Increment"><input className={inputClassName} min={0} onChange={(event) => setSortStep(Number(event.target.value) || 0)} type="number" value={sortStep} /></Field></div> : null}</fieldset>
 
-            <fieldset className="rounded-md border border-border bg-surface-muted p-4"><legend className="px-1 font-display text-lg font-semibold">Website publishing</legend><p className="mb-3 text-xs text-secondary">Keep the current state, force hidden, or publish only complete records.</p><select className={inputClassName} onChange={(event) => setVisibilityMode(event.target.value as BulkVisibilityMode)} value={visibilityMode}><option value="keep">No change</option><option value="hidden">Set hidden</option><option value="publish-ready">Publish ready products only</option></select></fieldset>
+            <fieldset className="rounded-md border border-border bg-surface-muted p-4"><legend className="px-1 font-display text-lg font-semibold">Website publishing</legend><p className="mb-3 text-xs text-secondary">Keep the current state, force hidden, or publish only complete records.</p><select className={inputClassName} onChange={(event) => setVisibilityMode(event.target.value as BulkVisibilityMode)} value={visibilityMode}><option value="keep">No change</option><option value="hidden">Set hidden</option><option value="publish-ready">Publish approved &amp; ready products</option></select></fieldset>
           </div>
           <div className="mt-6 rounded-md border border-border bg-surface-muted p-4"><p className="text-sm text-secondary">This edits the current Admin draft. Use <span className="font-semibold text-primary">Save merchandising</span> at the top to persist the bulk operation.</p><Button className="mt-4 w-full" disabled={selectedIds.size === 0 || !hasBulkAction} onClick={applyChanges} type="button">Apply bulk draft to {selectedIds.size} products</Button></div>
         </section>
@@ -920,15 +927,32 @@ function CategoryManager({
   selected: WebsiteCategory | null;
 }) {
   const [categoryQuery, setCategoryQuery] = useState("");
-  const [expandedRootId, setExpandedRootId] = useState(() => selected?.parentId ?? (selected && !selected.parentId ? selected.id : categories.find((category) => !category.parentId)?.id ?? ""));
   const normalizedCategoryQuery = categoryQuery.trim().toLowerCase();
-  const filteredCategories = categories.filter((category) => !normalizedCategoryQuery || `${category.name} ${category.slug}`.toLowerCase().includes(normalizedCategoryQuery));
+  const orderedCategories = orderWebsiteCategories(categories);
   const rootCategories = categories.filter((category) => !category.parentId).sort((a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name));
-  const visibleRoots = rootCategories.filter((root) => !normalizedCategoryQuery || `${root.name} ${root.slug}`.toLowerCase().includes(normalizedCategoryQuery) || categories.some((category) => category.parentId === root.id && `${category.name} ${category.slug}`.toLowerCase().includes(normalizedCategoryQuery)));
+  const matchingCategoryIds = new Set<string>();
+  if (normalizedCategoryQuery) {
+    for (const category of categories) {
+      if (`${category.name} ${category.slug}`.toLowerCase().includes(normalizedCategoryQuery)) {
+        for (const pathCategory of websiteCategoryPath(category, categories)) matchingCategoryIds.add(pathCategory.id);
+      }
+    }
+  }
+  const visibleCategories = normalizedCategoryQuery ? orderedCategories.filter((category) => matchingCategoryIds.has(category.id)) : orderedCategories;
+  const createParentCategories = orderedCategories.filter((category) => websiteCategoryDepth(category, categories) < MAX_WEBSITE_CATEGORY_DEPTH);
   const selectedSiblings = selected ? categories.filter((category) => category.parentId === selected.parentId).sort((a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name)) : [];
   const selectedIndex = selected ? selectedSiblings.findIndex((category) => category.id === selected.id) : -1;
   const selectedChildren = selected ? categories.filter((category) => category.parentId === selected.id) : [];
-  const selectedParent = selected?.parentId ? categories.find((category) => category.id === selected.parentId) ?? null : null;
+  const selectedPath = selected ? websiteCategoryPath(selected, categories) : [];
+  const selectedDepth = selectedPath.length;
+  const hiddenAncestor = selectedPath.slice(0, -1).find((category) => !category.visible);
+  const selectedDescendantIds = new Set(selected ? websiteCategoryDescendantIds(selected.id, categories) : []);
+  const selectedSubtreeHeight = selected ? websiteCategorySubtreeHeight(selected, categories) : 1;
+  const availableParentCategories = selected ? orderedCategories.filter((category) => {
+    if (category.id === selected.id || selectedDescendantIds.has(category.id)) return false;
+    const parentDepth = websiteCategoryDepth(category, categories);
+    return Number.isFinite(parentDepth) && parentDepth + selectedSubtreeHeight <= MAX_WEBSITE_CATEGORY_DEPTH;
+  }) : [];
   const newCategorySlug = newName.trim() ? slugifyWebsiteCategory(newName) || "collection" : "new-category";
 
   return (
@@ -960,8 +984,8 @@ function CategoryManager({
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-[minmax(180px,0.65fr)_minmax(0,1fr)_minmax(0,1.15fr)_auto] xl:items-end">
           <Field label="Place under">
             <select className={inputClassName} onChange={(event) => onParentChange(event.target.value)} value={newParentId}>
-              <option value="">Main category</option>
-              {rootCategories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}
+              <option value="">Main category (level 1)</option>
+              {createParentCategories.map((category) => <option key={category.id} value={category.id}>{websiteCategoryLabel(category, categories)} (level {websiteCategoryDepth(category, categories) + 1})</option>)}
             </select>
           </Field>
           <Field label="Category name">
@@ -974,7 +998,7 @@ function CategoryManager({
             <Plus className="mr-2" size={16} />Create {newParentId ? "subcategory" : "category"}
           </button>
         </div>
-        <p className="mt-2 text-xs text-secondary">{newParentId ? "Subcategory" : "Main category"} · URL preview: <span className="font-semibold text-primary">/categories/{newCategorySlug}</span></p>
+        <p className="mt-2 text-xs text-secondary">{newParentId ? "Nested subcategory" : "Main category"} · Up to {MAX_WEBSITE_CATEGORY_DEPTH} total levels · URL preview: <span className="font-semibold text-primary">/categories/{newCategorySlug}</span></p>
       </form>
 
       <div className="grid min-h-[540px] lg:grid-cols-[320px_minmax(0,1fr)]">
@@ -985,36 +1009,30 @@ function CategoryManager({
             <input className="min-w-0 flex-1 bg-transparent py-3 text-sm outline-none" onChange={(event) => setCategoryQuery(event.target.value)} placeholder="Search categories" type="search" value={categoryQuery} />
           </label>
           <div className="mt-3 flex items-center justify-between px-1 text-xs text-secondary">
-            <span>{filteredCategories.length} shown</span>
-            <span>Website order</span>
+            <span>{visibleCategories.length} shown</span>
+            <span>Up to {MAX_WEBSITE_CATEGORY_DEPTH} levels</span>
           </div>
-          <div className="mt-2 max-h-[520px] space-y-2 overflow-y-auto pr-1">
-            {visibleRoots.map((root) => {
-              const children = categories.filter((category) => category.parentId === root.id).filter((category) => !normalizedCategoryQuery || `${category.name} ${category.slug}`.toLowerCase().includes(normalizedCategoryQuery)).sort((a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name));
-              const expanded = Boolean(normalizedCategoryQuery) || expandedRootId === root.id;
-              const active = selected?.id === root.id;
+          <div className="mt-2 max-h-[520px] space-y-1 overflow-y-auto pr-1">
+            {visibleCategories.map((category) => {
+              const active = selected?.id === category.id;
+              const depth = websiteCategoryDepth(category, categories);
+              const directChildCount = categories.filter((candidate) => candidate.parentId === category.id).length;
               return (
-                <div className="overflow-hidden rounded-md border border-border bg-surface" key={root.id}>
-                  <div className={`flex items-stretch ${active ? "bg-cyan" : ""}`}>
-                    <button aria-pressed={active} className="flex min-w-0 flex-1 items-center gap-3 p-3 text-left hover:bg-surface-muted" onClick={() => { onSelect(root.id); setExpandedRootId(root.id); }} type="button">
-                      <span className={`grid h-9 w-9 shrink-0 place-items-center rounded-md ${active ? "bg-primary text-white" : "bg-surface-muted text-secondary"}`}><Folder size={17} /></span>
-                      <span className="min-w-0 flex-1">
-                        <span className="block truncate text-sm font-semibold text-primary">{root.name}</span>
-                        <span className="mt-1 block text-xs text-secondary">{formatProductCount(productCountByCategory[root.id] ?? 0)} · {formatSubcategoryCount(categories.filter((category) => category.parentId === root.id).length)}</span>
-                      </span>
-                    </button>
-                    {categories.some((category) => category.parentId === root.id) ? <button aria-label={`${expanded ? "Collapse" : "Expand"} ${root.name}`} className="grid w-11 place-items-center border-l border-border text-secondary hover:bg-surface-muted" onClick={() => setExpandedRootId((current) => current === root.id ? "" : root.id)} type="button"><ChevronDown className={`transition-transform ${expanded ? "rotate-180" : ""}`} size={17} /></button> : null}
-                  </div>
-                  {expanded && children.length ? <div className="space-y-1 border-t border-border bg-surface-muted p-2 pl-5">
-                    {children.map((category) => {
-                      const childActive = selected?.id === category.id;
-                      return <button aria-pressed={childActive} className={`flex w-full items-center gap-3 rounded-md px-3 py-2.5 text-left ${childActive ? "bg-primary text-white" : "bg-surface text-primary hover:bg-cyan"}`} key={category.id} onClick={() => onSelect(category.id)} type="button"><span className={`h-2 w-2 shrink-0 rounded-full ${category.visible ? "bg-green" : "bg-border"}`} /><span className="min-w-0 flex-1"><span className="block truncate text-sm font-semibold">{category.name}</span><span className={`mt-0.5 block text-xs ${childActive ? "text-white/70" : "text-secondary"}`}>{formatProductCount(productCountByCategory[category.id] ?? 0)}</span></span><ChevronRight size={15} /></button>;
-                    })}
-                  </div> : null}
-                </div>
+                <button
+                  aria-pressed={active}
+                  className={`flex w-full items-center gap-3 rounded-md border px-3 py-2.5 text-left ${active ? "border-primary bg-primary text-white" : "border-border bg-surface text-primary hover:bg-cyan"}`}
+                  key={category.id}
+                  onClick={() => onSelect(category.id)}
+                  style={{ paddingLeft: `${12 + Math.max(0, depth - 1) * 18}px` }}
+                  type="button"
+                >
+                  {depth === 1 ? <span className={`grid h-8 w-8 shrink-0 place-items-center rounded-md ${active ? "bg-white/15" : "bg-surface-muted text-secondary"}`}><Folder size={16} /></span> : <span className={`h-2 w-2 shrink-0 rounded-full ${category.visible ? "bg-green" : "bg-border"}`} />}
+                  <span className="min-w-0 flex-1"><span className="block truncate text-sm font-semibold">{category.name}</span><span className={`mt-0.5 block text-xs ${active ? "text-white/70" : "text-secondary"}`}>Level {depth} · {formatProductCount(productCountByCategory[category.id] ?? 0)}{directChildCount ? ` · ${formatSubcategoryCount(directChildCount)}` : ""}</span></span>
+                  <ChevronRight size={15} />
+                </button>
               );
             })}
-            {visibleRoots.length === 0 ? (
+            {visibleCategories.length === 0 ? (
               <p className="rounded-md border border-dashed border-border bg-surface p-5 text-center text-sm text-secondary">
                 {categories.length === 0 ? "Create your first website category above." : "No categories match this search."}
               </p>
@@ -1027,9 +1045,9 @@ function CategoryManager({
             <div>
               <div className="flex flex-col justify-between gap-3 border-b border-border pb-5 sm:flex-row sm:items-start">
                 <div>
-                  <p className="text-xs font-semibold uppercase tracking-[0.1em] text-blue">{selected.parentId ? "Editing subcategory" : "Editing main category"}</p>
+                  <p className="text-xs font-semibold uppercase tracking-[0.1em] text-blue">Editing category · Level {selectedDepth}</p>
                   <h4 className="mt-1 font-display text-2xl font-semibold">{selected.name}</h4>
-                  <p className="mt-1 text-xs text-secondary">{selectedParent ? `${selectedParent.name} › ` : ""}{formatProductCount(productCountByCategory[selected.id] ?? 0)}{selectedChildren.length ? ` · ${formatSubcategoryCount(selectedChildren.length)}` : ""}</p>
+                  <p className="mt-1 text-xs text-secondary">{websiteCategoryLabel(selected, categories)} · {formatProductCount(productCountByCategory[selected.id] ?? 0)}{selectedChildren.length ? ` · ${formatSubcategoryCount(selectedChildren.length)}` : ""}</p>
                 </div>
                 <span className={`w-fit rounded-pill px-3 py-1.5 text-xs font-semibold ${selected.visible ? "bg-green/10 text-green" : "bg-surface-muted text-secondary"}`}>{selected.visible ? "Visible in Shop" : "Hidden draft"}</span>
               </div>
@@ -1043,18 +1061,18 @@ function CategoryManager({
                   <span className="mt-1.5 block text-xs text-secondary">/categories/{selected.slug || "category"}</span>
                 </Field>
                 <Field className="sm:col-span-2" label="Category structure">
-                  <select className={inputClassName} disabled={selectedChildren.length > 0} onChange={(event) => onUpdate({ parentId: event.target.value || null })} value={selected.parentId ?? ""}>
-                    <option value="">Main category</option>
-                    {rootCategories.filter((category) => category.id !== selected.id).map((category) => <option key={category.id} value={category.id}>Subcategory of {category.name}</option>)}
+                  <select className={inputClassName} onChange={(event) => onUpdate({ parentId: event.target.value || null })} value={selected.parentId ?? ""}>
+                    <option value="">Main category (level 1)</option>
+                    {availableParentCategories.map((category) => <option key={category.id} value={category.id}>Inside {websiteCategoryLabel(category, categories)} (level {websiteCategoryDepth(category, categories) + 1})</option>)}
                   </select>
-                  <span className="mt-1.5 block text-xs text-secondary">{selectedChildren.length ? "Move or remove its subcategories before changing this level." : "Use one main level and one subcategory level."}</span>
+                  <span className="mt-1.5 block text-xs text-secondary">You can use up to {MAX_WEBSITE_CATEGORY_DEPTH} total levels. Parent choices that would make this branch too deep are hidden.</span>
                 </Field>
                 <Field className="sm:col-span-2" label="Customer-facing description">
                   <textarea className={inputClassName} maxLength={240} onChange={(event) => onUpdate({ description: event.target.value })} placeholder="Describe what shoppers will find in this category." rows={3} value={selected.description} />
                 </Field>
               </div>
 
-              {selectedParent && !selectedParent.visible ? <p className="mt-4 rounded-md border border-amber-300 bg-amber-50 p-3 text-sm font-semibold text-amber-900">This subcategory stays hidden while its main category is hidden.</p> : null}
+              {hiddenAncestor ? <p className="mt-4 rounded-md border border-amber-300 bg-amber-50 p-3 text-sm font-semibold text-amber-900">This category stays hidden while its ancestor “{hiddenAncestor.name}” is hidden.</p> : null}
 
               <label className={`mt-5 flex cursor-pointer items-center gap-4 rounded-md border p-4 ${selected.visible ? "border-green/30 bg-green/10" : "border-border bg-surface-muted"}`}>
                 <input checked={selected.visible} className="h-5 w-5" onChange={(event) => onUpdate({ visible: event.target.checked })} type="checkbox" />
@@ -1064,7 +1082,7 @@ function CategoryManager({
               <div className="mt-5 flex flex-col justify-between gap-3 rounded-md border border-border p-4 sm:flex-row sm:items-center">
                 <div>
                   <p className="text-sm font-semibold">Website order</p>
-                  <p className="mt-1 text-xs text-secondary">Position {selectedIndex + 1} of {selectedSiblings.length} {selected.parentId ? "under its main category" : "among main categories"}</p>
+                  <p className="mt-1 text-xs text-secondary">Position {selectedIndex + 1} of {selectedSiblings.length} {selected.parentId ? "under its parent category" : "among main categories"}</p>
                 </div>
                 <div className="flex gap-2">
                   <button className="inline-flex min-h-10 items-center justify-center rounded-md border border-border px-3 text-sm font-semibold hover:bg-surface-muted disabled:cursor-not-allowed disabled:opacity-40" disabled={selectedIndex <= 0} onClick={() => onMove("up")} type="button"><ArrowUp className="mr-2" size={15} />Move up</button>
@@ -1108,6 +1126,8 @@ function HolidayManager({ disabled, endDate, holidays, newDescription, newName, 
   selected: WebsiteHoliday | null;
   startDate: string;
 }) {
+  const [createOpen, setCreateOpen] = useState(holidays.length === 0);
+
   return (
     <section className="overflow-hidden rounded-md border border-border bg-surface">
       <header className="flex items-center justify-between gap-3 border-b border-border px-4 py-3">
@@ -1115,19 +1135,20 @@ function HolidayManager({ disabled, endDate, holidays, newDescription, newName, 
           <h3 className="font-display text-xl font-semibold">Holidays</h3>
           <p className="text-xs text-secondary">{holidays.length} total · {holidays.filter((holiday) => holiday.visible).length} visible</p>
         </div>
-        <span className="rounded-pill bg-surface-muted px-3 py-1 text-xs font-semibold">Website collections</span>
+        <button aria-expanded={createOpen} className="inline-flex min-h-10 items-center rounded-md border border-border bg-surface px-3 text-sm font-semibold hover:border-primary" onClick={() => setCreateOpen((current) => !current)} type="button"><Plus className="mr-2" size={16} />New holiday</button>
       </header>
 
-      <details className="border-b border-border bg-surface-muted">
-        <summary className="flex cursor-pointer list-none items-center px-4 py-3 text-sm font-semibold"><Plus className="mr-2" size={16} />New holiday</summary>
+      {createOpen ? (
+        <div className="border-b border-border bg-surface-muted">
         <div className="grid gap-3 border-t border-border p-4 sm:grid-cols-2 xl:grid-cols-5">
           <input className={inputClassName} maxLength={80} onChange={(event) => onNameChange(event.target.value)} placeholder="Name" value={newName} />
           <input className={inputClassName} maxLength={240} onChange={(event) => onDescriptionChange(event.target.value)} placeholder="Description" value={newDescription} />
           <input aria-label="Holiday starts" className={inputClassName} onChange={(event) => onStartDateChange(event.target.value)} type="date" value={startDate} />
           <input aria-label="Holiday ends" className={inputClassName} onChange={(event) => onEndDateChange(event.target.value)} type="date" value={endDate} />
-          <button className="inline-flex min-h-11 items-center justify-center rounded-md bg-primary px-4 text-sm font-semibold text-white disabled:opacity-40" disabled={!newName.trim() || !startDate || !endDate} onClick={onAdd} type="button">Create</button>
+          <button className="inline-flex min-h-11 items-center justify-center rounded-md bg-primary px-4 text-sm font-semibold text-white disabled:opacity-40" disabled={disabled || !newName.trim() || !startDate || !endDate || startDate > endDate} onClick={() => { onAdd(); setCreateOpen(false); }} type="button">Create holiday</button>
         </div>
-      </details>
+        </div>
+      ) : null}
 
       <div className="grid min-h-[680px] lg:grid-cols-[280px_minmax(0,1fr)]">
         <aside className="border-b border-border bg-surface-muted p-3 lg:border-b-0 lg:border-r">
@@ -1257,6 +1278,17 @@ function normalizeCategorySiblingOrder(categories: WebsiteCategory[]) {
     nextPositionByParent.set(category.parentId, sortOrder + 1);
     return { ...category, sortOrder };
   });
+}
+function websiteCategorySubtreeHeight(category: WebsiteCategory, categories: WebsiteCategory[]) {
+  const baseDepth = websiteCategoryDepth(category, categories);
+  let height = 1;
+  for (const descendantId of websiteCategoryDescendantIds(category.id, categories)) {
+    const descendant = categories.find((candidate) => candidate.id === descendantId);
+    if (!descendant) continue;
+    const descendantDepth = websiteCategoryDepth(descendant, categories);
+    if (Number.isFinite(descendantDepth) && Number.isFinite(baseDepth)) height = Math.max(height, descendantDepth - baseDepth + 1);
+  }
+  return height;
 }
 function uniqueSlug(name: string, usedSlugs: string[]) { const base = slugifyWebsiteCategory(name) || "collection"; if (!usedSlugs.includes(base)) return base; let suffix = 2; while (usedSlugs.includes(`${base}-${suffix}`)) suffix += 1; return `${base}-${suffix}`; }
 function placementIssues(placement: WebsiteProductPlacement, categories: WebsiteCategory[], holidays: WebsiteHoliday[]) {

@@ -24,9 +24,9 @@ Square webhooks use raw request body text and HMAC signature verification in `sr
 
 ## Admin containment
 
-`/admin` and `/api/admin/*` are fail-closed. The shared guard validates the signed `modern_state_admin` cookie, expiry, audience, declared capability, and same-origin `Origin`/`Host` for every mutation. The cookie payload contains `sub`, `capabilities`, `exp`, and `aud=modern-state-admin`; its HMAC secret must contain at least 32 random bytes. The future identity provider is responsible for issuing this cookie with `HttpOnly`, `Secure`, and `SameSite=Strict`.
+`/admin` and `/api/admin/*` are fail-closed. The shared guard validates the signed `modern_state_admin` cookie, expiry, audience, declared capability, and same-origin `Origin`/`Host` for every mutation. The cookie payload contains `sub`, `capabilities`, `exp`, and `aud=modern-state-admin`; its HMAC secret must contain at least 32 random bytes. The login endpoint issues an eight-hour cookie with `HttpOnly`, `Secure` in production, and `SameSite=Strict`.
 
-There is no production login or token-issuing endpoint. Until the owner selects an identity provider, production admin access intentionally returns 404/401. `ADMIN_DEV_BYPASS=true` works only under `NODE_ENV=development` on a loopback host. Uploads require `admin:media:write`, reject SVG, validate extension/MIME/file signature, use server-generated names and exclusive writes, and pass through the central rate-limiter interface.
+Production login requires `ADMIN_LOGIN_EMAIL`, `ADMIN_PASSWORD_HASH`, and `ADMIN_SESSION_SECRET`. Generate the password hash with `npm run admin:hash-password -- "a-long-password"`; escape each `$` as `\$` when copying the result into a local `.env` file. Failed login attempts are limited to five per email and client address every fifteen minutes; correct credentials can authenticate without extending a failed-attempt lockout. Invalid credentials use constant-work password verification, and logout expires the signed cookie. `ADMIN_DEV_BYPASS=true` remains a loopback-only development escape hatch and must never be enabled in preview or production. Uploads require `admin:media:write`, reject SVG, validate extension/MIME/file signature, use server-generated names and exclusive writes, and pass through the central rate-limiter interface.
 
 ## Persistence policy
 

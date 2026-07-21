@@ -641,13 +641,13 @@ export const storeSectionRegistry: StoreSectionRegistryEntry[] = [
     sectionId: "admin.pickup-slots",
     area: "Admin",
     sectionName: "Pickup and Delivery Slots",
-    description: "Capacity calendar and slot rules.",
+    description: "Read-only handoff to the OrderPro availability source of truth.",
     customerFacing: false,
-    adminEditable: "Yes",
-    editableFields: ["slot windows", "capacity points", "cutoffs", "lead times"],
+    adminEditable: "No",
+    editableFields: [],
     relatedFiles: ["src/app/(admin)/admin/slots/page.tsx"],
-    doNotEditHere: ["client-side capacity trust"],
-    businessLogicFiles: ["src/features/fulfillment/services/slot-capacity-service.ts"],
+    doNotEditHere: ["OrderPro slot windows", "OrderPro capacity", "client-side capacity trust"],
+    businessLogicFiles: ["src/server/orderpro"],
     riskLevel: "critical"
   },
   {
@@ -693,13 +693,13 @@ export const storeSectionRegistry: StoreSectionRegistryEntry[] = [
     sectionId: "admin.fulfillment-dashboard",
     area: "Admin",
     sectionName: "Fulfillment Dashboard",
-    description: "Staff-facing pickup, delivery, balloon prep, and warehouse task queues.",
+    description: "Read-only handoff to OrderPro for orders and fulfillment queues.",
     customerFacing: false,
-    adminEditable: "Yes",
-    editableFields: ["status transitions by role"],
+    adminEditable: "No",
+    editableFields: [],
     relatedFiles: ["src/app/(admin)/admin/fulfillment/page.tsx"],
-    doNotEditHere: ["customer card data", "Square secrets"],
-    businessLogicFiles: ["src/server/fulfillment/fulfillment-router.ts"],
+    doNotEditHere: ["OrderPro orders", "OrderPro status transitions", "customer card data", "Square secrets"],
+    businessLogicFiles: ["src/server/orderpro"],
     riskLevel: "critical"
   }
 ];

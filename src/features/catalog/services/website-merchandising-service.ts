@@ -6,6 +6,7 @@ import {
 } from "@/features/catalog/product-catalog";
 
 export const websiteSurfaceIds = ["shop", "homepage", "search", "category-pages", "holiday-pages"] as const;
+export const MAX_WEBSITE_CATEGORY_DEPTH = 4;
 
 export const websiteSurfaceOptions = [
   { id: "shop", label: "Shop catalog" },
@@ -169,7 +170,10 @@ export function resolveWebsiteCatalog(
   currentDate = new Date()
 ): ResolvedWebsiteCatalog {
   const configuredCategoryById = new Map(config.categories.map((category) => [category.id, category]));
-  const categories = orderWebsiteCategories(config.categories.filter((category) => category.visible && (!category.parentId || configuredCategoryById.get(category.parentId)?.visible)));
+  const categories = orderWebsiteCategories(config.categories.filter((category) => {
+    const path = websiteCategoryPathFromMap(category, configuredCategoryById);
+    return path.length > 0 && path.every((pathCategory) => pathCategory.visible);
+  }));
   const brands = config.brands.filter((brand) => brand.visible).sort((a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name));
   const today = currentDate.toISOString().slice(0, 10);
   const holidays = config.holidays
@@ -208,10 +212,14 @@ export function resolveWebsiteCatalog(
     const primaryCategory = visibleCategoryIdsForProduct
       .map((categoryId) => categoryById.get(categoryId))
       .filter((category): category is WebsiteCategory => Boolean(category))
-      .sort((a, b) => Number(Boolean(b.parentId)) - Number(Boolean(a.parentId)))[0];
+      .sort((a, b) => websiteCategoryPathFromMap(b, categoryById).length - websiteCategoryPathFromMap(a, categoryById).length)[0];
 
     for (const categoryId of visibleCategoryIdsForProduct) {
-      productVariationIdsByCategory[categoryId]?.push(product.squareVariationId);
+      const category = categoryById.get(categoryId);
+      if (!category) continue;
+      for (const pathCategory of websiteCategoryPathFromMap(category, categoryById)) {
+        productVariationIdsByCategory[pathCategory.id]?.push(product.squareVariationId);
+      }
     }
 
     const visibleBrandIdsForProduct = placement.brandIds.filter((brandId) => visibleBrandIds.has(brandId));
@@ -243,11 +251,7 @@ export function resolveWebsiteCatalog(
   }
 
   for (const category of categories) {
-    if (!category.parentId) continue;
-    productVariationIdsByCategory[category.parentId] = Array.from(new Set([
-      ...(productVariationIdsByCategory[category.parentId] ?? []),
-      ...(productVariationIdsByCategory[category.id] ?? [])
-    ]));
+    productVariationIdsByCategory[category.id] = Array.from(new Set(productVariationIdsByCategory[category.id] ?? []));
   }
 
   return {
@@ -311,7 +315,10 @@ export function websitePlacementReadinessIssues(
 ) {
   const issues = websitePlacementIssues(placement);
   const categoryById = new Map(categories.map((category) => [category.id, category]));
-  const enabledCategoryIds = new Set(categories.filter((category) => category.visible && (!category.parentId || categoryById.get(category.parentId)?.visible)).map((category) => category.id));
+  const enabledCategoryIds = new Set(categories.filter((category) => {
+    const path = websiteCategoryPathFromMap(category, categoryById);
+    return path.length > 0 && path.every((pathCategory) => pathCategory.visible);
+  }).map((category) => category.id));
 
   if (!placement.categoryIds.some((categoryId) => enabledCategoryIds.has(categoryId))) {
     issues.push("Enable at least one assigned website category.");
@@ -363,17 +370,72 @@ export function orderWebsiteCategories(categories: WebsiteCategory[]) {
   }
 
   const ordered: WebsiteCategory[] = [];
-  for (const root of byParentId.get(null) ?? []) {
-    ordered.push(root, ...(byParentId.get(root.id) ?? []));
-  }
+  const visited = new Set<string>();
+  const visit = (category: WebsiteCategory) => {
+    if (visited.has(category.id)) return;
+    visited.add(category.id);
+    ordered.push(category);
+    for (const child of byParentId.get(category.id) ?? []) visit(child);
+  };
+
+  for (const root of byParentId.get(null) ?? []) visit(root);
+  for (const category of categories) visit(category);
 
   return ordered;
 }
 
 export function websiteCategoryLabel(category: WebsiteCategory, categories: WebsiteCategory[]) {
-  if (!category.parentId) return category.name;
-  const parent = categories.find((candidate) => candidate.id === category.parentId);
-  return parent ? `${parent.name} › ${category.name}` : category.name;
+  const path = websiteCategoryPath(category, categories);
+  return path.length > 0 ? path.map((pathCategory) => pathCategory.name).join(" › ") : category.name;
+}
+
+export function websiteCategoryPath(category: WebsiteCategory, categories: WebsiteCategory[]) {
+  return websiteCategoryPathFromMap(category, new Map(categories.map((candidate) => [candidate.id, candidate])));
+}
+
+export function websiteCategoryDepth(category: WebsiteCategory, categories: WebsiteCategory[]) {
+  const path = websiteCategoryPath(category, categories);
+  return path.length > 0 ? path.length : Number.POSITIVE_INFINITY;
+}
+
+export function websiteCategoryDescendantIds(categoryId: string, categories: WebsiteCategory[]) {
+  const childrenByParentId = new Map<string, WebsiteCategory[]>();
+  for (const category of categories) {
+    if (!category.parentId) continue;
+    const children = childrenByParentId.get(category.parentId) ?? [];
+    children.push(category);
+    childrenByParentId.set(category.parentId, children);
+  }
+
+  const descendantIds: string[] = [];
+  const visited = new Set([categoryId]);
+  const visit = (parentId: string) => {
+    for (const child of childrenByParentId.get(parentId) ?? []) {
+      if (visited.has(child.id)) continue;
+      visited.add(child.id);
+      descendantIds.push(child.id);
+      visit(child.id);
+    }
+  };
+  visit(categoryId);
+  return descendantIds;
+}
+
+function websiteCategoryPathFromMap(category: WebsiteCategory, categoryById: Map<string, WebsiteCategory>) {
+  const path: WebsiteCategory[] = [];
+  const visited = new Set<string>();
+  let current: WebsiteCategory | undefined = category;
+
+  while (current) {
+    if (visited.has(current.id)) return [];
+    visited.add(current.id);
+    path.unshift(current);
+    if (!current.parentId) return path;
+    current = categoryById.get(current.parentId);
+    if (!current) return [];
+  }
+
+  return [];
 }
 
 function createPendingPlacement(product: StorefrontProduct, index: number): WebsiteProductPlacement {

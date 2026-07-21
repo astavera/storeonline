@@ -22,7 +22,10 @@ export function SquareCatalogTestPanel() {
 
     fetch(`/api/admin/square-catalog-cache?${parameters}`, { cache: "no-store", signal: controller.signal })
       .then(async (response) => {
-        if (!response.ok) throw new Error("The local Square catalog cache could not be read.");
+        if (!response.ok) {
+          const result = await response.json().catch(() => null) as { message?: string; error?: string } | null;
+          throw new Error(result?.message || result?.error || "The local Square catalog cache could not be read.");
+        }
         return response.json() as Promise<ApiResponse>;
       })
       .then((result) => {
@@ -96,6 +99,8 @@ export function SquareCatalogTestPanel() {
         </div>
       ) : null}
 
+      {error ? <p className="mt-5 rounded-md border border-red/30 bg-red/10 p-4 text-sm font-semibold text-red" role="alert">{error}</p> : null}
+
       {catalog && summary?.available ? (
         <div className="mt-5 overflow-hidden rounded-md border border-border bg-surface">
           <div className="border-b border-border p-4">
@@ -109,7 +114,6 @@ export function SquareCatalogTestPanel() {
             <p className="mt-3 text-xs text-secondary">{catalog.total.toLocaleString()} matching products · Page {catalog.page} of {Math.max(catalog.pageCount, 1)}</p>
           </div>
 
-          {error ? <p className="m-4 rounded-md border border-red/30 bg-red/10 p-4 text-sm font-semibold text-red">{error}</p> : null}
           <div className={`grid gap-px bg-border sm:grid-cols-2 2xl:grid-cols-3 ${isLoading ? "opacity-60" : ""}`} aria-busy={isLoading}>
             {catalog.products.map((product) => (
               <article className="min-w-0 bg-surface p-4" key={product.id}>

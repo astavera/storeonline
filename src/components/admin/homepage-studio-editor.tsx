@@ -34,7 +34,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useRef, useState, type ChangeEvent, type DragEvent, type MouseEvent as ReactMouseEvent } from "react";
+import { useEffect, useMemo, useRef, useState, useTransition, type ChangeEvent, type DragEvent, type MouseEvent as ReactMouseEvent } from "react";
 import { SiteFooter } from "@/components/layout/site-footer";
 import { SiteHeader } from "@/components/layout/site-header";
 import { HomePageTemplate } from "@/components/templates/home-page-template";
@@ -46,7 +46,11 @@ import {
   homepageImagePresets,
   homepageSections,
   homepageSectionTemplates,
+  type HomepageHeroSize,
   type HomepageImagePreset,
+  type HomepageItemPresentation,
+  type HomepageItemLinkOption,
+  type HomepageItemLinkType,
   type HomepageSectionConfig,
   type HomepageSectionElement,
   type HomepageSectionItem,
@@ -54,6 +58,7 @@ import {
 } from "@/config/homepage.config";
 import { storefrontProducts, type StorefrontProduct } from "@/features/catalog/product-catalog";
 import { cn } from "@/lib/utils";
+import { commitEditingHistory, createEditingHistory, redoEditingHistory, undoEditingHistory } from "@/components/admin/builder/editing-history";
 
 type HomepageSeoConfig = {
   title: string;
@@ -81,13 +86,13 @@ type HomepageStudioEditorProps = {
   initialSections: HomepageSectionConfig[];
   initialSeo?: HomepageSeoConfig;
   initialVersions?: HomepageVersionSummary[];
-  previewFeaturedBrandItems?: HomepageSectionItem[];
+  itemLinkOptions?: HomepageItemLinkOption[];
   previewProducts?: StorefrontProduct[];
 };
 
 type PreviewMode = "desktop" | "tablet" | "mobile";
 type EditorPanel = "content" | "design" | "media" | "navigation" | "seo" | "checks" | "history";
-type EditorFocus = "section" | "eyebrow" | "title" | "body" | "ctaLabel" | "ctaHref" | "media" | "imageAlt" | "items" | "textPosition" | "mediaPlacement" | "backgroundTone" | "contentWidth" | "verticalPadding" | "columns";
+type EditorFocus = "section" | "eyebrow" | "title" | "body" | "ctaLabel" | "ctaHref" | "media" | "imageAlt" | "items" | "textPosition" | "mediaPlacement" | "backgroundTone" | "contentWidth" | "verticalPadding" | "columns" | "heroSize";
 type EditorFocusRequest = {
   field: EditorFocus;
   token: number;
@@ -100,6 +105,14 @@ type PreviewEditTarget = {
 type SaveState = {
   tone: "idle" | "success" | "error";
   message: string;
+};
+
+type HomepageEditingSnapshot = {
+  headerNavigation: HeaderNavigationConfig;
+  sections: HomepageSectionConfig[];
+  photoPresets: HomepageImagePreset[];
+  seo: HomepageSeoConfig;
+  changeSummary: string;
 };
 
 type AdminUploadedMediaAsset = {
@@ -116,6 +129,8 @@ type AdminMediaUploadResponse = {
 
 type AdminOperationResponse = {
   ok: boolean;
+  error?: string;
+  message?: string;
   status?: string;
   storage?: {
     message?: string;
@@ -164,17 +179,23 @@ export function HomepageStudioEditor({
   initialSections,
   initialSeo = defaultSeo,
   initialVersions = [],
-  previewFeaturedBrandItems = [],
+  itemLinkOptions = [],
   previewProducts = []
 }: HomepageStudioEditorProps) {
   const router = useRouter();
   const editorRef = useRef<HTMLDivElement>(null);
   const previewFrameRef = useRef<HTMLDivElement>(null);
   const previewCanvasRef = useRef<HTMLDivElement>(null);
-  const [headerNavigation, setHeaderNavigation] = useState<HeaderNavigationConfig>(() => initialHeaderNavigation);
-  const [sections, setSections] = useState(() => [...initialSections].sort((a, b) => a.sortOrder - b.sortOrder));
-  const [photoPresets, setPhotoPresets] = useState<HomepageImagePreset[]>(() => (initialPhotoPresets.length > 0 ? initialPhotoPresets : homepageImagePresets));
-  const [seo, setSeo] = useState<HomepageSeoConfig>(() => ({ ...defaultSeo, ...initialSeo }));
+  const [editingHistory, setEditingHistory] = useState(() => createEditingHistory<HomepageEditingSnapshot>({
+    headerNavigation: initialHeaderNavigation,
+    sections: [...initialSections].sort((a, b) => a.sortOrder - b.sortOrder),
+    photoPresets: initialPhotoPresets.length > 0 ? initialPhotoPresets : homepageImagePresets,
+    seo: { ...defaultSeo, ...initialSeo },
+    changeSummary: "Homepage visual update"
+  }));
+  const editingHistoryRef = useRef(editingHistory);
+  const savedSnapshotRef = useRef(homepageSnapshotSignature(editingHistory.present));
+  const { changeSummary, headerNavigation, photoPresets, sections, seo } = editingHistory.present;
   const [versions, setVersions] = useState<HomepageVersionSummary[]>(initialVersions);
   const [selectedSectionId, setSelectedSectionId] = useState(initialSections[0]?.sectionId ?? "home.hero");
   const [activePanel, setActivePanel] = useState<EditorPanel>("content");
@@ -182,8 +203,8 @@ export function HomepageStudioEditor({
   const [focusRequest, setFocusRequest] = useState<EditorFocusRequest | null>(null);
   const [selectedNavigationItemId, setSelectedNavigationItemId] = useState(headerNavigation.primary[0]?.id ?? "shop-all");
   const [previewMode, setPreviewMode] = useState<PreviewMode>("desktop");
-  const [changeSummary, setChangeSummary] = useState("Homepage visual update");
   const [saveState, setSaveState] = useState<SaveState>({ tone: "idle", message: "Ready" });
+  const [requiresReauthentication, setRequiresReauthentication] = useState(false);
   const [isDirty, setIsDirty] = useState(false);
   const [isHydrated, setIsHydrated] = useState(false);
   const [previewFrameWidth, setPreviewFrameWidth] = useState(0);
@@ -259,24 +280,65 @@ export function HomepageStudioEditor({
     return () => editor.removeEventListener("click", handlePresetUse);
   }, [selectedSectionId]);
 
+  useEffect(() => {
+    function handleKeyboardShortcut(event: KeyboardEvent) {
+      if (!(event.ctrlKey || event.metaKey) || event.altKey) return;
+      const key = event.key.toLowerCase();
+      if (key === "z" && event.shiftKey) {
+        event.preventDefault();
+        redo();
+      } else if (key === "z") {
+        event.preventDefault();
+        undo();
+      } else if (key === "y") {
+        event.preventDefault();
+        redo();
+      }
+    }
+    window.addEventListener("keydown", handleKeyboardShortcut);
+    return () => window.removeEventListener("keydown", handleKeyboardShortcut);
+  });
+
+  function commitSnapshot(updater: (current: HomepageEditingSnapshot) => HomepageEditingSnapshot) {
+    const nextSnapshot = updater(editingHistoryRef.current.present);
+    const nextHistory = commitEditingHistory(editingHistoryRef.current, nextSnapshot);
+    editingHistoryRef.current = nextHistory;
+    setEditingHistory(nextHistory);
+    setIsDirty(homepageSnapshotSignature(nextHistory.present) !== savedSnapshotRef.current);
+  }
+
+  function undo() {
+    applyEditingHistory(undoEditingHistory(editingHistoryRef.current));
+  }
+
+  function redo() {
+    applyEditingHistory(redoEditingHistory(editingHistoryRef.current));
+  }
+
+  function applyEditingHistory(nextHistory: typeof editingHistory) {
+    if (nextHistory === editingHistoryRef.current) return;
+    editingHistoryRef.current = nextHistory;
+    setEditingHistory(nextHistory);
+    setIsDirty(homepageSnapshotSignature(nextHistory.present) !== savedSnapshotRef.current);
+    if (!nextHistory.present.sections.some((section) => section.sectionId === selectedSectionId)) {
+      setSelectedSectionId(nextHistory.present.sections[0]?.sectionId ?? "");
+    }
+  }
+
   function commitSections(updater: (current: HomepageSectionConfig[]) => HomepageSectionConfig[]) {
-    setIsDirty(true);
-    setSections((current) => updater(current));
+    commitSnapshot((current) => ({ ...current, sections: updater(current.sections) }));
   }
 
   function commitPhotoPresets(updater: (current: HomepageImagePreset[]) => HomepageImagePreset[]) {
-    setIsDirty(true);
-    setPhotoPresets((current) => updater(current));
+    commitSnapshot((current) => ({ ...current, photoPresets: updater(current.photoPresets) }));
   }
 
   function commitHeaderNavigation(updater: (current: HeaderNavigationConfig) => HeaderNavigationConfig) {
-    setIsDirty(true);
-    setHeaderNavigation((current) => updater(current));
+    commitSnapshot((current) => ({ ...current, headerNavigation: updater(current.headerNavigation) }));
   }
 
   function commitSeo(patch: Partial<HomepageSeoConfig>) {
-    setIsDirty(true);
-    setSeo((current) => ({ ...current, ...patch }));
+    commitSnapshot((current) => ({ ...current, seo: { ...current.seo, ...patch } }));
   }
 
   function updateSelected(patch: Partial<HomepageSectionConfig>) {
@@ -410,12 +472,16 @@ export function HomepageStudioEditor({
   async function submit(operation: "save_draft" | "preview" | "publish") {
     if (operation === "publish" && validation.errors.length > 0) {
       setActivePanel("checks");
-      setSaveState({ tone: "error", message: "Fix required checks before publishing." });
+      setSaveState({
+        tone: "error",
+        message: `${validation.errors.length} required ${validation.errors.length === 1 ? "fix" : "fixes"}. Review the Checks panel before publishing.`
+      });
       return;
     }
 
+    const submittedSnapshot = editingHistoryRef.current.present;
     setSaveState({ tone: "idle", message: operation === "publish" ? "Publishing..." : "Saving..." });
-    const hero = sections.find((section) => section.sectionId === "home.hero") ?? selectedSection;
+    const hero = submittedSnapshot.sections.find((section) => section.sectionId === "home.hero") ?? selectedSection;
     const response = await fetch("/api/admin", {
       method: "POST",
       headers: {
@@ -425,24 +491,36 @@ export function HomepageStudioEditor({
         moduleId: "homepage",
         operation,
         values: {
-          title: seo.title || hero.title || "Website editor update",
-          summary: changeSummary || "Website editor state.",
+          title: submittedSnapshot.seo.title || hero.title || "Website editor update",
+          summary: submittedSnapshot.changeSummary || "Website editor state.",
           ctaLabel: hero.ctaLabel || "",
           ctaHref: hero.ctaHref || "/",
           status: operation === "publish" ? "Visible" : "Draft",
-          sectionOrder: sections.map((section) => section.sectionId),
-          visualSections: JSON.stringify(sections),
-          headerNavigation: JSON.stringify(headerNavigation),
-          photoPresets: JSON.stringify(photoPresets),
-          seoMetadata: JSON.stringify(seo),
-          changeSummary
+          sectionOrder: submittedSnapshot.sections.map((section) => section.sectionId),
+          visualSections: JSON.stringify(submittedSnapshot.sections),
+          headerNavigation: JSON.stringify(submittedSnapshot.headerNavigation),
+          photoPresets: JSON.stringify(submittedSnapshot.photoPresets),
+          seoMetadata: JSON.stringify(submittedSnapshot.seo),
+          changeSummary: submittedSnapshot.changeSummary
         }
       })
-    });
+    }).catch(() => null);
+
+    if (!response) {
+      setSaveState({ tone: "error", message: "Could not reach the CMS. Check the local server and try again." });
+      return;
+    }
     const result = (await response.json()) as AdminOperationResponse;
 
+    if (response.status === 401) {
+      setRequiresReauthentication(true);
+      setSaveState({ tone: "error", message: "Admin session expired. Sign in again, then return here and publish." });
+      return;
+    }
+
     if (!response.ok || !result.ok) {
-      setSaveState({ tone: "error", message: Array.isArray(result.errors) ? result.errors.join(" ") : "Could not save." });
+      const errorMessage = Array.isArray(result.errors) ? result.errors.join(" ") : result.message || result.error || "Could not save.";
+      setSaveState({ tone: "error", message: errorMessage });
       return;
     }
 
@@ -462,22 +540,24 @@ export function HomepageStudioEditor({
           title: "Website Editor",
           createdAt: savedAt,
           publishedAt: operation === "publish" ? savedAt : null,
-          summary: changeSummary || "Website editor update"
+          summary: submittedSnapshot.changeSummary || "Website editor update"
         },
         ...current
       ].slice(0, 12)
     );
-    setIsDirty(false);
+    savedSnapshotRef.current = homepageSnapshotSignature(submittedSnapshot);
+    setIsDirty(homepageSnapshotSignature(editingHistoryRef.current.present) !== savedSnapshotRef.current);
+    setRequiresReauthentication(false);
     setSaveState({ tone: "success", message: result.storage?.message ?? "Saved." });
   }
 
   return (
-    <main className="min-h-screen bg-[#f7f7f7] lg:h-screen lg:overflow-hidden">
+    <main className="min-h-screen w-full max-w-full overflow-x-hidden bg-[#f7f7f7] lg:h-screen lg:overflow-hidden">
       <div
         ref={editorRef}
         className={cn(
-          "grid min-h-screen transition-[grid-template-columns] duration-300 lg:h-full lg:min-h-0 lg:grid-rows-[80px_minmax(0,1fr)]",
-          canvasExpanded ? "lg:grid-cols-[0_minmax(0,1fr)]" : "lg:grid-cols-[304px_minmax(0,1fr)]"
+          "grid min-h-screen w-full max-w-full transition-[grid-template-columns] duration-300 lg:h-full lg:min-h-0 lg:grid-rows-[80px_minmax(0,1fr)]",
+          canvasExpanded ? "lg:grid-cols-[0_minmax(0,1fr)]" : "lg:grid-cols-[360px_minmax(0,1fr)] xl:grid-cols-[380px_minmax(0,1fr)] 2xl:grid-cols-[400px_minmax(0,1fr)]"
         )}
         data-hydrated={isHydrated ? "true" : "false"}
         data-store-area="Admin"
@@ -486,7 +566,7 @@ export function HomepageStudioEditor({
       >
         <aside
           className={cn(
-            "border-b border-border bg-surface lg:col-start-1 lg:row-span-2 lg:flex lg:min-h-0 lg:flex-col lg:overflow-hidden lg:border-b-0 lg:border-r",
+            "min-w-0 border-b border-border bg-surface lg:col-start-1 lg:row-span-2 lg:flex lg:min-h-0 lg:flex-col lg:overflow-hidden lg:border-b-0 lg:border-r",
             canvasExpanded && "lg:pointer-events-none lg:invisible lg:border-0"
           )}
         >
@@ -500,7 +580,7 @@ export function HomepageStudioEditor({
             </div>
           </div>
 
-          <div className="min-h-0 flex-1 overflow-y-auto p-5">
+          <div className="min-h-0 w-full max-w-full flex-1 overflow-x-hidden overflow-y-auto p-5">
             {sidebarMode === "sections" ? (
               <div className="grid gap-5">
                 <EditorPageSelector additionalPages={additionalPages} isDirty={isDirty} />
@@ -531,6 +611,7 @@ export function HomepageStudioEditor({
                 changeSummary={changeSummary}
                 focusRequest={focusRequest}
                 headerNavigation={headerNavigation}
+                itemLinkOptions={itemLinkOptions}
                 onDone={() => setSidebarMode("sections")}
                 onDuplicate={duplicateSelectedSection}
                 onRemove={removeSelectedSection}
@@ -540,10 +621,7 @@ export function HomepageStudioEditor({
                 selectedNavigationItemId={selectedNavigationItemId}
                 seo={seo}
                 setActivePanel={setActivePanel}
-                setChangeSummary={(summary) => {
-                  setIsDirty(true);
-                  setChangeSummary(summary);
-                }}
+                setChangeSummary={(summary) => commitSnapshot((current) => ({ ...current, changeSummary: summary }))}
                 updatePhotoPreset={(presetId, patch) => commitPhotoPresets((current) => current.map((preset) => (preset.id === presetId ? { ...preset, ...patch } : preset)))}
                 updateHeaderNavigation={commitHeaderNavigation}
                 updateSection={updateSelected}
@@ -556,14 +634,19 @@ export function HomepageStudioEditor({
         </aside>
 
         <EditorTopBar
+          canRedo={editingHistory.future.length > 0}
+          canUndo={editingHistory.past.length > 0}
           canPublish={validation.errors.length === 0}
           canvasExpanded={canvasExpanded}
           isDirty={isDirty}
           onOpenLiveSite={() => window.open("/", "_blank", "noopener,noreferrer")}
+          onRedo={redo}
           onPreview={() => setCanvasExpanded((current) => !current)}
           onPublish={() => submit("publish")}
           onSaveDraft={() => submit("save_draft")}
+          onUndo={undo}
           previewMode={previewMode}
+          requiresReauthentication={requiresReauthentication}
           saveState={saveState}
           setPreviewMode={setPreviewMode}
           validation={validation}
@@ -583,7 +666,6 @@ export function HomepageStudioEditor({
                   }}
                 >
                   <StorefrontPreview
-                    featuredBrandItems={previewFeaturedBrandItems}
                     headerNavigation={headerNavigation}
                     onEditNavigationTarget={openNavigationTarget}
                     onEditTarget={openPreviewTarget}
@@ -603,6 +685,7 @@ export function HomepageStudioEditor({
 
 function EditorPageSelector({ additionalPages, isDirty }: { additionalPages: StorefrontEditablePage[]; isDirty: boolean }) {
   const router = useRouter();
+  const [isPending, startTransition] = useTransition();
   const pages = [...storefrontEditablePages, ...additionalPages].filter((page, index, allPages) => allPages.findIndex((candidate) => candidate.scope === page.scope && candidate.entityId === page.entityId) === index);
 
   function navigate(value: string) {
@@ -611,18 +694,18 @@ function EditorPageSelector({ additionalPages, isDirty }: { additionalPages: Sto
     }
 
     if (value === "homepage:home") {
-      router.push("/admin/homepage");
+      startTransition(() => router.push("/admin/homepage"));
       return;
     }
 
     const [scope, entityId] = value.split(":");
-    router.push(`/admin/homepage?scope=${encodeURIComponent(scope)}&id=${encodeURIComponent(entityId)}`);
+    startTransition(() => router.push(`/admin/homepage?scope=${encodeURIComponent(scope)}&id=${encodeURIComponent(entityId)}`));
   }
 
   return (
     <label className="block">
-      <span className="sr-only">Page</span>
-      <select className="min-h-12 w-full rounded-md border border-border bg-surface px-4 text-sm font-semibold outline-none focus:border-primary" onChange={(event) => navigate(event.target.value)} value="homepage:home">
+      <span className="sr-only">{isPending ? "Loading page" : "Page"}</span>
+      <select aria-busy={isPending} className="min-h-12 w-full rounded-md border border-border bg-surface px-4 text-sm font-semibold outline-none focus:border-primary" disabled={isPending} onChange={(event) => navigate(event.target.value)} value="homepage:home">
         <option value="homepage:home">Home</option>
         {pages.map((page) => (
           <option key={`${page.scope}:${page.entityId}`} value={`${page.scope}:${page.entityId}`}>
@@ -635,26 +718,36 @@ function EditorPageSelector({ additionalPages, isDirty }: { additionalPages: Sto
 }
 
 function EditorTopBar({
+  canRedo,
+  canUndo,
   canPublish,
   canvasExpanded,
   isDirty,
   onOpenLiveSite,
+  onRedo,
   onPreview,
   onPublish,
   onSaveDraft,
+  onUndo,
   previewMode,
+  requiresReauthentication,
   saveState,
   setPreviewMode,
   validation
 }: {
+  canRedo: boolean;
+  canUndo: boolean;
   canPublish: boolean;
   canvasExpanded: boolean;
   isDirty: boolean;
   onOpenLiveSite: () => void;
+  onRedo: () => void;
   onPreview: () => void;
   onPublish: () => void;
   onSaveDraft: () => void;
+  onUndo: () => void;
   previewMode: PreviewMode;
+  requiresReauthentication: boolean;
   saveState: SaveState;
   setPreviewMode: (mode: PreviewMode) => void;
   validation: ValidationResult;
@@ -673,10 +766,10 @@ function EditorTopBar({
         </button>
         <SegmentedPreviewMode previewMode={previewMode} setPreviewMode={setPreviewMode} />
         <div className="inline-flex rounded-full bg-surface-muted p-1">
-          <button aria-label="Undo" className="grid h-9 w-9 place-items-center rounded-full text-secondary opacity-45" disabled title="Undo will become available after the next saved change" type="button">
+          <button aria-label="Undo" className="grid h-9 w-9 place-items-center rounded-full text-secondary transition hover:bg-surface disabled:cursor-not-allowed disabled:opacity-35" disabled={!canUndo} onClick={onUndo} title="Undo (Ctrl+Z)" type="button">
             <Undo2 aria-hidden="true" size={17} />
           </button>
-          <button aria-label="Redo" className="grid h-9 w-9 place-items-center rounded-full text-secondary opacity-45" disabled title="Redo will become available after undo" type="button">
+          <button aria-label="Redo" className="grid h-9 w-9 place-items-center rounded-full text-secondary transition hover:bg-surface disabled:cursor-not-allowed disabled:opacity-35" disabled={!canRedo} onClick={onRedo} title="Redo (Ctrl+Shift+Z)" type="button">
             <Redo2 aria-hidden="true" size={17} />
           </button>
         </div>
@@ -686,6 +779,11 @@ function EditorTopBar({
         <div className="hidden xl:block">
           <StatusPill isDirty={isDirty} saveState={saveState} validation={validation} />
         </div>
+        {requiresReauthentication ? (
+          <Link className="inline-flex h-11 items-center rounded-full border border-red-200 bg-red-50 px-4 text-sm font-semibold text-red-900 transition hover:bg-red-100" href="/admin/login?next=/admin/homepage" rel="noopener noreferrer" target="_blank">
+            Sign in again
+          </Link>
+        ) : null}
         <Button className="h-11 w-11 rounded-full px-0" onClick={onSaveDraft} title="Save draft" type="button" variant="quiet">
           <Save aria-hidden="true" size={17} />
         </Button>
@@ -695,7 +793,13 @@ function EditorTopBar({
         <Button aria-label="Open live site" className="h-11 w-11 rounded-full px-0" onClick={onOpenLiveSite} title="Open the live production site" type="button" variant="quiet">
           <ExternalLink aria-hidden="true" size={17} />
         </Button>
-        <Button className="h-11 rounded-full bg-primary px-5 text-white hover:bg-primary/90" disabled={!canPublish} onClick={onPublish} type="button">
+        <Button
+          aria-disabled={!canPublish}
+          className="h-11 rounded-full bg-primary px-5 text-white hover:bg-primary/90"
+          onClick={onPublish}
+          title={canPublish ? "Publish homepage" : "Review required fixes before publishing"}
+          type="button"
+        >
           Publish
         </Button>
       </div>
@@ -709,7 +813,7 @@ function StatusPill({ isDirty, saveState, validation }: { isDirty: boolean; save
   }
 
   if (validation.errors.length > 0) {
-    return <span className="inline-flex min-h-9 items-center rounded-md border border-yellow-200 bg-yellow-50 px-3 text-sm font-semibold text-yellow-900">{validation.errors.length} required fix</span>;
+    return <span className="inline-flex min-h-9 items-center rounded-md border border-yellow-200 bg-yellow-50 px-3 text-sm font-semibold text-yellow-900">{validation.errors.length} required {validation.errors.length === 1 ? "fix" : "fixes"}</span>;
   }
 
   if (saveState.tone === "success") {
@@ -872,7 +976,6 @@ function SectionsPanel({
 }
 
 function StorefrontPreview({
-  featuredBrandItems,
   headerNavigation,
   onEditNavigationTarget,
   onEditTarget,
@@ -880,7 +983,6 @@ function StorefrontPreview({
   sections,
   selectedSectionId
 }: {
-  featuredBrandItems: HomepageSectionItem[];
   headerNavigation: HeaderNavigationConfig;
   onEditNavigationTarget: (navigationItemId: string) => void;
   onEditTarget: (target: PreviewEditTarget) => void;
@@ -889,7 +991,6 @@ function StorefrontPreview({
   selectedSectionId: string;
 }) {
   const previewRef = useRef<HTMLDivElement>(null);
-  const storefrontSections = featuredBrandItems.length > 0 ? sections.map((section) => (section.sectionId === "home.hero" ? { ...section, items: featuredBrandItems } : section)) : sections;
 
   useEffect(() => {
     const preview = previewRef.current;
@@ -943,7 +1044,7 @@ function StorefrontPreview({
   return (
     <div className="bg-background text-primary" onClickCapture={handlePreviewClick} ref={previewRef}>
       <SiteHeader navigation={headerNavigation} />
-      <HomePageTemplate products={products} sections={storefrontSections} />
+      <HomePageTemplate products={products} sections={sections} />
       <SiteFooter />
     </div>
   );
@@ -1148,6 +1249,7 @@ function InspectorPanel({
   section,
   updateSection,
   headerNavigation,
+  itemLinkOptions,
   updateHeaderNavigation,
   selectedNavigationItemId,
   photoPresets,
@@ -1170,6 +1272,7 @@ function InspectorPanel({
   section: HomepageSectionConfig;
   updateSection: (patch: Partial<HomepageSectionConfig>) => void;
   headerNavigation: HeaderNavigationConfig;
+  itemLinkOptions: HomepageItemLinkOption[];
   updateHeaderNavigation: (updater: (current: HeaderNavigationConfig) => HeaderNavigationConfig) => void;
   selectedNavigationItemId: string;
   photoPresets: HomepageImagePreset[];
@@ -1208,7 +1311,7 @@ function InspectorPanel({
           : sectionLabel(section.sectionId);
 
   return (
-    <aside className="min-h-0" ref={inspectorRef}>
+    <aside className="min-h-0 w-full min-w-0 max-w-full" ref={inspectorRef}>
       <div className="sticky top-0 z-20 -mx-5 -mt-5 border-b border-border bg-surface/95 px-5 py-4 backdrop-blur">
         <div className="flex items-center justify-between gap-3">
           <h2 className="truncate font-display text-lg font-semibold">{inspectorTitle}</h2>
@@ -1241,7 +1344,7 @@ function InspectorPanel({
         })}
       </div>
 
-      {activePanel === "content" ? <ContentPanel focusRequest={focusRequest} section={section} setActivePanel={setActivePanel} updateSection={updateSection} /> : null}
+      {activePanel === "content" ? <ContentPanel focusRequest={focusRequest} itemLinkOptions={itemLinkOptions} section={section} setActivePanel={setActivePanel} updateSection={updateSection} /> : null}
       {activePanel === "design" ? <DesignPanel focusRequest={focusRequest} section={section} updateSection={updateSection} /> : null}
       {activePanel === "media" ? (
         <MediaPanel
@@ -1344,7 +1447,7 @@ function NavigationPanel({
   }
 
   return (
-    <div className="grid gap-4">
+    <div className="grid min-w-0 gap-4">
       <NavigationGroupEditor
         group="primary"
         label="Main header links"
@@ -1480,11 +1583,13 @@ function NavigationLinkEditor({
 
 function ContentPanel({
   section,
+  itemLinkOptions,
   setActivePanel,
   updateSection,
   focusRequest
 }: {
   section: HomepageSectionConfig;
+  itemLinkOptions: HomepageItemLinkOption[];
   setActivePanel: (panel: EditorPanel) => void;
   updateSection: (patch: Partial<HomepageSectionConfig>) => void;
   focusRequest: EditorFocusRequest | null;
@@ -1503,7 +1608,7 @@ function ContentPanel({
         <ToggleRow checked={isSectionElementVisible(section, "title")} label="Show title" onChange={(checked) => updateSection({ hiddenElements: setSectionElementVisibility(section, "title", checked) })} />
         <ToggleRow checked={isSectionElementVisible(section, "body")} label="Show body" onChange={(checked) => updateSection({ hiddenElements: setSectionElementVisibility(section, "body", checked) })} />
         <ToggleRow checked={isSectionElementVisible(section, "primaryCta")} label="Show main button" onChange={(checked) => updateSection({ hiddenElements: setSectionElementVisibility(section, "primaryCta", checked) })} />
-        {isHero ? <ToggleRow checked={isSectionElementVisible(section, "secondaryCta")} label="Show balloon button" onChange={(checked) => updateSection({ hiddenElements: setSectionElementVisibility(section, "secondaryCta", checked) })} /> : null}
+        {isHero ? <ToggleRow checked={isSectionElementVisible(section, "secondaryCta")} label="Show secondary button" onChange={(checked) => updateSection({ hiddenElements: setSectionElementVisibility(section, "secondaryCta", checked) })} /> : null}
         <ToggleRow checked={isSectionElementVisible(section, "items")} label={isHero ? "Show category tiles" : "Show cards/items"} onChange={(checked) => updateSection({ hiddenElements: setSectionElementVisibility(section, "items", checked) })} />
       </div>
       <div className="rounded-md border border-border bg-surface-muted p-3 text-sm">
@@ -1516,26 +1621,37 @@ function ContentPanel({
       <div className="grid gap-3 rounded-md border border-border bg-surface-muted p-3">
         <div className="flex items-center gap-2 text-sm font-semibold">
           <Link2 aria-hidden="true" size={16} />
-          Button
+          Main button
         </div>
         <TextField fieldId="ctaLabel" focusRequest={focusRequest} label="Button label" onChange={(ctaLabel) => updateSection({ ctaLabel })} value={section.ctaLabel ?? ""} />
-        <TextField fieldId="ctaHref" focusRequest={focusRequest} label="Button link" onChange={(ctaHref) => updateSection({ ctaHref })} value={section.ctaHref ?? ""} />
+        <ButtonDestinationEditor fieldId="ctaHref" focusRequest={focusRequest} href={section.ctaHref ?? ""} linkOptions={itemLinkOptions} onChange={(ctaHref) => updateSection({ ctaHref })} />
       </div>
+      {isHero ? (
+        <div className="grid gap-3 rounded-md border border-border bg-surface-muted p-3">
+          <div className="flex items-center gap-2 text-sm font-semibold">
+            <Link2 aria-hidden="true" size={16} />
+            Secondary hero button
+          </div>
+          <TextField label="Button label" onChange={(secondaryCtaLabel) => updateSection({ secondaryCtaLabel })} value={section.secondaryCtaLabel ?? (section.variant === "back-to-school" ? "Build a School Kit" : "Balloon order")} />
+          <ButtonDestinationEditor href={section.secondaryCtaHref ?? (section.variant === "back-to-school" ? "/stationery" : "/balloons")} linkOptions={itemLinkOptions} onChange={(secondaryCtaHref) => updateSection({ secondaryCtaHref })} />
+        </div>
+      ) : null}
       <Button className="gap-2" onClick={() => setActivePanel("media")} type="button" variant="secondary">
         <Image aria-hidden="true" size={16} />
         Edit image
       </Button>
-      <SectionItemsEditor focusRequest={focusRequest} section={section} updateSection={updateSection} />
+      <SectionItemsEditor focusRequest={focusRequest} itemLinkOptions={itemLinkOptions} section={section} updateSection={updateSection} />
     </div>
   );
 }
 
-function SectionItemsEditor({ section, updateSection, focusRequest }: { section: HomepageSectionConfig; updateSection: (patch: Partial<HomepageSectionConfig>) => void; focusRequest: EditorFocusRequest | null }) {
+function SectionItemsEditor({ section, updateSection, focusRequest, itemLinkOptions }: { section: HomepageSectionConfig; updateSection: (patch: Partial<HomepageSectionConfig>) => void; focusRequest: EditorFocusRequest | null; itemLinkOptions: HomepageItemLinkOption[] }) {
   const itemsRef = useRef<HTMLElement>(null);
   const [itemUploadStates, setItemUploadStates] = useState<Record<string, SaveState>>({});
   const storedItems = section.items ?? [];
   const defaultItems = defaultEditableItemsForSection(section);
   const items = storedItems.length > 0 ? storedItems : defaultItems;
+  const isHeroCards = section.sectionId === "home.hero";
   const supportsItems = ["departments", "feature-grid", "split-media", "trust-bar", "faq", "promo", "content", "image-banner", "newsletter"].includes(sectionTypeFromSection(section)) || defaultItems.length > 0;
 
   useEffect(() => {
@@ -1553,12 +1669,17 @@ function SectionItemsEditor({ section, updateSection, focusRequest }: { section:
   }
 
   function addItem() {
+    if (isHeroCards && items.length >= 4) return;
     updateItems([
       ...items,
       {
         id: uniqueSectionId("item"),
+        label: isHeroCards ? `0${items.length + 1} Card` : undefined,
         title: `Item ${items.length + 1}`,
-        body: "Editable item copy."
+        body: "Editable item copy.",
+        href: isHeroCards ? "/shop" : undefined,
+        linkType: isHeroCards ? "manual" : undefined,
+        tone: isHeroCards ? (["yellow", "cyan", "green", "red"][items.length] as HomepageSectionItem["tone"]) : undefined
       }
     ]);
   }
@@ -1569,29 +1690,6 @@ function SectionItemsEditor({ section, updateSection, focusRequest }: { section:
 
   function removeItem(itemId: string) {
     updateItems(items.filter((item) => item.id !== itemId));
-  }
-
-  function selectProductForItem(item: HomepageSectionItem, productSlug: string) {
-    const product = storefrontProducts.find((candidate) => candidate.slug === productSlug);
-
-    if (!product) {
-      updateItem(item.id, {
-        productSlug: undefined,
-        squareVariationId: undefined
-      });
-      return;
-    }
-
-    updateItem(item.id, {
-      productSlug: product.slug,
-      squareVariationId: product.squareVariationId,
-      title: product.name,
-      body: product.shortDescription,
-      href: `/products/${product.slug}`,
-      image: product.imageUrl,
-      imageAlt: product.name,
-      badge: product.badge ?? item.badge
-    });
   }
 
   async function uploadItemImage(item: HomepageSectionItem, file: File) {
@@ -1631,36 +1729,65 @@ function SectionItemsEditor({ section, updateSection, focusRequest }: { section:
     <section className="grid gap-3 rounded-md border border-border bg-surface-muted p-3" ref={itemsRef}>
       <div className="flex items-center justify-between gap-3">
         <div>
-          <p className="text-sm font-semibold">Editable items</p>
-          <p className="mt-1 text-xs text-secondary">Cards, FAQ rows, badges, or support points for this section.</p>
+          <p className="text-sm font-semibold">{isHeroCards ? "Homepage promotional cards" : "Editable items"}</p>
+          <p className="mt-1 text-xs text-secondary">{isHeroCards ? "Edit these four cards and send each one to a brand, category, product, or manual link." : "Cards, FAQ rows, badges, or support points for this section."}</p>
         </div>
-        <Button className="h-9 gap-2 px-3 text-xs" onClick={addItem} type="button" variant="secondary">
-          <Plus aria-hidden="true" size={15} />
-          Add
-        </Button>
+        {!isHeroCards || items.length < 4 ? (
+          <Button className="h-9 gap-2 px-3 text-xs" onClick={addItem} type="button" variant="secondary">
+            <Plus aria-hidden="true" size={15} />
+            Add
+          </Button>
+        ) : null}
       </div>
 
       {storedItems.length === 0 && items.length > 0 ? <div className="rounded-md border border-border bg-surface p-3 text-xs text-secondary">Default cards are ready to edit. Uploading or changing any card will save this section as editable storefront content.</div> : null}
       {items.length === 0 ? <div className="rounded-md border border-dashed border-border bg-surface p-3 text-sm text-secondary">No items yet.</div> : null}
 
       <div className="grid gap-3">
-        {items.map((item, index) => (
-          <article className="grid gap-2 rounded-md border border-border bg-surface p-3" key={item.id}>
+        {items.map((item, index) => {
+          const isCutout = isHeroCards && item.presentation === "cutout";
+
+          return (
+            <article className="grid min-w-0 gap-2 rounded-md border border-border bg-surface p-3" key={item.id}>
             <div className="flex items-center justify-between gap-3">
-              <p className="text-xs font-semibold uppercase tracking-[0.12em] text-secondary">Item {index + 1}</p>
-              <Button className="h-8 px-2 text-xs" onClick={() => removeItem(item.id)} type="button" variant="quiet">
-                Remove
-              </Button>
+              <p className="text-xs font-semibold uppercase tracking-[0.12em] text-secondary">{isHeroCards ? "Card" : "Item"} {index + 1}</p>
+              {!isHeroCards ? <Button className="h-8 px-2 text-xs" onClick={() => removeItem(item.id)} type="button" variant="quiet">Remove</Button> : null}
             </div>
-            <ProductLinkSelect item={item} onSelect={(productSlug) => selectProductForItem(item, productSlug)} />
-            <TextField label="Label" onChange={(label) => updateItem(item.id, { label })} value={item.label ?? ""} />
-            <TextField label="Title" onChange={(title) => updateItem(item.id, { title })} value={item.title} />
-            <TextArea label="Body" onChange={(body) => updateItem(item.id, { body })} rows={3} value={item.body ?? ""} />
-            <TextField label="Link" onChange={(href) => updateItem(item.id, { href })} value={item.href ?? ""} />
-            <TextField label="Badge" onChange={(badge) => updateItem(item.id, { badge })} value={item.badge ?? ""} />
+            <ItemDestinationEditor
+              item={item}
+              linkOptions={itemLinkOptions}
+              onManualHref={(href) => updateItem(item.id, { href, linkType: "manual", linkValue: undefined, productSlug: undefined, squareVariationId: undefined })}
+              onSelect={(option) => updateItem(item.id, {
+                linkType: option.type,
+                linkValue: option.value,
+                href: option.href,
+                title: option.title,
+                body: option.body ?? item.body,
+                image: option.image ?? item.image,
+                imageAlt: option.imageAlt ?? item.imageAlt,
+                productSlug: option.productSlug,
+                squareVariationId: option.squareVariationId
+              })}
+              onTypeChange={(linkType) => updateItem(item.id, {
+                linkType,
+                linkValue: undefined,
+                productSlug: linkType === "product" ? item.productSlug : undefined,
+                squareVariationId: linkType === "product" ? item.squareVariationId : undefined
+              })}
+            />
+            {isHeroCards ? <SelectField label="Presentation" onChange={(presentation) => updateItem(item.id, { presentation: presentation as HomepageItemPresentation })} options={["card", "cutout"]} value={item.presentation ?? "card"} /> : null}
+            {isCutout ? (
+              <div className="rounded-md border border-cyan/50 bg-cyan/10 p-3 text-xs leading-relaxed text-secondary">
+                Only the clickable image will appear. For a true cutout, upload a transparent PNG or WebP. The accessible label below remains available to screen readers.
+              </div>
+            ) : <TextField label="Label" onChange={(label) => updateItem(item.id, { label })} value={item.label ?? ""} />}
+            <TextField label={isCutout ? "Accessible label" : "Title"} onChange={(title) => updateItem(item.id, { title })} value={item.title} />
+            {!isCutout ? <TextArea label="Body" onChange={(body) => updateItem(item.id, { body })} rows={3} value={item.body ?? ""} /> : null}
+            {isHeroCards && !isCutout ? <SelectField label="Card color" onChange={(tone) => updateItem(item.id, { tone: tone as HomepageSectionItem["tone"] })} options={["yellow", "cyan", "green", "red", "white"]} value={item.tone ?? ["yellow", "cyan", "green", "red"][index % 4]} /> : null}
+            {!isCutout ? <TextField label="Badge" onChange={(badge) => updateItem(item.id, { badge })} value={item.badge ?? ""} /> : null}
             <div className="grid gap-2 rounded-md border border-border bg-surface-muted p-3">
-              <p className="text-xs font-semibold uppercase tracking-[0.12em] text-secondary">Card image</p>
-              <EditablePresetImage alt={item.imageAlt || item.title} className="aspect-[4/3] rounded-md border border-border" src={item.image || ""} />
+              <p className="text-xs font-semibold uppercase tracking-[0.12em] text-secondary">{isCutout ? "Cutout image" : "Card image"}</p>
+              <EditablePresetImage alt={item.imageAlt || item.title} className={cn("aspect-[4/3] rounded-md border border-border", isCutout && "bg-transparent object-contain p-3")} src={item.image || ""} />
               <div className="flex flex-wrap gap-2">
                 <ImageUploadControl className="h-8 min-h-8 px-2" id={`item-image-upload-${safeDomId(section.sectionId)}-${safeDomId(item.id)}`} label="Upload" onUpload={(file) => uploadItemImage(item, file)} />
                 <Button className="h-8 min-h-8 px-2 text-xs" onClick={() => updateItem(item.id, { image: section.backgroundImage || defaultHomepageImage, imageAlt: item.imageAlt || item.title })} type="button" variant="secondary">
@@ -1676,41 +1803,99 @@ function SectionItemsEditor({ section, updateSection, focusRequest }: { section:
               <ImageUrlField compact label={`Item ${index + 1} image URL`} onApply={(image) => updateItem(item.id, { image })} value={item.image ?? ""} />
               <TextField label="Image alt text" onChange={(imageAlt) => updateItem(item.id, { imageAlt })} value={item.imageAlt ?? ""} />
             </div>
-          </article>
-        ))}
+            </article>
+          );
+        })}
       </div>
     </section>
   );
 }
 
-function ProductLinkSelect({ item, onSelect }: { item: HomepageSectionItem; onSelect: (productSlug: string) => void }) {
-  const linkedProduct = item.productSlug ? storefrontProducts.find((product) => product.slug === item.productSlug) : null;
+function ItemDestinationEditor({ item, linkOptions, onManualHref, onSelect, onTypeChange }: { item: HomepageSectionItem; linkOptions: HomepageItemLinkOption[]; onManualHref: (href: string) => void; onSelect: (option: HomepageItemLinkOption) => void; onTypeChange: (type: HomepageItemLinkType) => void }) {
+  const linkType = inferHomepageItemLinkType(item);
+  const options = linkOptions.filter((option) => option.type === linkType);
+  const inferredValue = item.linkValue || inferHomepageItemLinkValue(item, linkType);
+  const matchedOption = options.find((option) => option.value === inferredValue) ?? options.find((option) => option.href === item.href);
 
   return (
     <div className="grid gap-2 rounded-md border border-border bg-surface-muted p-3">
       <label className="grid gap-1 text-xs font-semibold">
-        <span>Real product</span>
-        <select className="min-h-9 rounded-md border border-border bg-surface px-2 py-1.5 text-xs font-normal outline-none focus:border-primary" onChange={(event) => onSelect(event.currentTarget.value)} value={item.productSlug ?? ""}>
-          <option value="">Manual card / no product</option>
-          {storefrontProducts.map((product) => (
-            <option key={product.slug} value={product.slug}>
-              {product.name} - {product.department}
-            </option>
-          ))}
+        <span>Destination type</span>
+        <select className="min-h-9 w-full min-w-0 max-w-full rounded-md border border-border bg-surface px-2 py-1.5 text-xs font-normal outline-none focus:border-primary" onChange={(event) => onTypeChange(event.currentTarget.value as HomepageItemLinkType)} value={linkType}>
+          <option value="manual">Manual link</option>
+          <option value="page">Page</option>
+          <option value="brand">Brand</option>
+          <option value="category">Category</option>
+          <option value="product">Product</option>
         </select>
       </label>
-      {linkedProduct ? (
-        <div className="flex gap-3 rounded-md border border-border bg-surface p-2">
-          <img alt={linkedProduct.name} className="h-14 w-14 rounded-md object-cover" src={linkedProduct.imageUrl} />
-          <div className="min-w-0 text-xs">
-            <p className="truncate font-semibold">{linkedProduct.name}</p>
-            <p className="mt-1 text-secondary">{formatProductPrice(linkedProduct)} · links to /products/{linkedProduct.slug}</p>
-            <p className="mt-1 text-secondary">Price, inventory, and add-to-cart stay connected to the product catalog.</p>
-          </div>
-        </div>
-      ) : (
-        <p className="text-xs text-secondary">Choose a product to turn this card into a real product card.</p>
+      {linkType === "manual" ? <TextField label="Link" onChange={onManualHref} value={item.href ?? ""} /> : (
+        <label className="grid gap-1 text-xs font-semibold">
+          <span>{`Choose ${linkType}`}</span>
+          <select className="min-h-9 w-full min-w-0 max-w-full rounded-md border border-border bg-surface px-2 py-1.5 text-xs font-normal outline-none focus:border-primary" onChange={(event) => { const selected = options.find((option) => option.value === event.currentTarget.value); if (selected) onSelect(selected); }} value={matchedOption?.value ?? ""}>
+            <option value="">Select...</option>
+            {options.map((option) => <option key={`${option.type}:${option.value}`} value={option.value}>{option.label}</option>)}
+          </select>
+        </label>
       )}
+      {linkType !== "manual" && options.length === 0 ? <p className="text-xs text-secondary">No published {linkType} destinations are available yet.</p> : null}
+      {matchedOption ? <p className="text-xs text-secondary">Links to {matchedOption.href}</p> : null}
+    </div>
+  );
+}
+
+function ButtonDestinationEditor({ fieldId, focusRequest, href, linkOptions, onChange }: { fieldId?: EditorFocus; focusRequest?: EditorFocusRequest | null; href: string; linkOptions: HomepageItemLinkOption[]; onChange: (href: string) => void }) {
+  const matchedOption = linkOptions.find((option) => option.href === href);
+  const [manualMode, setManualMode] = useState(!matchedOption);
+  const selectRef = useRef<HTMLSelectElement>(null);
+  const groups: Array<{ label: string; type: HomepageItemLinkOption["type"] }> = [
+    { label: "Pages and campaigns", type: "page" },
+    { label: "Brands", type: "brand" },
+    { label: "Categories", type: "category" },
+    { label: "Products", type: "product" }
+  ];
+
+  useEffect(() => {
+    if (fieldId && focusRequest?.field === fieldId) {
+      selectRef.current?.scrollIntoView({ block: "center", behavior: "smooth" });
+      selectRef.current?.focus();
+    }
+  }, [fieldId, focusRequest]);
+
+  return (
+    <div className="grid gap-2">
+      <label className="grid gap-1 text-xs font-semibold">
+        <span>Button destination</span>
+        <select
+          className="min-h-10 w-full min-w-0 max-w-full rounded-md border border-border bg-surface px-3 py-2 text-sm font-normal outline-none focus:border-primary"
+          onChange={(event) => {
+            if (event.currentTarget.value === "__manual__") {
+              setManualMode(true);
+              return;
+            }
+
+            const selected = linkOptions.find((option) => `${option.type}:${option.value}` === event.currentTarget.value);
+            if (selected) {
+              setManualMode(false);
+              onChange(selected.href);
+            }
+          }}
+          ref={selectRef}
+          value={!manualMode && matchedOption ? `${matchedOption.type}:${matchedOption.value}` : "__manual__"}
+        >
+          <option value="__manual__">Custom link</option>
+          {groups.map((group) => {
+            const options = linkOptions.filter((option) => option.type === group.type);
+            return options.length > 0 ? (
+              <optgroup key={group.type} label={group.label}>
+                {options.map((option) => <option key={`${option.type}:${option.value}`} value={`${option.type}:${option.value}`}>{option.label}</option>)}
+              </optgroup>
+            ) : null;
+          })}
+        </select>
+      </label>
+      {manualMode || !matchedOption ? <TextField fieldId={fieldId} focusRequest={focusRequest} label="Custom link" onChange={onChange} value={href} /> : <p className="text-xs text-secondary">Links to {href}</p>}
+      <p className="text-xs text-secondary">New catalog brands, categories, and products will appear here automatically.</p>
     </div>
   );
 }
@@ -1724,6 +1909,7 @@ function DesignPanel({ section, updateSection, focusRequest }: { section: Homepa
       <SelectField fieldId="backgroundTone" focusRequest={focusRequest} label="Background" onChange={(backgroundTone) => updateSection({ backgroundTone: backgroundTone as HomepageSectionConfig["backgroundTone"] })} options={["default", "muted", "brand", "dark", "accent"]} value={section.backgroundTone ?? "default"} />
       <SelectField fieldId="contentWidth" focusRequest={focusRequest} label="Content width" onChange={(contentWidth) => updateSection({ contentWidth: contentWidth as HomepageSectionConfig["contentWidth"] })} options={["narrow", "normal", "wide"]} value={section.contentWidth ?? "wide"} />
       <SelectField fieldId="verticalPadding" focusRequest={focusRequest} label="Spacing" onChange={(verticalPadding) => updateSection({ verticalPadding: verticalPadding as HomepageSectionConfig["verticalPadding"] })} options={["compact", "normal", "spacious"]} value={section.verticalPadding ?? "normal"} />
+      {sectionTypeFromSection(section) === "hero" ? <SelectField fieldId="heroSize" focusRequest={focusRequest} label="Hero size" onChange={(heroSize) => updateSection({ heroSize: heroSize as HomepageHeroSize })} options={["compact", "standard", "large", "fullscreen"]} value={section.heroSize ?? "large"} /> : null}
       <SelectField fieldId="columns" focusRequest={focusRequest} label="Columns" onChange={(columns) => updateSection({ columns: Number(columns) as HomepageSectionConfig["columns"] })} options={["2", "3", "4"]} value={String(section.columns ?? 3)} />
       <div className="rounded-md border border-border bg-surface-muted p-3">
         <p className="text-sm font-semibold">Production-safe styling</p>
@@ -2288,9 +2474,9 @@ function TextField({
   }, [fieldId, focusRequest]);
 
   return (
-    <label className="block text-sm font-semibold">
+    <label className="block min-w-0 text-sm font-semibold">
       {label}
-      <input className="mt-2 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm font-normal outline-none focus:border-primary" onChange={(event) => onChange(event.target.value)} ref={inputRef} value={value} />
+      <input className="mt-2 w-full min-w-0 max-w-full rounded-md border border-border bg-surface px-3 py-2 text-sm font-normal outline-none focus:border-primary" onChange={(event) => onChange(event.target.value)} ref={inputRef} value={value} />
     </label>
   );
 }
@@ -2321,9 +2507,9 @@ function TextArea({
   }, [fieldId, focusRequest]);
 
   return (
-    <label className="block text-sm font-semibold">
+    <label className="block min-w-0 text-sm font-semibold">
       {label}
-      <textarea className="mt-2 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm font-normal outline-none focus:border-primary" onChange={(event) => onChange(event.target.value)} ref={textareaRef} rows={rows} value={value} />
+      <textarea className="mt-2 w-full min-w-0 max-w-full rounded-md border border-border bg-surface px-3 py-2 text-sm font-normal outline-none focus:border-primary" onChange={(event) => onChange(event.target.value)} ref={textareaRef} rows={rows} value={value} />
     </label>
   );
 }
@@ -2353,9 +2539,9 @@ function SelectField({
   }, [fieldId, focusRequest]);
 
   return (
-    <label className="block text-sm font-semibold">
+    <label className="block min-w-0 text-sm font-semibold">
       {label}
-      <select className="mt-2 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm font-normal outline-none focus:border-primary" onChange={(event: ChangeEvent<HTMLSelectElement>) => onChange(event.target.value)} ref={selectRef} value={value}>
+      <select className="mt-2 w-full min-w-0 max-w-full rounded-md border border-border bg-surface px-3 py-2 text-sm font-normal outline-none focus:border-primary" onChange={(event: ChangeEvent<HTMLSelectElement>) => onChange(event.target.value)} ref={selectRef} value={value}>
         {options.map((option) => (
           <option key={option} value={option}>
             {option}
@@ -2384,9 +2570,9 @@ function setSectionElementVisibility(section: HomepageSectionConfig, element: Ho
 
 function ToggleRow({ label, checked, onChange }: { label: string; checked: boolean; onChange: (checked: boolean) => void }) {
   return (
-    <label className="flex items-center justify-between gap-3 rounded-md border border-border bg-surface-muted px-3 py-2 text-sm font-semibold">
-      {label}
-      <input checked={checked} className="h-5 w-5 rounded border-border" onChange={(event) => onChange(event.target.checked)} type="checkbox" />
+    <label className="flex w-full min-w-0 items-center justify-between gap-3 rounded-md border border-border bg-surface-muted px-3 py-2 text-sm font-semibold">
+      <span className="min-w-0 leading-snug">{label}</span>
+      <input checked={checked} className="h-5 w-5 shrink-0 rounded border-border" onChange={(event) => onChange(event.target.checked)} type="checkbox" />
     </label>
   );
 }
@@ -2398,6 +2584,10 @@ function validateHomepage(sections: HomepageSectionConfig[], seo: HomepageSeoCon
 
   if (!visibleHero) {
     errors.push("A visible hero section is required.");
+  }
+
+  if (visibleHero && isSectionElementVisible(visibleHero, "items") && (visibleHero.items?.length ?? 0) !== 4) {
+    errors.push("Homepage hero needs exactly four promotional cards.");
   }
 
   for (const section of sections.filter((item) => item.isVisible)) {
@@ -2417,6 +2607,18 @@ function validateHomepage(sections: HomepageSectionConfig[], seo: HomepageSeoCon
       errors.push(`${sectionLabel(section.sectionId)} button label is required when a link exists.`);
     }
 
+    if (section.secondaryCtaHref && !isSafeUrl(section.secondaryCtaHref)) {
+      errors.push(`${sectionLabel(section.sectionId)} secondary button link must be an internal path or HTTPS URL.`);
+    }
+
+    if (isSectionElementVisible(section, "secondaryCta") && section.secondaryCtaHref && !section.secondaryCtaLabel) {
+      errors.push(`${sectionLabel(section.sectionId)} secondary button label is required when a link exists.`);
+    }
+
+    if (section.heroSize && !["compact", "standard", "large", "fullscreen"].includes(section.heroSize)) {
+      errors.push(`${sectionLabel(section.sectionId)} has an invalid hero size.`);
+    }
+
     if (section.backgroundImage && !section.imageAlt) {
       warnings.push(`${sectionLabel(section.sectionId)} image should have alt text.`);
     }
@@ -2428,6 +2630,26 @@ function validateHomepage(sections: HomepageSectionConfig[], seo: HomepageSeoCon
 
       if (item.href && !isSafeUrl(item.href)) {
         errors.push(`${sectionLabel(section.sectionId)} item link must be an internal path or HTTPS URL.`);
+      }
+
+      if (section.sectionId === "home.hero" && !item.href) {
+        errors.push("Every homepage promotional card needs a destination.");
+      }
+
+      if (item.linkType && item.linkType !== "manual" && !item.linkValue) {
+        errors.push(`${sectionLabel(section.sectionId)} item must select a ${item.linkType} destination.`);
+      }
+
+      if (item.tone && !["yellow", "cyan", "green", "red", "white"].includes(item.tone)) {
+        errors.push(`${sectionLabel(section.sectionId)} item has an invalid card color.`);
+      }
+
+      if (item.presentation && !["card", "cutout"].includes(item.presentation)) {
+        errors.push(`${sectionLabel(section.sectionId)} item has an invalid presentation.`);
+      }
+
+      if (section.sectionId === "home.hero" && item.presentation === "cutout" && !item.image) {
+        errors.push(`${item.title || "Homepage cutout"} needs an image before publishing.`);
       }
 
       if (item.image && !item.imageAlt) {
@@ -2461,6 +2683,34 @@ function validateHomepage(sections: HomepageSectionConfig[], seo: HomepageSeoCon
 
 function isSafeUrl(value: string) {
   return value.startsWith("/") || value.startsWith("https://");
+}
+
+function inferHomepageItemLinkType(item: HomepageSectionItem): HomepageItemLinkType {
+  if (item.linkType) return item.linkType;
+  if (item.productSlug || item.href?.startsWith("/products/")) return "product";
+
+  try {
+    const url = new URL(item.href || "/", "http://localhost");
+    if (url.pathname === "/shop" && url.searchParams.has("brand")) return "brand";
+    if (url.pathname === "/shop" && url.searchParams.has("department")) return "category";
+  } catch {
+    return "manual";
+  }
+
+  return "manual";
+}
+
+function inferHomepageItemLinkValue(item: HomepageSectionItem, linkType: HomepageItemLinkType) {
+  if (linkType === "page") return item.linkValue || item.href || "";
+  if (linkType === "product") return item.productSlug || item.href?.replace(/^\/products\//, "") || "";
+
+  try {
+    const url = new URL(item.href || "/", "http://localhost");
+    const rawValue = linkType === "brand" ? url.searchParams.get("brand") : linkType === "category" ? url.searchParams.get("department") : "";
+    return rawValue?.toLowerCase().replace(/&/g, "and").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "";
+  } catch {
+    return "";
+  }
 }
 
 function preventAndEdit(event: { preventDefault: () => void; stopPropagation: () => void }, callback: () => void) {
@@ -2643,4 +2893,8 @@ function formatDate(value: string) {
   } catch {
     return value;
   }
+}
+
+function homepageSnapshotSignature(snapshot: HomepageEditingSnapshot) {
+  return JSON.stringify(snapshot);
 }

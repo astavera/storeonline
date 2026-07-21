@@ -2,7 +2,7 @@
 
 import { ArrowLeft, Palette } from "lucide-react";
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   addCmsSection,
   applySectionPresetToSection,
@@ -24,6 +24,7 @@ import { BuilderCanvas } from "./BuilderCanvas";
 import { BuilderInspector } from "./BuilderInspector";
 import { BuilderSidebar } from "./BuilderSidebar";
 import { BuilderTopbar } from "./BuilderTopbar";
+import { commitEditingHistory, createEditingHistory, redoEditingHistory, undoEditingHistory } from "./editing-history";
 import type { BuilderDevice, BuilderDocumentHistoryEntry, BuilderInspectorTab, BuilderSaveState } from "./types";
 import type { StorefrontEditablePage } from "@/config/storefront-pages.config";
 
@@ -51,20 +52,62 @@ export function BuilderShell({ additionalPages = [], initialDocument, publicPrev
       }
     });
   }, [initialDocument]);
-  const [documentState, setDocumentState] = useState(normalizedInitialDocument);
+  const [editingHistory, setEditingHistory] = useState(() => createEditingHistory(normalizedInitialDocument));
+  const editingHistoryRef = useRef(editingHistory);
+  const savedDocumentRef = useRef(documentSignature(normalizedInitialDocument));
+  const documentState = editingHistory.present;
   const [selectedSectionId, setSelectedSectionId] = useState(normalizedInitialDocument.sections[0]?.id ?? "");
   const [activeTab, setActiveTab] = useState<BuilderInspectorTab>("content");
   const [device, setDevice] = useState<BuilderDevice>("desktop");
   const [isDirty, setIsDirty] = useState(false);
   const [saveState, setSaveState] = useState<BuilderSaveState>({ tone: "idle", message: "Ready" });
-  const [history, setHistory] = useState<BuilderDocumentHistoryEntry[]>([]);
+  const [versionHistory, setVersionHistory] = useState<BuilderDocumentHistoryEntry[]>([]);
   const [sidebarMode, setSidebarMode] = useState<"sections" | "inspector">("sections");
   const selectedSection = documentState.sections.find((section) => section.id === selectedSectionId) ?? documentState.sections[0] ?? createCmsSection("emptyState", { id: "builder.empty" });
 
   function commit(nextDocument: CmsPageDocument) {
-    setDocumentState(nextDocument);
-    setIsDirty(true);
+    const nextHistory = commitEditingHistory(editingHistoryRef.current, nextDocument);
+    editingHistoryRef.current = nextHistory;
+    setEditingHistory(nextHistory);
+    setIsDirty(documentSignature(nextHistory.present) !== savedDocumentRef.current);
   }
+
+  function undo() {
+    applyEditingHistory(undoEditingHistory(editingHistoryRef.current));
+  }
+
+  function redo() {
+    applyEditingHistory(redoEditingHistory(editingHistoryRef.current));
+  }
+
+  function applyEditingHistory(nextHistory: typeof editingHistory) {
+    if (nextHistory === editingHistoryRef.current) return;
+    editingHistoryRef.current = nextHistory;
+    setEditingHistory(nextHistory);
+    setIsDirty(documentSignature(nextHistory.present) !== savedDocumentRef.current);
+    if (!nextHistory.present.sections.some((section) => section.id === selectedSectionId)) {
+      setSelectedSectionId(nextHistory.present.sections[0]?.id ?? "");
+    }
+  }
+
+  useEffect(() => {
+    function handleKeyboardShortcut(event: KeyboardEvent) {
+      if (!(event.ctrlKey || event.metaKey) || event.altKey) return;
+      const key = event.key.toLowerCase();
+      if (key === "z" && event.shiftKey) {
+        event.preventDefault();
+        redo();
+      } else if (key === "z") {
+        event.preventDefault();
+        undo();
+      } else if (key === "y") {
+        event.preventDefault();
+        redo();
+      }
+    }
+    window.addEventListener("keydown", handleKeyboardShortcut);
+    return () => window.removeEventListener("keydown", handleKeyboardShortcut);
+  });
 
   function addSection(type: CmsKnownSectionType) {
     const nextDocument = addCmsSection(documentState, type);
@@ -109,6 +152,7 @@ export function BuilderShell({ additionalPages = [], initialDocument, publicPrev
   }
 
   async function persist(operation: "save_draft" | "preview" | "publish") {
+    const submittedDocument = documentState;
     setSaveState({ tone: "idle", message: operation === "publish" ? "Publishing..." : "Saving..." });
 
     try {
@@ -119,7 +163,7 @@ export function BuilderShell({ additionalPages = [], initialDocument, publicPrev
         },
         body: JSON.stringify({
           operation,
-          document: documentState
+          document: submittedDocument
         })
       });
       const result = (await response.json()) as CmsSaveResponse;
@@ -130,17 +174,23 @@ export function BuilderShell({ additionalPages = [], initialDocument, publicPrev
       }
 
       const savedAt = new Date().toISOString();
-      const nextVersion = result.storage?.versionNumber ?? documentState.version + 1;
+      const nextVersion = result.storage?.versionNumber ?? submittedDocument.version + 1;
       const nextDocument: CmsPageDocument = {
-        ...documentState,
+        ...submittedDocument,
         status: operation === "publish" ? "PUBLISHED" : operation === "preview" ? "PREVIEW" : "DRAFT",
         version: nextVersion,
         updatedAt: savedAt,
-        publishedAt: operation === "publish" ? savedAt : documentState.publishedAt
+        publishedAt: operation === "publish" ? savedAt : submittedDocument.publishedAt
       };
 
-      setDocumentState(nextDocument);
-      setHistory((current) =>
+      const currentHistory = editingHistoryRef.current;
+      savedDocumentRef.current = documentSignature(nextDocument);
+      if (currentHistory.present === submittedDocument) {
+        const nextHistory = { ...currentHistory, present: nextDocument };
+        editingHistoryRef.current = nextHistory;
+        setEditingHistory(nextHistory);
+      }
+      setVersionHistory((current) =>
         [
           {
             version: nextVersion,
@@ -151,7 +201,7 @@ export function BuilderShell({ additionalPages = [], initialDocument, publicPrev
           ...current
         ].slice(0, 12)
       );
-      setIsDirty(false);
+      setIsDirty(documentSignature(editingHistoryRef.current.present) !== savedDocumentRef.current);
       setSaveState({ tone: "success", message: result.storage?.message ?? "Saved." });
     } catch (error) {
       setSaveState({ tone: "error", message: error instanceof Error ? error.message : "Could not save CMS document." });
@@ -195,7 +245,7 @@ export function BuilderShell({ additionalPages = [], initialDocument, publicPrev
               <BuilderInspector
                 activeTab={activeTab}
                 document={documentState}
-                history={history}
+                history={versionHistory}
                 onApplySectionPreset={(preset) => commit(applySectionPresetToSection(documentState, selectedSection.id, preset))}
                 onApplyThemePreset={(preset) => commit(applyThemePresetToDocument(documentState, preset))}
                 onDone={() => setSidebarMode("sections")}
@@ -209,12 +259,16 @@ export function BuilderShell({ additionalPages = [], initialDocument, publicPrev
           </div>
         </aside>
         <BuilderTopbar
+          canRedo={editingHistory.future.length > 0}
+          canUndo={editingHistory.past.length > 0}
           device={device}
           document={documentState}
           isDirty={isDirty}
+          onRedo={redo}
           onPreview={() => persist("preview")}
           onPublish={() => persist("publish")}
           onSaveDraft={() => persist("save_draft")}
+          onUndo={undo}
           publicPreviewRoute={publicPreviewRoute}
           saveState={saveState}
           setDevice={setDevice}
@@ -234,4 +288,17 @@ export function BuilderShell({ additionalPages = [], initialDocument, publicPrev
       </div>
     </main>
   );
+}
+
+function documentSignature(document: CmsPageDocument) {
+  return JSON.stringify({
+    id: document.id,
+    entityType: document.entityType,
+    entityId: document.entityId,
+    title: document.title,
+    slug: document.slug,
+    seo: document.seo,
+    themeOverrides: document.themeOverrides,
+    sections: document.sections
+  });
 }

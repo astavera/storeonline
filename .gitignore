@@ -1,9 +1,13 @@
 .next/
+.next-e2e/
+.next-*/
 next-env.d.ts
 node_modules/
 coverage/
 .agents/
 .codex/
+.codex-logs/
+.playwright-cli/
 output/
 playwright-report/
 test-results/

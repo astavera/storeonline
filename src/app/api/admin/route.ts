@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { adminModules } from "@/config/admin-control-plane";
+import { revalidatePath } from "next/cache";
+import { adminModules, externallyManagedAdminModuleIds } from "@/config/admin-control-plane";
 import { buildAdminControlOperation, getAdminControlReadiness, persistAdminControlOperation } from "@/server/admin/admin-control-plane-service";
 import { adminAuthorizationResponse, adminCapabilities, authorizeAdminRequest } from "@/server/admin/admin-security";
 
@@ -11,7 +12,7 @@ export async function GET(request: NextRequest) {
     status: "operable",
     policy: "Admin mutations are validated through declared module fields. Production persistence uses CmsContentVersion when DATABASE_URL is configured.",
     readiness: getAdminControlReadiness(),
-    modules: adminModules.map((module) => ({
+    modules: adminModules.filter((module) => !externallyManagedAdminModuleIds.has(module.id)).map((module) => ({
       id: module.id,
       href: module.href,
       title: module.title,
@@ -45,6 +46,11 @@ export async function POST(request: NextRequest) {
 
     if (!storage.persisted) {
       return NextResponse.json({ ok: false, errors: [storage.message], storage }, { status: 503 });
+    }
+
+    if (operation.module?.id === "homepage" && operation.operation === "publish") {
+      revalidatePath("/", "page");
+      revalidatePath("/admin/homepage", "page");
     }
 
     return NextResponse.json({

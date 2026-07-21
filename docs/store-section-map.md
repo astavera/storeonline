@@ -49,10 +49,10 @@ The source of truth is `src/config/store-section-registry.ts`. Rendered sections
 | Admin | `admin.product-seo` | Product SEO editor | `AdminPageShell` | product override table | SEO title, description, OG, canonical | display service | Website-only SEO |
 | Admin | `admin.product-images` | Product images editor | `AdminPageShell` | image preferences | primary, gallery, alt text | display service | Do not write order back to Square |
 | Admin | `admin.delivery-zones` | Zone editor | `AdminPageShell` | delivery zone tables | polygons, fees | delivery zone service | Backend validation required |
-| Admin | `admin.pickup-slots` | Slot calendar | `AdminPageShell` | slot tables | capacity, cutoffs | slot capacity service | Transaction locks required |
+| Admin | `admin.pickup-slots` | OrderPro handoff | `OrderProManagedPanel` | `ORDERPRO_ADMIN_URL` | none | OrderPro integration | Do not create local slots |
 | Admin | `admin.balloon-builder` | Builder manager | `AdminPageShell` | balloon config | components, add-ons | balloon service | Stock mapping matters |
 | Admin | `admin.product-overrides` | Product override manager | `AdminPageShell` | product override table | SEO, visibility | catalog service | Do not change Square prices |
 | Admin | `admin.image-settings` | Image settings | `AdminPageShell` | image preferences | primary image, order | catalog service | Do not delete Square images |
 | Admin | `admin.media-library` | Media library | `AdminPageShell` | media assets | alt text, usage, visibility | admin audit service | No secret files |
 | Admin | `admin.users-roles` | Users and roles | `AdminPageShell` | admin users | role, location scope, MFA readiness | auth/admin audit services | Critical access control |
-| Admin | `admin.fulfillment-dashboard` | Fulfillment app | `AdminPageShell` | fulfillment tables | statuses by role | fulfillment router | Role-scoped PII |
+| Admin | `admin.fulfillment-dashboard` | OrderPro handoff | `OrderProManagedPanel` | `ORDERPRO_ADMIN_URL` | none | OrderPro integration | Do not duplicate orders or statuses |

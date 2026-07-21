@@ -1,5 +1,5 @@
-import { BalloonsPageTemplate } from "@/components/templates/balloons-page-template";
+import { redirect } from "next/navigation";
 
 export default function NumberLetterBalloonsPage() {
-  return <BalloonsPageTemplate flowSlug="numbers-letters" />;
+  redirect("/balloons?collection=numbers");
 }

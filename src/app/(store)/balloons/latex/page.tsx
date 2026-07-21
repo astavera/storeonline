@@ -1,5 +1,5 @@
-import { BalloonsPageTemplate } from "@/components/templates/balloons-page-template";
+import { redirect } from "next/navigation";
 
 export default function LatexBalloonsPage() {
-  return <BalloonsPageTemplate flowSlug="latex" />;
+  redirect("/balloons?collection=latex");
 }

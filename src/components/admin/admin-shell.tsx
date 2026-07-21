@@ -14,12 +14,13 @@ BUSINESS LOGIC FILES: src/lib/auth/admin-auth.ts, src/server/admin/admin-audit-s
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useState, useSyncExternalStore, type ReactNode } from "react";
 import {
   BarChart3,
   ChevronDown,
   LayoutDashboard,
+  LogOut,
   PencilRuler,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
@@ -54,11 +55,25 @@ const catalogPublishingLinks = [
 
 export function AdminShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
+  const router = useRouter();
   const currentHash = useSyncExternalStore(subscribeToHashChange, readCurrentHash, () => "#overview");
   const [catalogPublishingMenuOpen, setCatalogPublishingMenuOpen] = useState(true);
+  const [isSigningOut, setIsSigningOut] = useState(false);
   const flatLinks: Array<readonly [string, string]> = adminLinkGroups.flatMap((group) => group.links.map(([label, href]) => [label, href] as const));
   const isEditorPath = pathname?.startsWith("/admin/homepage") ?? false;
   const isCatalogPublishingPath = pathname?.startsWith("/admin/product-placement") ?? false;
+
+  if (pathname === "/admin/login") return children;
+
+  async function signOut() {
+    setIsSigningOut(true);
+    try {
+      await fetch("/api/admin/auth/logout", { method: "POST" });
+    } finally {
+      router.replace("/admin/login");
+      router.refresh();
+    }
+  }
 
   return (
     <div
@@ -191,6 +206,12 @@ export function AdminShell({ children }: { children: ReactNode }) {
                 </div>
               ))}
         </nav>
+        {!isEditorPath ? (
+          <button className="mt-8 hidden min-h-10 w-full items-center justify-center rounded-md border border-border px-3 text-sm font-semibold text-secondary transition hover:bg-surface-muted hover:text-primary lg:inline-flex" disabled={isSigningOut} onClick={signOut} type="button">
+            <LogOut aria-hidden="true" className="mr-2" size={16} />
+            {isSigningOut ? "Signing out..." : "Sign out"}
+          </button>
+        ) : null}
       </aside>
       <div className="lg:min-h-0 lg:overflow-y-auto lg:overflow-x-hidden">{children}</div>
     </div>

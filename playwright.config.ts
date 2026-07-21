@@ -1,5 +1,8 @@
 import { defineConfig, devices } from "@playwright/test";
 
+const e2ePort = Number.parseInt(process.env.PLAYWRIGHT_PORT ?? "3100", 10);
+const e2eBaseUrl = `http://127.0.0.1:${e2ePort}`;
+
 export default defineConfig({
   testDir: "./src/tests/e2e",
   outputDir: "./.playwright-results",
@@ -9,7 +12,7 @@ export default defineConfig({
   workers: process.env.CI ? 1 : 2,
   reporter: process.env.CI ? [["line"], ["html", { open: "never" }]] : "list",
   use: {
-    baseURL: "http://127.0.0.1:3000",
+    baseURL: e2eBaseUrl,
     screenshot: "only-on-failure",
     trace: "on-first-retry",
     video: "retain-on-failure"
@@ -27,15 +30,16 @@ export default defineConfig({
   webServer: {
     // Webpack avoids a nondeterministic Turbopack task-graph panic that can
     // prevent the test server from starting after a production build.
-    command: "npm run dev -- --webpack --hostname 127.0.0.1 --port 3000",
-    url: "http://127.0.0.1:3000",
-    reuseExistingServer: !process.env.CI,
+    command: `npm run dev -- --webpack --hostname 127.0.0.1 --port ${e2ePort}`,
+    url: e2eBaseUrl,
+    reuseExistingServer: false,
     timeout: 120000,
     env: {
       DATABASE_URL: "",
       DIRECT_URL: "",
       ALLOW_LOCAL_PERSISTENCE_FALLBACK: "true",
-      E2E_CATALOG_FIXTURE: "true"
+      E2E_CATALOG_FIXTURE: "true",
+      NEXT_DIST_DIR: ".next-e2e"
     }
   }
 });

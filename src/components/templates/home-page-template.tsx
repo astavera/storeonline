@@ -101,8 +101,14 @@ function HeroSection({ section }: { section: HomepageSectionConfig }) {
   const heroImage = isBackToSchoolHero ? section.backgroundImage : section.backgroundImage || defaultHomepageImage;
   const showPrimaryCta = isSectionElementVisible(section, "primaryCta") && Boolean(section.ctaHref);
   const showSecondaryCta = isSectionElementVisible(section, "secondaryCta");
-  const secondaryCtaHref = isBackToSchoolHero ? "/stationery" : "/balloons";
-  const secondaryCtaLabel = isBackToSchoolHero ? "Build a School Kit" : "Balloon order";
+  const secondaryCtaHref = section.secondaryCtaHref || (isBackToSchoolHero ? "/stationery" : "/balloons");
+  const secondaryCtaLabel = section.secondaryCtaLabel || (isBackToSchoolHero ? "Build a School Kit" : "Balloon order");
+  const heroSizeClasses = {
+    compact: "min-h-[680px] py-10 lg:min-h-[720px] lg:py-12",
+    standard: "min-h-[calc(100svh-106px)] py-12 lg:min-h-[calc(100svh-106px)] lg:py-16",
+    large: "min-h-[calc(108svh-106px)] py-12 lg:min-h-[calc(116svh-106px)] lg:py-16",
+    fullscreen: "min-h-[100svh] py-12 lg:min-h-[100svh] lg:py-16"
+  } as const;
 
   return (
     <SectionFrame
@@ -114,7 +120,7 @@ function HeroSection({ section }: { section: HomepageSectionConfig }) {
     >
       {heroImage ? <div aria-hidden="true" className="homepage-hero-bg" style={{ backgroundImage: `url(${heroImage})` }} /> : null}
       {isBackToSchoolHero && !heroImage ? <BackToSchoolHeroBackdrop /> : null}
-      <div className="container-shell relative z-10 flex min-h-[calc(108svh-106px)] flex-col justify-center gap-8 py-12 lg:min-h-[calc(116svh-106px)] lg:py-16">
+      <div className={cn("container-shell relative z-10 flex flex-col justify-center gap-8", heroSizeClasses[section.heroSize ?? "large"])}>
         <div className="homepage-hero-copy mx-auto max-w-5xl text-center">
           {isSectionElementVisible(section, "eyebrow") && section.eyebrow ? <p className="inline-flex rounded-pill bg-yellow px-4 py-2 text-xs font-black uppercase tracking-[0.14em] text-primary">{section.eyebrow}</p> : null}
           {isSectionElementVisible(section, "title") && section.title ? <h1 className={cn("mx-auto mt-5 max-w-5xl font-display text-5xl font-black uppercase text-white drop-shadow md:text-7xl", isBackToSchoolHero ? "leading-[0.86] xl:text-[6.5rem]" : "leading-[0.94] xl:text-8xl")}>{section.title}</h1> : null}
@@ -168,19 +174,39 @@ function HeroCategoryTiles({ campaign = false, items }: { campaign?: boolean; it
     { id: "balloons", title: "Balloons", href: "/balloons", image: "/images/category-balloons.svg" },
     { id: "gifts", title: "Gifts", href: "/gifts", image: "/images/category-gifts.svg" }
   ];
-  const tiles = items && items.length > 0 ? items : defaultTiles;
-  const tones = campaign ? ["bg-yellow text-primary", "bg-cyan text-primary", "bg-green text-primary", "bg-red text-white"] : ["bg-yellow text-primary", "bg-cyan text-primary", "bg-green text-primary", "bg-red text-white"];
+  const tiles = (items && items.length > 0 ? items : defaultTiles).slice(0, 4);
+  const tones = ["bg-yellow text-primary", "bg-cyan text-primary", "bg-green text-primary", "bg-red text-white"];
+  const toneClasses = {
+    yellow: "bg-yellow text-primary",
+    cyan: "bg-cyan text-primary",
+    green: "bg-green text-primary",
+    red: "bg-red text-white",
+    white: "bg-white text-primary"
+  } as const;
 
   return (
     <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
-      {tiles.map((tile, index) => (
-        <Link className={cn("group rounded-md p-4 transition hover:-translate-y-1 hover:shadow-card", campaign ? "min-h-[142px] text-left" : "text-center", tile.label === "Brand" && tile.image ? "bg-white text-primary" : tones[index % tones.length])} href={tile.href || "/shop"} key={tile.id}>
-          {tile.image ? <Image alt={tile.imageAlt || `${tile.title} logo`} className="mx-auto aspect-[4/3] h-20 w-full rounded bg-white object-contain p-2 transition group-hover:scale-[1.04]" height={80} src={tile.image} unoptimized width={240} /> : null}
-          {tile.label ? <span className="block text-[11px] font-black uppercase tracking-[0.14em]">{tile.label}</span> : null}
-          <span className={cn("block font-black", campaign ? "mt-3 text-xl leading-none" : "mt-3 text-sm")}>{tile.title}</span>
-          {tile.body ? <span className="mt-3 block text-xs font-extrabold leading-snug">{tile.body}</span> : null}
-        </Link>
-      ))}
+      {tiles.map((tile, index) => {
+        const isCutout = tile.presentation === "cutout" && Boolean(tile.image);
+
+        if (isCutout) {
+          return (
+            <Link className={cn("group flex items-center justify-center rounded-md p-2 transition hover:-translate-y-1", campaign && "min-h-[142px]")} data-card-presentation="cutout" href={tile.href || "/shop"} key={tile.id}>
+              <span className="sr-only">{tile.title}</span>
+              <Image alt="" aria-hidden="true" className="h-36 w-full object-contain drop-shadow-[0_14px_18px_rgba(15,23,42,0.28)] transition duration-200 group-hover:scale-[1.06]" height={144} src={tile.image!} unoptimized width={260} />
+            </Link>
+          );
+        }
+
+        return (
+          <Link className={cn("group rounded-md p-4 transition hover:-translate-y-1 hover:shadow-card", campaign ? "min-h-[142px] text-left" : "text-center", tile.tone ? toneClasses[tile.tone] : tones[index % tones.length])} data-card-presentation="card" href={tile.href || "/shop"} key={tile.id}>
+            {tile.image ? <Image alt={tile.imageAlt || `${tile.title} logo`} className="mx-auto aspect-[4/3] h-20 w-full rounded bg-white object-contain p-2 transition group-hover:scale-[1.04]" height={80} src={tile.image} unoptimized width={240} /> : null}
+            {tile.label ? <span className="block text-[11px] font-black uppercase tracking-[0.14em]">{tile.label}</span> : null}
+            <span className={cn("block font-black", campaign ? "mt-3 text-xl leading-none" : "mt-3 text-sm")}>{tile.title}</span>
+            {tile.body ? <span className="mt-3 block text-xs font-extrabold leading-snug">{tile.body}</span> : null}
+          </Link>
+        );
+      })}
     </div>
   );
 }

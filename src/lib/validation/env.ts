@@ -16,8 +16,11 @@ const envSchema = z.object({
   MAPBOX_ACCESS_TOKEN: z.string().optional(),
   SENTRY_DSN: z.string().optional(),
   ADMIN_SESSION_SECRET: z.preprocess((value) => value === "" ? undefined : value, z.string().min(32).optional()),
+  ADMIN_LOGIN_EMAIL: z.preprocess((value) => value === "" ? undefined : value, z.string().email().optional()),
+  ADMIN_PASSWORD_HASH: z.preprocess((value) => value === "" ? undefined : value, z.string().startsWith("scrypt-v1$").optional()),
   ADMIN_ALLOWED_ORIGINS: z.string().optional(),
   ADMIN_DEV_BYPASS: z.enum(["true", "false"]).default("false"),
+  ORDERPRO_ADMIN_URL: z.preprocess((value) => value === "" ? undefined : value, z.string().url().optional()),
   ALLOW_LOCAL_PERSISTENCE_FALLBACK: z.enum(["true", "false"]).default("false")
 });
 

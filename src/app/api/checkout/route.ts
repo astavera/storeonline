@@ -7,11 +7,32 @@ import {
 } from "@/server/checkout/checkout-attempt-repository";
 import { quoteCartFromOperationalCatalog } from "@/server/checkout/cart-service";
 import { PersistenceUnavailableError } from "@/server/db/persistence-policy";
+import { validateOrderProLocalDeliverySelection } from "@/server/orderpro/orderpro-local-delivery-service";
+import { validateOrderProPickupSelection } from "@/server/orderpro/orderpro-pickup-slot-service";
 
 const checkoutRequestSchema = z.object({
   items: z.array(z.object({ squareVariationId: z.string().min(1), quantity: z.number().int().positive().max(99) })).max(50),
   fulfillmentMode: z.enum(["pickup", "local-delivery", "shipping"]),
   locationId: z.string().trim().min(1).max(160),
+  localDelivery: z.object({
+    quoteId: z.string().trim().min(8).max(200),
+    slotId: z.string().trim().min(8).max(200),
+    feeCents: z.number().int().nonnegative(),
+    requestedDate: z.string().date(),
+    address: z.object({
+      line1: z.string().trim().min(5).max(160),
+      line2: z.string().trim().max(80).optional(),
+      city: z.string().trim().min(2).max(80),
+      state: z.string().trim().length(2),
+      postalCode: z.string().trim().regex(/^\d{5}$/),
+      country: z.literal("US")
+    })
+  }).optional(),
+  pickup: z.object({
+    requestedDate: z.string().date(),
+    slotId: z.string().trim().min(3).max(80),
+    slotLabel: z.string().trim().min(3).max(80)
+  }).optional(),
   customer: z.object({
     name: z.string().min(2),
     email: z.string().email(),
@@ -29,6 +50,30 @@ export async function POST(request: NextRequest) {
 
     const quote = await quoteCartFromOperationalCatalog({ items: parsed.items, locationId: parsed.locationId });
     const errors = [...quote.errors];
+    if (parsed.fulfillmentMode === "local-delivery" && !parsed.localDelivery) {
+      errors.push("A validated local delivery quote and slot are required.");
+    }
+    if (parsed.fulfillmentMode === "local-delivery" && parsed.localDelivery) {
+      const validation = await validateOrderProLocalDeliverySelection({
+        ...parsed.localDelivery,
+        locationId: parsed.locationId
+      });
+      if (!validation.valid) errors.push(validation.message);
+    }
+    if (parsed.fulfillmentMode !== "local-delivery" && parsed.localDelivery) {
+      errors.push("Local delivery details are not valid for the selected fulfillment method.");
+    }
+    if (parsed.fulfillmentMode !== "pickup" && parsed.pickup) {
+      errors.push("Pickup schedule details are not valid for the selected fulfillment method.");
+    }
+    if (parsed.fulfillmentMode === "pickup" && parsed.pickup) {
+      const validation = await validateOrderProPickupSelection({
+        locationId: parsed.locationId,
+        requestedDate: parsed.pickup.requestedDate,
+        slotId: parsed.pickup.slotId
+      });
+      if (!validation.valid) errors.push(validation.message);
+    }
     if (!quote.compatibleFulfillmentModes.includes(parsed.fulfillmentMode)) {
       errors.push("Selected fulfillment method is not available for this cart.");
     }

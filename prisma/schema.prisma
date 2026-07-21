@@ -744,6 +744,9 @@ model DeliveryZoneVersion {
   serviceMode        String
   baseFeeCents       Int
   minimumOrderCents  Int
+  maxDistanceMiles   Decimal?
+  maxRouteMinutes    Int?
+  priority           Int                 @default(0)
   activeDays         String[]
   cutoffMinutes      Int
   leadTimeMinutes    Int

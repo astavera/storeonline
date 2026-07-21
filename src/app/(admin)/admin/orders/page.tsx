@@ -1,5 +1,5 @@
-import { AdminPageShell } from "@/components/admin/admin-page-shell";
+import { OrderProManagedPanel } from "@/components/admin/orderpro-managed-panel";
 
 export default function AdminOrdersPage() {
-  return <AdminPageShell description="Order mirrors, payment status, fulfillment groups, and safe customer service context." sectionId="admin.fulfillment-dashboard" title="Orders" />;
+  return <OrderProManagedPanel description="Orders, payment status and customer-service workflow stay in the operational source of truth." title="Orders" />;
 }

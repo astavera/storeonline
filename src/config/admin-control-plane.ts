@@ -102,6 +102,7 @@ export const adminModules: AdminModule[] = [
       ...contentFields,
       { name: "sectionOrder", label: "Section order", type: "list", helpText: "Ordered section IDs for the homepage.", defaultValue: ["home.hero", "home.departments", "home.featured-products"] },
       { name: "visualSections", label: "Visual sections JSON", type: "json", helpText: "Full homepage visual editor state for sections, images, layout, visibility, and positions.", defaultValue: "[]" },
+      { name: "headerNavigation", label: "Header navigation JSON", type: "json", helpText: "Homepage header navigation labels, links, visibility, and order.", defaultValue: "{}" },
       { name: "photoPresets", label: "Photo presets JSON", type: "json", helpText: "Editable visual editor photo preset library.", defaultValue: "[]" },
       { name: "seoMetadata", label: "SEO metadata JSON", type: "json", helpText: "Homepage SEO title, description, Open Graph image, and canonical URL.", defaultValue: "{}" },
       { name: "changeSummary", label: "Change summary", type: "textarea", helpText: "Internal note saved with this homepage draft or publication.", defaultValue: "" },
@@ -569,7 +570,10 @@ export const adminModules: AdminModule[] = [
   }
 ];
 
+export const externallyManagedAdminModuleIds = new Set(["orders", "fulfillment", "slots"]);
+
 export function getAdminModuleById(id: string) {
+  if (externallyManagedAdminModuleIds.has(id)) return undefined;
   return adminModules.find((module) => module.id === id);
 }
 

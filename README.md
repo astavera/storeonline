@@ -81,6 +81,6 @@ GitHub Actions repeats these checks on Node 24 and tests Playwright against the 
 - [Deployment](docs/deployment.md)
 - [Security](docs/security.md)
 
-Admin routes have fail-closed containment, origin checks, RBAC, and shared rate
-limiting, but no production identity issuer has been selected. Do not expose
-`/admin` or `/api/admin/*` to untrusted users until that identity layer is configured.
+Admin routes have a fail-closed credential login, signed secure sessions, origin
+checks, capabilities, and shared rate limiting. Configure `ADMIN_LOGIN_EMAIL`,
+`ADMIN_PASSWORD_HASH`, and `ADMIN_SESSION_SECRET` before exposing `/admin`.

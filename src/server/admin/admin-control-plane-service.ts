@@ -140,7 +140,19 @@ export async function persistAdminControlOperation(result: AdminControlResult): 
     };
   }
 
-  const persistence = requireDatabaseOrDevelopmentFallback("Admin CMS");
+  let persistence: ReturnType<typeof requireDatabaseOrDevelopmentFallback>;
+  try {
+    persistence = requireDatabaseOrDevelopmentFallback("Admin CMS");
+  } catch (error) {
+    const persistenceError = error instanceof PersistenceUnavailableError
+      ? error
+      : new PersistenceUnavailableError("Admin CMS", { cause: error });
+    return {
+      mode: "validated-only",
+      persisted: false,
+      message: persistenceError.message
+    };
+  }
 
   if (persistence === "database") {
     try {

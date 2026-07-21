@@ -67,12 +67,25 @@ describe("website merchandising store", () => {
     ).toBeNull();
   });
 
-  it("accepts two category levels and rejects a third level", () => {
+  it("accepts four category levels and rejects a fifth level", () => {
+    const category = (id: string, parentId: string | null) => ({ id, name: id, slug: id, description: "", parentId, visible: true, sortOrder: 0 });
+    const base = { version: 3, updatedAt: "2026-07-13T15:00:00.000Z", brands: [], holidays: [], placements: [] };
+    const fourLevels = [
+      category("toys", null),
+      category("games", "toys"),
+      category("board-games", "games"),
+      category("strategy-games", "board-games")
+    ];
+
+    expect(parseWebsiteMerchandising({ ...base, categories: fourLevels })?.categories).toHaveLength(4);
+    expect(parseWebsiteMerchandising({ ...base, categories: [...fourLevels, category("cooperative-games", "strategy-games")] })).toBeNull();
+  });
+
+  it("rejects circular category relationships", () => {
     const category = (id: string, parentId: string | null) => ({ id, name: id, slug: id, description: "", parentId, visible: true, sortOrder: 0 });
     const base = { version: 3, updatedAt: "2026-07-13T15:00:00.000Z", brands: [], holidays: [], placements: [] };
 
-    expect(parseWebsiteMerchandising({ ...base, categories: [category("toys", null), category("games", "toys")] })?.categories).toHaveLength(2);
-    expect(parseWebsiteMerchandising({ ...base, categories: [category("toys", null), category("games", "toys"), category("board-games", "games")] })).toBeNull();
+    expect(parseWebsiteMerchandising({ ...base, categories: [category("games", "puzzles"), category("puzzles", "games")] })).toBeNull();
   });
 
   it("keeps product holiday dates inside the campaign window", () => {

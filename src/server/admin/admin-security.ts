@@ -53,7 +53,7 @@ export async function authorizeAdminRequest(
 
 export function adminAuthorizationResponse(result: Exclude<AdminAuthorizationResult, { ok: true }>) {
   return NextResponse.json(
-    { ok: false, error: result.code, message: result.message },
+    { ok: false, error: result.code, message: result.message, errors: [result.message] },
     { status: result.status, headers: { "Cache-Control": "private, no-store" } }
   );
 }

@@ -5,6 +5,12 @@ export const metadata = {
   description: "Order balloons for pickup or local delivery through a guided Modern State balloon flow."
 };
 
-export default function BalloonsPage() {
-  return <BalloonsPageTemplate />;
+type BalloonsPageProps = {
+  searchParams?: Promise<Record<string, string | string[] | undefined>>;
+};
+
+export default async function BalloonsPage({ searchParams }: BalloonsPageProps) {
+  const params = await searchParams;
+  const collection = Array.isArray(params?.collection) ? params.collection[0] : params?.collection;
+  return <BalloonsPageTemplate initialCollection={collection} />;
 }

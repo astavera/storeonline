@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { storefrontEditablePages, type StorefrontEditablePage } from "@/config/storefront-pages.config";
 import type { CmsScope } from "@/lib/cms";
@@ -20,6 +20,7 @@ export function StorefrontPageSwitcher({
   onBeforeNavigate?: (href: string) => boolean;
 }) {
   const router = useRouter();
+  const [isPending, startTransition] = useTransition();
   const pages = useMemo(() => {
     const uniquePages = new Map<string, StorefrontEditablePage>();
 
@@ -44,15 +45,17 @@ export function StorefrontPageSwitcher({
       return;
     }
 
-    router.push(href);
+    startTransition(() => router.push(href));
   }
 
   return (
     <label className={cn("block", className)}>
-      <span className="mb-2 block text-xs font-semibold uppercase tracking-[0.12em] text-secondary">Page</span>
+      <span className="mb-2 block text-xs font-semibold uppercase tracking-[0.12em] text-secondary">{isPending ? "Loading page..." : "Page"}</span>
       <select
         aria-label="Page"
+        aria-busy={isPending}
         className="h-12 w-full rounded-md border border-border bg-surface px-3 text-sm font-semibold outline-none transition focus:border-primary"
+        disabled={isPending}
         onChange={(event) => navigate(event.currentTarget.value)}
         value={currentValue}
       >

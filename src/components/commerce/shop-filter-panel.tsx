@@ -29,6 +29,7 @@ type ShopFilterPanelProps = {
   selectedAge?: ProductAgeGroup;
   selectedBrand?: string;
   selectedCategory?: string;
+  selectedCollection?: string;
   selectedFulfillment?: FulfillmentMode;
   selectedSort: string;
 };
@@ -40,7 +41,7 @@ const fulfillmentOptions: Array<{ id: FulfillmentMode; label: string }> = [
 ];
 
 export function ShopFilterPanel(props: ShopFilterPanelProps) {
-  const activeCount = [props.selectedCategory, props.selectedBrand, props.selectedAge, props.selectedFulfillment].filter(Boolean).length;
+  const activeCount = [props.selectedCollection, props.selectedCategory, props.selectedBrand, props.selectedAge, props.selectedFulfillment].filter(Boolean).length;
 
   return (
     <aside className="lg:sticky lg:top-[120px] lg:self-start">
@@ -63,12 +64,12 @@ export function ShopFilterPanel(props: ShopFilterPanelProps) {
   );
 }
 
-function FilterGroups({ ageCounts, brands, categories, fulfillmentCounts, selectedAge, selectedBrand, selectedCategory, selectedFulfillment, selectedSort }: ShopFilterPanelProps) {
+function FilterGroups({ ageCounts, brands, categories, fulfillmentCounts, selectedAge, selectedBrand, selectedCategory, selectedCollection, selectedFulfillment, selectedSort }: ShopFilterPanelProps) {
   const selectedCategoryRecord = categories.find((category) => category.slug === selectedCategory);
   const selectedBrandRecord = brands.find((brand) => brand.slug === selectedBrand);
   const selectedAgeRecord = productAgeGroups.find((age) => age.id === selectedAge);
   const selectedFulfillmentRecord = fulfillmentOptions.find((mode) => mode.id === selectedFulfillment);
-  const shared = { age: selectedAge, brand: selectedBrand, category: selectedCategory, fulfillment: selectedFulfillment, sort: selectedSort };
+  const shared = { age: selectedAge, brand: selectedBrand, category: selectedCategory, collection: selectedCollection, fulfillment: selectedFulfillment, sort: selectedSort };
 
   return (
     <>
@@ -98,31 +99,76 @@ function FilterGroups({ ageCounts, brands, categories, fulfillmentCounts, select
 function CategoryTree({ categories, selectedCategory, shared }: { categories: ShopCategoryFilter[]; selectedCategory?: string; shared: ShopHrefInput }) {
   const [query, setQuery] = useState("");
   const normalizedQuery = query.trim().toLowerCase();
-  const roots = useMemo(() => categories.filter((category) => !category.parentId).filter((root) => !normalizedQuery || root.name.toLowerCase().includes(normalizedQuery) || categories.some((category) => category.parentId === root.id && category.name.toLowerCase().includes(normalizedQuery))), [categories, normalizedQuery]);
+  const { categoryById, childrenByParentId } = useMemo(() => {
+    const categoryMap = new Map(categories.map((category) => [category.id, category]));
+    const childrenMap = new Map<string | null, ShopCategoryFilter[]>();
+    for (const category of categories) {
+      const children = childrenMap.get(category.parentId) ?? [];
+      children.push(category);
+      childrenMap.set(category.parentId, children);
+    }
+    return { categoryById: categoryMap, childrenByParentId: childrenMap };
+  }, [categories]);
+  const visibleCategoryIds = useMemo(() => {
+    if (!normalizedQuery) return null;
+    const visibleIds = new Set<string>();
+    for (const category of categories) {
+      if (!category.name.toLowerCase().includes(normalizedQuery)) continue;
+      let current: ShopCategoryFilter | undefined = category;
+      const visited = new Set<string>();
+      while (current && !visited.has(current.id)) {
+        visited.add(current.id);
+        visibleIds.add(current.id);
+        current = current.parentId ? categoryById.get(current.parentId) : undefined;
+      }
+    }
+    return visibleIds;
+  }, [categories, categoryById, normalizedQuery]);
+  const selectedPathIds = useMemo(() => {
+    const pathIds = new Set<string>();
+    let current = categories.find((category) => category.slug === selectedCategory);
+    while (current && !pathIds.has(current.id)) {
+      pathIds.add(current.id);
+      current = current.parentId ? categoryById.get(current.parentId) : undefined;
+    }
+    return pathIds;
+  }, [categories, categoryById, selectedCategory]);
+  const roots = (childrenByParentId.get(null) ?? []).filter((root) => !visibleCategoryIds || visibleCategoryIds.has(root.id));
 
   return (
     <div className="grid gap-2">
       <label className="flex min-h-10 items-center gap-2 border-b border-border focus-within:border-primary"><Search aria-hidden="true" className="text-secondary" size={15} /><span className="sr-only">Search categories</span><input className="min-w-0 flex-1 bg-transparent py-2 text-sm outline-none" onChange={(event) => setQuery(event.target.value)} placeholder="Search categories" type="search" value={query} /></label>
       <FilterLink active={!selectedCategory} href={shopHref({ ...shared, category: undefined })}>All products</FilterLink>
       <div className="grid">
-        {roots.map((root) => {
-          const children = categories.filter((category) => category.parentId === root.id).filter((category) => !normalizedQuery || category.name.toLowerCase().includes(normalizedQuery));
-          const rootActive = selectedCategory === root.slug;
-          if (!children.length) return <FilterLink active={rootActive} count={root.productCount} href={shopHref({ ...shared, category: root.slug })} key={root.id}>{root.name}</FilterLink>;
-          const selectedInBranch = rootActive || children.some((category) => category.slug === selectedCategory);
-          return (
-            <details className="group/category" key={root.id} open={normalizedQuery || selectedInBranch ? true : undefined}>
-              <summary className="flex min-h-10 cursor-pointer list-none items-center justify-between gap-2 py-2 text-sm font-medium [&::-webkit-details-marker]:hidden"><span className={selectedInBranch ? "text-blue" : "text-primary"}>{root.name}</span><span className="flex items-center gap-2 text-xs text-secondary">({root.productCount.toLocaleString()})<ChevronDown className="transition-transform group-open/category:rotate-180" size={14} /></span></summary>
-              <div className="grid border-l border-border pb-2 pl-3">
-                <FilterLink active={rootActive} count={root.productCount} href={shopHref({ ...shared, category: root.slug })}>All {root.name}</FilterLink>
-                {children.map((category) => <FilterLink active={selectedCategory === category.slug} count={category.productCount} href={shopHref({ ...shared, category: category.slug })} key={category.id}>{category.name}</FilterLink>)}
-              </div>
-            </details>
-          );
-        })}
+        {roots.map((root) => <CategoryBranch category={root} childrenByParentId={childrenByParentId} key={root.id} normalizedQuery={normalizedQuery} selectedCategory={selectedCategory} selectedPathIds={selectedPathIds} shared={shared} visibleCategoryIds={visibleCategoryIds} />)}
         {roots.length === 0 ? <p className="rounded-md border border-dashed border-border p-3 text-sm text-secondary">No categories found.</p> : null}
       </div>
     </div>
+  );
+}
+
+function CategoryBranch({ category, childrenByParentId, normalizedQuery, selectedCategory, selectedPathIds, shared, visibleCategoryIds }: {
+  category: ShopCategoryFilter;
+  childrenByParentId: Map<string | null, ShopCategoryFilter[]>;
+  normalizedQuery: string;
+  selectedCategory?: string;
+  selectedPathIds: Set<string>;
+  shared: ShopHrefInput;
+  visibleCategoryIds: Set<string> | null;
+}) {
+  const children = (childrenByParentId.get(category.id) ?? []).filter((child) => !visibleCategoryIds || visibleCategoryIds.has(child.id));
+  const active = selectedCategory === category.slug;
+  if (children.length === 0) return <FilterLink active={active} count={category.productCount} href={shopHref({ ...shared, category: category.slug })}>{category.name}</FilterLink>;
+
+  const selectedInBranch = selectedPathIds.has(category.id);
+  return (
+    <details className="group/category" open={normalizedQuery || selectedInBranch ? true : undefined}>
+      <summary className="flex min-h-10 cursor-pointer list-none items-center justify-between gap-2 py-2 text-sm font-medium [&::-webkit-details-marker]:hidden"><span className={selectedInBranch ? "text-blue" : "text-primary"}>{category.name}</span><span className="flex items-center gap-2 text-xs text-secondary">({category.productCount.toLocaleString()})<ChevronDown className="transition-transform group-open/category:rotate-180" size={14} /></span></summary>
+      <div className="grid border-l border-border pb-2 pl-3">
+        <FilterLink active={active} count={category.productCount} href={shopHref({ ...shared, category: category.slug })}>All {category.name}</FilterLink>
+        {children.map((child) => <CategoryBranch category={child} childrenByParentId={childrenByParentId} key={child.id} normalizedQuery={normalizedQuery} selectedCategory={selectedCategory} selectedPathIds={selectedPathIds} shared={shared} visibleCategoryIds={visibleCategoryIds} />)}
+      </div>
+    </details>
   );
 }
 
@@ -163,6 +209,7 @@ type ShopHrefInput = {
   age?: ProductAgeGroup;
   brand?: string;
   category?: string;
+  collection?: string;
   fulfillment?: FulfillmentMode;
   sort?: string;
 };
@@ -170,6 +217,7 @@ type ShopHrefInput = {
 function shopHref(input: ShopHrefInput) {
   const params = new URLSearchParams();
   if (input.category) params.set("department", input.category);
+  if (input.collection) params.set("collection", input.collection);
   if (input.brand) params.set("brand", input.brand);
   if (input.age) params.set("age", input.age);
   if (input.fulfillment) params.set("fulfillment", input.fulfillment);

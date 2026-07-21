@@ -14,23 +14,45 @@ export default async function AdminHomepagePage({ searchParams }: { searchParams
   const params = await searchParams;
   const scope = params?.scope ? normalizeCmsScope(params.scope) : null;
   const id = params?.id;
-  const merchandising = await readWebsiteMerchandisingSnapshot();
-  const additionalPages = websiteHolidayEditorPages(merchandising.holidays);
+  const merchandisingPromise = readWebsiteMerchandisingSnapshot();
 
   if (scope && id) {
-    const editablePage = [...storefrontEditablePages, ...additionalPages].find((page) => page.scope === scope && page.entityId === id);
+    const staticPage = storefrontEditablePages.find((page) => page.scope === scope && page.entityId === id);
+    const staticFallback = staticPage ? createStorefrontEditorFallbackDocument({ editablePage: staticPage, entityId: id, scope }) : null;
+    const [merchandising, staticStoredDocument] = await Promise.all([
+      merchandisingPromise,
+      staticFallback
+        ? readLatestCmsDocument({ entityType: staticFallback.entityType, entityId: staticFallback.entityId, statuses: ["DRAFT", "PREVIEW", "PUBLISHED"] })
+        : Promise.resolve(null)
+    ]);
+    const additionalPages = websiteHolidayEditorPages(merchandising.holidays);
+    const editablePage = staticPage ?? additionalPages.find((page) => page.scope === scope && page.entityId === id);
     const fallbackDocument = createStorefrontEditorFallbackDocument({ editablePage, entityId: id, scope });
-    const storedDocument = await readLatestCmsDocument({
-      entityType: fallbackDocument.entityType,
-      entityId: fallbackDocument.entityId,
-      statuses: ["DRAFT", "PREVIEW", "PUBLISHED"]
-    });
+    const storedDocument = staticFallback
+      ? staticStoredDocument
+      : await readLatestCmsDocument({ entityType: fallbackDocument.entityType, entityId: fallbackDocument.entityId, statuses: ["DRAFT", "PREVIEW", "PUBLISHED"] });
     const document = shouldUseStorefrontEditorFallbackDocument({ document: storedDocument, editablePage }) ? fallbackDocument : storedDocument ?? fallbackDocument;
 
     return <BuilderShell additionalPages={additionalPages} initialDocument={document} key={`${scope}:${document.entityId}`} publicPreviewRoute={editablePage?.route} scope={scope} />;
   }
 
-  const [homepageState, storefrontContent] = await Promise.all([getHomepageEditorState(), resolveHomepageStorefrontContent()]);
+  const [merchandising, homepageState, storefrontContent] = await Promise.all([merchandisingPromise, getHomepageEditorState(), resolveHomepageStorefrontContent()]);
+  const additionalPages = websiteHolidayEditorPages(merchandising.holidays);
+  const itemLinkOptions = Array.from(
+    new Map(
+      [
+        ...storefrontContent.itemLinkOptions,
+        ...additionalPages.map((page) => ({
+          type: "page" as const,
+          value: page.route,
+          label: page.title,
+          href: page.route,
+          title: page.title,
+          body: page.description
+        }))
+      ].map((option) => [`${option.type}:${option.value}`, option])
+    ).values()
+  );
   const linkedProductSlugs = new Set(homepageState.sections.flatMap((section) => section.items ?? []).map((item) => item.productSlug).filter((slug): slug is string => Boolean(slug)));
   const previewProducts = storefrontContent.products.filter((product, index) => index < 4 || linkedProductSlugs.has(product.slug));
 
@@ -42,7 +64,7 @@ export default async function AdminHomepagePage({ searchParams }: { searchParams
       initialSections={homepageState.sections}
       initialSeo={homepageState.seo}
       initialVersions={homepageState.versions}
-      previewFeaturedBrandItems={storefrontContent.featuredBrandItems}
+      itemLinkOptions={itemLinkOptions}
       previewProducts={previewProducts}
     />
   );

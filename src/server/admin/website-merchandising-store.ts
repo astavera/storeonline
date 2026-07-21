@@ -9,6 +9,7 @@ import {
   type WebsiteBulkEdit
 } from "@/features/catalog/services/bulk-merchandising-service";
 import {
+  MAX_WEBSITE_CATEGORY_DEPTH,
   createDefaultWebsiteMerchandising,
   reconcileWebsiteMerchandising,
   websitePlacementReadinessIssues,
@@ -99,12 +100,28 @@ const websiteMerchandisingSchema = z
 
     const categoryById = new Map(value.categories.map((category) => [category.id, category]));
     for (const [index, category] of value.categories.entries()) {
-      if (!category.parentId) continue;
-      const parent = categoryById.get(category.parentId);
-      if (!parent) {
-        context.addIssue({ code: "custom", message: "Subcategories must reference an existing main category.", path: ["categories", index, "parentId"] });
-      } else if (parent.parentId) {
-        context.addIssue({ code: "custom", message: "Website categories support two levels only.", path: ["categories", index, "parentId"] });
+      const visited = new Set([category.id]);
+      let current = category;
+      let depth = 1;
+
+      while (current.parentId) {
+        const parent = categoryById.get(current.parentId);
+        if (!parent) {
+          context.addIssue({ code: "custom", message: "Subcategories must reference an existing website category.", path: ["categories", index, "parentId"] });
+          break;
+        }
+        if (visited.has(parent.id)) {
+          context.addIssue({ code: "custom", message: "Website categories cannot contain circular parent relationships.", path: ["categories", index, "parentId"] });
+          break;
+        }
+
+        visited.add(parent.id);
+        depth += 1;
+        if (depth > MAX_WEBSITE_CATEGORY_DEPTH) {
+          context.addIssue({ code: "custom", message: `Website categories support up to ${MAX_WEBSITE_CATEGORY_DEPTH} levels.`, path: ["categories", index, "parentId"] });
+          break;
+        }
+        current = parent;
       }
     }
 

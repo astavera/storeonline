@@ -12,18 +12,22 @@ BUSINESS LOGIC FILES: src/features/balloons/services/balloon-builder-service.ts,
 */
 
 import { notFound } from "next/navigation";
+import { BalloonsLandingExperience } from "@/components/balloons/balloons-landing-experience";
 import { StorefrontCmsPage } from "@/components/cms/storefront-cms-page";
+import { LocalDeliveryQuotePanel } from "@/components/fulfillment/local-delivery-quote-panel";
 import { balloonBuilderStepLabels, balloonBuilderSteps, balloonFlows } from "@/config/balloons.config";
 import { getDepartmentBySlug } from "@/config/departments.config";
 import { readLatestCmsDocument } from "@/server/admin/admin-cms-document-service";
+import { isOrderProDeliveryTestMode } from "@/server/orderpro/orderpro-local-delivery-service";
 import { ButtonLink } from "../ui/button";
 import { SectionFrame } from "../sections/section-frame";
 
 type BalloonsPageTemplateProps = {
   flowSlug?: string;
+  initialCollection?: string;
 };
 
-export async function BalloonsPageTemplate({ flowSlug }: BalloonsPageTemplateProps) {
+export async function BalloonsPageTemplate({ flowSlug, initialCollection }: BalloonsPageTemplateProps) {
   const publishedDocument = await readLatestCmsDocument({
     entityType: flowSlug ? "landing" : "department",
     entityId: flowSlug ? `balloons-${flowSlug}` : "balloons",
@@ -41,14 +45,23 @@ export async function BalloonsPageTemplate({ flowSlug }: BalloonsPageTemplatePro
     notFound();
   }
 
-  const title = selectedFlow?.title ?? (flowSlug === "local-delivery" ? "Balloon Local Delivery" : flowSlug === "pickup" ? "Balloon Pickup" : balloons.hero_title_en);
+  if (!flowSlug) {
+    return (
+      <BalloonsLandingExperience
+        body={balloons.hero_subtitle_en}
+        heroImage={balloons.hero_image_url}
+        initialCollection={initialCollection}
+        title={balloons.hero_title_en}
+      />
+    );
+  }
+
+  const title = selectedFlow?.title ?? (flowSlug === "local-delivery" ? "Balloon Local Delivery" : "Balloon Pickup");
   const body =
     selectedFlow?.description ??
     (flowSlug === "local-delivery"
-      ? "Local delivery ordering is coming soon. Contact the store with your address and event date to ask about availability."
-      : flowSlug === "pickup"
-        ? "Online pickup scheduling is coming soon. Contact your preferred store to confirm balloon choices and timing."
-        : balloons.hero_subtitle_en);
+      ? "Enter your delivery address and event date to preview store assignment, delivery pricing, and available windows."
+      : "Online pickup scheduling is coming soon. Contact your preferred store to confirm balloon choices and timing.");
 
   return (
     <main>
@@ -102,15 +115,22 @@ export async function BalloonsPageTemplate({ flowSlug }: BalloonsPageTemplatePro
       </SectionFrame>
 
       <SectionFrame area="Balloons" className="py-14" component="BalloonFulfillmentSelectorSection" sectionId="balloons.fulfillment-selector" variant="pickup-delivery">
-        <div className="container-shell grid gap-5 md:grid-cols-2">
-          <div className="surface-card p-6">
-            <h2 className="font-display text-2xl font-semibold">Pickup</h2>
-            <p className="mt-3 text-secondary">Choose your preferred store and contact us to confirm pickup timing.</p>
-          </div>
-          <div className="surface-card p-6">
-            <h2 className="font-display text-2xl font-semibold">Local delivery</h2>
-            <p className="mt-3 text-secondary">Contact us with your delivery address and event date to check availability and pricing.</p>
-          </div>
+        <div className="container-shell">
+          {flowSlug === "local-delivery" ? (
+            <LocalDeliveryQuotePanel context="balloon-order" testMode={isOrderProDeliveryTestMode()} />
+          ) : (
+            <div className="grid gap-5 md:grid-cols-2">
+              <div className="surface-card p-6">
+                <h2 className="font-display text-2xl font-semibold">Pickup</h2>
+                <p className="mt-3 text-secondary">Choose your preferred store and contact us to confirm pickup timing.</p>
+              </div>
+              <div className="surface-card p-6">
+                <h2 className="font-display text-2xl font-semibold">Local delivery</h2>
+                <p className="mt-3 text-secondary">Check your address and event date to preview availability and pricing.</p>
+                <ButtonLink className="mt-5" href="/balloons/local-delivery" variant="secondary">Check local delivery</ButtonLink>
+              </div>
+            </div>
+          )}
         </div>
       </SectionFrame>
 

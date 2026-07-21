@@ -12,6 +12,28 @@ export type HomepageSectionType =
   | "newsletter"
   | "faq";
 
+export const homepageItemLinkTypes = ["manual", "page", "brand", "category", "product"] as const;
+export type HomepageItemLinkType = (typeof homepageItemLinkTypes)[number];
+export const homepageItemTones = ["yellow", "cyan", "green", "red", "white"] as const;
+export type HomepageItemTone = (typeof homepageItemTones)[number];
+export const homepageHeroSizes = ["compact", "standard", "large", "fullscreen"] as const;
+export type HomepageHeroSize = (typeof homepageHeroSizes)[number];
+export const homepageItemPresentations = ["card", "cutout"] as const;
+export type HomepageItemPresentation = (typeof homepageItemPresentations)[number];
+
+export type HomepageItemLinkOption = {
+  type: Exclude<HomepageItemLinkType, "manual">;
+  value: string;
+  label: string;
+  href: string;
+  title: string;
+  body?: string;
+  image?: string;
+  imageAlt?: string;
+  productSlug?: string;
+  squareVariationId?: string;
+};
+
 export type HomepageSectionItem = {
   id: string;
   label?: string;
@@ -21,6 +43,10 @@ export type HomepageSectionItem = {
   image?: string;
   imageAlt?: string;
   badge?: string;
+  linkType?: HomepageItemLinkType;
+  linkValue?: string;
+  tone?: HomepageItemTone;
+  presentation?: HomepageItemPresentation;
   productSlug?: string;
   squareVariationId?: string;
 };
@@ -37,6 +63,8 @@ export type HomepageSectionConfig = {
   body: string;
   ctaLabel?: string;
   ctaHref?: string;
+  secondaryCtaLabel?: string;
+  secondaryCtaHref?: string;
   variant: string;
   sortOrder: number;
   isVisible: boolean;
@@ -50,6 +78,7 @@ export type HomepageSectionConfig = {
   contentWidth?: "narrow" | "normal" | "wide";
   verticalPadding?: "compact" | "normal" | "spacious";
   columns?: 2 | 3 | 4;
+  heroSize?: HomepageHeroSize;
   hiddenElements?: HomepageSectionElement[];
   items?: HomepageSectionItem[];
 };
@@ -108,6 +137,8 @@ export const homepageSections: HomepageSectionConfig[] = [
     body: "Notebooks, pencils, planners, art supplies, teacher gifts, and after-school rewards from your neighborhood State News store.",
     ctaLabel: "Shop Back to School",
     ctaHref: "/holidays/back-to-school",
+    secondaryCtaLabel: "Build a School Kit",
+    secondaryCtaHref: "/stationery",
     variant: "back-to-school",
     sortOrder: 10,
     isVisible: true,
@@ -119,11 +150,12 @@ export const homepageSections: HomepageSectionConfig[] = [
     backgroundTone: "dark",
     contentWidth: "wide",
     verticalPadding: "spacious",
+    heroSize: "large",
     items: [
-      { id: "stationery", label: "01 Category", title: "Stationery", body: "Notebooks, pens, planners, and desk essentials.", href: "/shop?department=Stationery" },
-      { id: "arts", label: "02 Category", title: "Arts & Crafts", body: "Markers, paper, project supplies, and creative kits.", href: "/shop?department=Arts" },
-      { id: "toys", label: "03 Category", title: "Toys", body: "Small rewards, backpack surprises, games, and kid favorites.", href: "/shop?department=Toys" },
-      { id: "teacher-gifts", label: "04 Category", title: "Teacher Gifts", body: "Cards, wrap, thoughtful small gifts, and thank-you extras.", href: "/shop?department=Gifts" }
+      { id: "stationery", label: "01 Category", title: "Stationery", body: "Notebooks, pens, planners, and desk essentials.", href: "/shop?department=Stationery", linkType: "category", linkValue: "stationery", tone: "yellow" },
+      { id: "arts", label: "02 Category", title: "Arts & Crafts", body: "Markers, paper, project supplies, and creative kits.", href: "/shop?department=Arts", linkType: "category", linkValue: "arts", tone: "cyan" },
+      { id: "toys", label: "03 Category", title: "Toys", body: "Small rewards, backpack surprises, games, and kid favorites.", href: "/shop?department=Toys", linkType: "category", linkValue: "toys", tone: "green" },
+      { id: "teacher-gifts", label: "04 Category", title: "Teacher Gifts", body: "Cards, wrap, thoughtful small gifts, and thank-you extras.", href: "/shop?department=Gifts", linkType: "category", linkValue: "gifts", tone: "red" }
     ]
   },
   {

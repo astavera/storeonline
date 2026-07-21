@@ -1,6 +1,6 @@
 # Phase 2 Implementation Plan
 
-Estado de referencia: 16 de julio de 2026 (America/New_York).
+Estado de referencia: 20 de julio de 2026 (America/New_York).
 
 ## Objetivo
 
@@ -36,7 +36,7 @@ con datos versionados. Esta fase no crea órdenes ni pagos en Square.
 | Paquete | Estado | Evidencia |
 | --- | --- | --- |
 | 2A — Contratos y evaluadores puros | `COMPLETO` | 17 pruebas focalizadas, 148/148 suite completa, lint/typecheck y build aprobados el 2026-07-16 |
-| 2B — Persistencia y versionado | `EN CURSO` | Ciclo de capacity holds validado con 11 unit tests y concurrencia real en PostgreSQL 17 efímero; faltan zonas, AddressEvaluation y occurrences |
+| 2B — Persistencia y versionado | `COMPLETO` | Zonas/versiones, AddressEvaluation, occurrences y capacity holds validados con pruebas focalizadas y PostgreSQL 17 efímero |
 | 2C — Adaptadores externos | `PENDIENTE` | Mapbox no está conectado al flujo |
 | 2D — API y checkout | `PENDIENTE` | El API actual no cotiza fulfillment |
 | 2E — Admin | `PENDIENTE` | Las rutas son shells informativos |
@@ -77,7 +77,7 @@ sin estar conectado al checkout ni publicado en OrderPro.
 - Holds transaccionales con expiración, confirmación y liberación.
 - Pruebas de concurrencia contra PostgreSQL desechable.
 
-Avance actual: el ciclo reserve/confirm/release usa aislamiento serializable,
+El ciclo reserve/confirm/release usa aislamiento serializable,
 expira holds vencidos antes de sumar capacidad, hace replay por owner, rechaza
 cambios de capacity points y reintenta conflictos `P2034`. Sus 11 pruebas
 unitarias pasan. CI #7 aplicó las seis migraciones desde cero a PostgreSQL 17
@@ -85,8 +85,28 @@ efímero y demostró que dos reservas concurrentes de 3 puntos sobre un slot de 
 producen exactamente un ganador; confirmación y liberación idempotentes también
 pasaron contra las constraints reales. El contenedor fue destruido al terminar.
 
-2B todavía no se considera completo: faltan repositorios de zonas/versiones,
-AddressEvaluation, generación idempotente de occurrences y sus pruebas.
+El 2026-07-20 se completó el resto de 2B:
+
+- Cada `DeliveryZoneVersion` conserva geometría, tarifa, mínimo, límites de ruta,
+  prioridad, días, cutoff, lead time y reglas de tarifa. La lectura fail-closed
+  rechaza ventanas activas solapadas y no consulta los valores comerciales
+  mutables de `DeliveryZone`.
+- `AddressEvaluation` usa un HMAC SHA-256 con secreto de al menos 32 bytes,
+  expiración acotada y un snapshot redactado que no persiste calle, apartamento
+  ni localidad completa.
+- La generación de `SlotOccurrence` está limitada a 93 días, interpreta el
+  calendario en `America/New_York`, rechaza horas inexistentes durante DST,
+  usa la constraint única con `skipDuplicates` y conserva el capacity snapshot
+  aunque luego cambie el template.
+- La migración `20260720203000_phase2_fulfillment_persistence` agrega al snapshot
+  versionado los límites de ruta y prioridad. Las siete migraciones se aplicaron
+  desde cero a PostgreSQL 17 desechable; 13 pruebas unitarias focalizadas y 5
+  pruebas de integración PostgreSQL pasaron. La suite completa pasó 217 pruebas,
+  y lint, typecheck y build de producción quedaron verdes. El contenedor fue
+  destruido.
+
+La séptima migración no se ha aplicado a Supabase compartido y no se creó ninguna
+zona, evaluación, regla, occurrence o hold compartido.
 
 Gate: dos intentos concurrentes nunca superan capacity y una versión histórica
 no cambia después de ser utilizada.
@@ -159,6 +179,7 @@ el entorno compartido seguirá con cero configuración activa de Fase 2.
 El primer bloque implementó 2A únicamente: contratos puros, reason codes y
 pruebas deterministas. No escribió en Supabase, Square, Mapbox ni el CMS.
 
-El siguiente paso de 2B es persistir zonas/versiones y generar occurrences en
-PostgreSQL efímero. Cualquier configuración compartida seguirá bloqueada hasta
-contar con valores operativos aprobados.
+El siguiente paso es 2C: conectar Mapbox mediante un adaptador server-side con
+timeouts, cache y reason codes fail-closed usando fixtures deterministas en CI.
+Cualquier configuración compartida seguirá bloqueada hasta contar con valores
+operativos aprobados y una operación de apply separada.

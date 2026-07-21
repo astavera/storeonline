@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { HomePageTemplate } from "@/components/templates/home-page-template";
 import { getPublishedHomepageSections, getPublishedHomepageState } from "@/features/admin/services/homepage-visual-editor-service";
-import { applyHomepageStorefrontBrands, resolveHomepageStorefrontContent } from "@/features/catalog/services/homepage-storefront-content-service";
+import { resolveHomepageStorefrontContent } from "@/features/catalog/services/homepage-storefront-content-service";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -30,8 +30,7 @@ export async function generateMetadata(): Promise<Metadata> {
 
 export default async function HomePage() {
   const homepageSections = await getPublishedHomepageSections();
-  const { featuredBrandItems, products } = await resolveHomepageStorefrontContent();
-  const storefrontSections = applyHomepageStorefrontBrands(homepageSections, featuredBrandItems);
+  const { products } = await resolveHomepageStorefrontContent();
 
-  return <HomePageTemplate products={products} sections={storefrontSections} />;
+  return <HomePageTemplate products={products} sections={homepageSections} />;
 }

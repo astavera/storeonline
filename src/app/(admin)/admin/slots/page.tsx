@@ -1,5 +1,5 @@
-import { AdminPageShell } from "@/components/admin/admin-page-shell";
+import { OrderProManagedPanel } from "@/components/admin/orderpro-managed-panel";
 
 export default function AdminSlotsPage() {
-  return <AdminPageShell description="Pickup and local delivery slots use capacity points, temporary holds, and transaction-backed confirmation." sectionId="admin.pickup-slots" title="Pickup and delivery slots" />;
+  return <OrderProManagedPanel description="Available pickup and local-delivery dates and time slots come from OrderPro." title="Pickup and delivery slots" />;
 }

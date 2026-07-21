@@ -178,12 +178,14 @@ Estado: `EN CURSO` por existencia de schema y helpers; falta operación completa
 - Evidencia: 17 pruebas focalizadas, 148/148 pruebas totales, lint/typecheck y
   build aprobados. Supabase compartido permanece con cero configuración activa
   de Fase 2.
-- Bloque 2B en curso: reserve/confirm/release serializable de capacity holds,
-  expiración stale, replay por owner, protección de sobreventa y retry `P2034`,
-  con 11 pruebas unitarias y 159/159 pruebas totales. CI #7 aplicó las seis
-  migraciones a PostgreSQL 17 efímero y validó concurrencia real sin sobreventa;
-  no se usó Supabase compartido. Faltan zonas/versiones, AddressEvaluation y
-  generación idempotente de occurrences para completar 2B.
+- Bloque 2B completo el 2026-07-20: reserve/confirm/release serializable de
+  capacity holds; snapshots completos e inmutables de zonas y tarifas;
+  AddressEvaluation con HMAC, expiración y PII redactada; y generación
+  idempotente de occurrences en horario de New York con capacity snapshot.
+  Las siete migraciones se aplicaron desde cero a PostgreSQL 17 efímero y 5
+  pruebas de integración validaron persistencia y concurrencia real. El
+  contenedor fue destruido y la séptima migración no se aplicó a Supabase
+  compartido.
 - Routing walking probado con selección de la tienda elegible más cercana,
   tarifa server-side y slots de esa ubicación: 6 pruebas focalizadas y 165/165
   pruebas totales. La captura naranja es referencia; falta aprobar el GeoJSON

@@ -1,5 +1,6 @@
 import { ProductPlacementManager } from "@/components/admin/product-placement-manager";
-import { readWebsiteMerchandising, readWebsiteMerchandisingSnapshot } from "@/server/admin/website-merchandising-store";
+import { reconcileWebsiteMerchandising, websiteCategoryPath } from "@/features/catalog/services/website-merchandising-service";
+import { readWebsiteMerchandisingSnapshot } from "@/server/admin/website-merchandising-store";
 import { readSquareCatalogPreview } from "@/server/square/catalog-preview-store";
 import { readSquareCatalogCacheSummary, readSquareVendorsFromCatalogCache } from "@/server/square/catalog-test-cache-store";
 
@@ -7,8 +8,8 @@ export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
 export default async function AdminProductPlacementPage() {
-  const catalog = await readSquareCatalogPreview();
   const cacheSummary = readSquareCatalogCacheSummary();
+  const [catalog, fullConfig] = await Promise.all([readSquareCatalogPreview(), readWebsiteMerchandisingSnapshot()]);
 
   if (!catalog && !cacheSummary.available) {
     return (
@@ -22,21 +23,19 @@ export default async function AdminProductPlacementPage() {
   }
 
   const previewProducts = catalog?.products ?? [];
-  const [initialConfig, fullConfig] = await Promise.all([
-    readWebsiteMerchandising(previewProducts),
-    readWebsiteMerchandisingSnapshot()
-  ]);
+  const initialConfig = reconcileWebsiteMerchandising(fullConfig, previewProducts);
   const initialBrandProductCounts = Object.fromEntries(
     fullConfig.brands.map((brand) => [brand.id, fullConfig.placements.filter((placement) => placement.brandIds.includes(brand.id)).length])
   );
   const variationIdsByCategory = new Map(fullConfig.categories.map((category) => [category.id, new Set<string>()]));
   for (const placement of fullConfig.placements) {
-    for (const categoryId of placement.categoryIds) variationIdsByCategory.get(categoryId)?.add(placement.squareVariationId);
-  }
-  for (const category of fullConfig.categories) {
-    if (!category.parentId) continue;
-    const parentVariationIds = variationIdsByCategory.get(category.parentId);
-    for (const variationId of variationIdsByCategory.get(category.id) ?? []) parentVariationIds?.add(variationId);
+    for (const categoryId of placement.categoryIds) {
+      const category = fullConfig.categories.find((candidate) => candidate.id === categoryId);
+      if (!category) continue;
+      for (const pathCategory of websiteCategoryPath(category, fullConfig.categories)) {
+        variationIdsByCategory.get(pathCategory.id)?.add(placement.squareVariationId);
+      }
+    }
   }
   const initialCategoryProductCounts = Object.fromEntries(fullConfig.categories.map((category) => [category.id, variationIdsByCategory.get(category.id)?.size ?? 0]));
   const squareVendors = readSquareVendorsFromCatalogCache();

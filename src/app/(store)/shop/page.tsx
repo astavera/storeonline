@@ -1,10 +1,12 @@
 import { ChevronDown } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
+import { BalloonOrderExperience } from "@/components/balloons/latex-order-experience";
 import { ProductCard } from "@/components/commerce/product-card";
 import { ShopFilterPanel } from "@/components/commerce/shop-filter-panel";
 import { StorefrontCmsPage } from "@/components/cms/storefront-cms-page";
 import { SectionFrame } from "@/components/sections/section-frame";
+import { getBalloonCatalogCollection, latexBalloonAddOnVariationIds, latexBalloonOrderVariationIds, type BalloonCatalogCollection } from "@/config/balloons.config";
 import { productAgeGroupIds, storefrontProducts, type FulfillmentMode, type ProductAgeGroup, type StorefrontProduct } from "@/features/catalog/product-catalog";
 import { filterWebsiteCatalogProducts, resolveWebsiteCatalog, slugifyWebsiteCategory } from "@/features/catalog/services/website-merchandising-service";
 import { readLatestCmsDocument } from "@/server/admin/admin-cms-document-service";
@@ -42,9 +44,13 @@ export default async function ShopPage({ searchParams }: ShopPageProps) {
   const resolvedCatalog = hasSquareCatalog && websiteMerchandising ? resolveWebsiteCatalog(sourceProducts, websiteMerchandising) : null;
   const catalogProducts = resolvedCatalog?.products.length ? resolvedCatalog.products : hasSquareCatalog ? [] : storefrontProducts;
   const selectedDepartment = paramValue(params?.department);
+  const selectedCollection = getBalloonCatalogCollection(paramValue(params?.collection));
   const selectedBrandSlug = paramValue(params?.brand);
   const selectedAge = validAgeGroup(paramValue(params?.age));
   const selectedFulfillment = validFulfillmentMode(paramValue(params?.fulfillment));
+  const selectedLocation = paramValue(params?.location);
+  const selectedPickupDate = paramValue(params?.pickupDate);
+  const selectedPickupSlotLabel = paramValue(params?.pickupSlotLabel)?.slice(0, 80);
   const selectedSort = paramValue(params?.sort) || "featured";
   const categories = resolvedCatalog
     ? resolvedCatalog.categories.map((category) => ({ id: category.id, name: category.name, slug: category.slug, description: category.description, parentId: category.parentId, productCount: resolvedCatalog.productVariationIdsByCategory[category.id]?.length ?? 0 }))
@@ -52,7 +58,7 @@ export default async function ShopPage({ searchParams }: ShopPageProps) {
   const selectedCategory = selectedDepartment ? categories.find((category) => category.slug.toLowerCase() === selectedDepartment.toLowerCase()) : undefined;
   const brands = resolvedCatalog ? resolvedCatalog.brands.map((brand) => ({ id: brand.id, name: brand.name, slug: brand.slug, description: brand.description, logoUrl: brand.logoUrl, imageAlt: brand.imageAlt, productCount: resolvedCatalog.productVariationIdsByBrand[brand.id]?.length ?? 0 })) : [];
   const selectedBrand = selectedBrandSlug ? brands.find((brand) => brand.slug.toLowerCase() === selectedBrandSlug.toLowerCase()) : undefined;
-  const filteredProducts = resolvedCatalog
+  const categoryFilteredProducts = resolvedCatalog
     ? filterWebsiteCatalogProducts(resolvedCatalog, { categoryId: selectedCategory?.id, brandId: selectedBrand?.id, ageGroup: selectedAge, fulfillmentMode: selectedFulfillment, surface: "shop" })
     : catalogProducts.filter((product) => {
         const matchesCategory = !selectedCategory || slugifyWebsiteCategory(product.department) === selectedCategory.slug;
@@ -60,10 +66,50 @@ export default async function ShopPage({ searchParams }: ShopPageProps) {
         const matchesFulfillment = !selectedFulfillment || product.fulfillmentModes.includes(selectedFulfillment);
         return matchesCategory && matchesAge && matchesFulfillment;
       });
+  const filteredProducts = selectedCollection
+    ? categoryFilteredProducts.filter((product) => matchesBalloonCatalogCollection(product, selectedCollection))
+    : categoryFilteredProducts;
   const products = sortProducts(filteredProducts, selectedSort);
   const shopProductsForCounts = resolvedCatalog ? filterWebsiteCatalogProducts(resolvedCatalog, { surface: "shop" }) : catalogProducts;
   const ageCounts = Object.fromEntries(productAgeGroupIds.map((age) => [age, shopProductsForCounts.filter((product) => product.ageGroups?.includes(age)).length]));
   const fulfillmentCounts = Object.fromEntries((["pickup", "local-delivery", "shipping"] as const).map((mode) => [mode, shopProductsForCounts.filter((product) => product.fulfillmentModes.includes(mode)).length]));
+
+  if (selectedCollection) {
+    const isLatexCollection = selectedCollection.slug === "latex";
+    const catalogProductByVariationId = new Map(
+      catalogProducts.map((product) => [product.squareVariationId, product])
+    );
+    const collectionProducts = isLatexCollection && fullCatalogSummary.available
+      ? latexBalloonOrderVariationIds
+          .map((variationId) => catalogProductByVariationId.get(variationId))
+          .filter((product): product is StorefrontProduct => Boolean(product))
+          .filter((product) => !selectedFulfillment || product.fulfillmentModes.includes(selectedFulfillment))
+      : products;
+    const hiFloatCandidate = isLatexCollection ? catalogProductByVariationId.get(latexBalloonAddOnVariationIds.hiFloat) : undefined;
+    const hiFloat = hiFloatCandidate && (!selectedFulfillment || hiFloatCandidate.fulfillmentModes.includes(selectedFulfillment))
+      ? hiFloatCandidate
+      : undefined;
+    const weights = (isLatexCollection ? latexBalloonAddOnVariationIds.weights : [])
+      .map((variationId) => catalogProductByVariationId.get(variationId))
+      .filter((product): product is StorefrontProduct => Boolean(product))
+      .filter((product) => !selectedFulfillment || product.fulfillmentModes.includes(selectedFulfillment));
+
+    return (
+      <main className="bg-surface">
+        <SectionFrame area="Balloons" className="py-6 md:py-8" component="BalloonOrderExperience" sectionId={`balloons.${selectedCollection.slug}-order`} variant="product-grid">
+          <BalloonOrderExperience
+            addOns={isLatexCollection ? { ...(hiFloat ? { hiFloat } : {}), weights } : undefined}
+            collection={selectedCollection}
+            fulfillment={selectedFulfillment === "local-delivery" ? "local-delivery" : "pickup"}
+            location={selectedLocation}
+            products={collectionProducts}
+            requestedDate={selectedPickupDate}
+            slotLabel={selectedPickupSlotLabel}
+          />
+        </SectionFrame>
+      </main>
+    );
+  }
 
   if (publishedDocument) {
     return <StorefrontCmsPage document={publishedDocument} products={products} />;
@@ -112,11 +158,23 @@ export default async function ShopPage({ searchParams }: ShopPageProps) {
                   <SortMenu selectedAge={selectedAge} selectedBrand={selectedBrandSlug} selectedDepartment={selectedDepartment} selectedFulfillment={selectedFulfillment} selectedSort={selectedSort} />
                 </div>
               </div>
-              <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
-                {products.map((product) => (
-                  <ProductCard key={product.squareVariationId} product={product} variant="premium" />
-                ))}
-              </div>
+              {products.length ? (
+                <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
+                  {products.map((product) => (
+                    <ProductCard key={product.squareVariationId} product={product} variant="premium" />
+                  ))}
+                </div>
+              ) : (
+                <div className="rounded-md border border-dashed border-border bg-surface-muted px-6 py-12 text-center">
+                  <h3 className="font-display text-2xl font-black">No products are published here yet.</h3>
+                  <p className="mx-auto mt-3 max-w-lg text-sm text-secondary">
+                    This collection is ready for merchandising. Products will appear here as soon as they are published in the online catalog.
+                  </p>
+                  <Link className="mt-6 inline-flex rounded-pill bg-primary px-5 py-3 text-sm font-black text-white hover:opacity-90" href="/shop">
+                    Shop all products
+                  </Link>
+                </div>
+              )}
             </section>
           </div>
         </div>
@@ -125,7 +183,7 @@ export default async function ShopPage({ searchParams }: ShopPageProps) {
   );
 }
 
-function SortMenu({ selectedAge, selectedBrand, selectedDepartment, selectedFulfillment, selectedSort }: { selectedAge?: ProductAgeGroup; selectedBrand?: string; selectedDepartment?: string; selectedFulfillment?: FulfillmentMode; selectedSort: string }) {
+function SortMenu({ selectedAge, selectedBrand, selectedCollection, selectedDepartment, selectedFulfillment, selectedSort }: { selectedAge?: ProductAgeGroup; selectedBrand?: string; selectedCollection?: string; selectedDepartment?: string; selectedFulfillment?: FulfillmentMode; selectedSort: string }) {
   const label = sortLabel(selectedSort);
 
   return (
@@ -141,7 +199,7 @@ function SortMenu({ selectedAge, selectedBrand, selectedDepartment, selectedFulf
           ["price-low", "Price: low to high"],
           ["price-high", "Price: high to low"]
         ].map(([value, optionLabel]) => (
-          <Link className="rounded-md px-3 py-2 text-sm font-bold hover:bg-surface-muted" href={hrefWithParams({ age: selectedAge, brand: selectedBrand, department: selectedDepartment, fulfillment: selectedFulfillment, sort: value })} key={value}>
+          <Link className="rounded-md px-3 py-2 text-sm font-bold hover:bg-surface-muted" href={hrefWithParams({ age: selectedAge, brand: selectedBrand, collection: selectedCollection, department: selectedDepartment, fulfillment: selectedFulfillment, sort: value })} key={value}>
             {optionLabel}
           </Link>
         ))}
@@ -150,15 +208,27 @@ function SortMenu({ selectedAge, selectedBrand, selectedDepartment, selectedFulf
   );
 }
 
+function matchesBalloonCatalogCollection(product: StorefrontProduct, collection: BalloonCatalogCollection) {
+  const searchableText = [product.name, product.shortDescription, product.description, product.department]
+    .join(" ")
+    .toLowerCase();
+
+  return collection.keywords.some((keyword) => searchableText.includes(keyword));
+}
+
 function paramValue(value: string | string[] | undefined) {
   return Array.isArray(value) ? value[0] : value;
 }
 
-function hrefWithParams(input: { age?: ProductAgeGroup; brand?: string; department?: string; fulfillment?: FulfillmentMode; sort?: string }) {
+function hrefWithParams(input: { age?: ProductAgeGroup; brand?: string; collection?: string; department?: string; fulfillment?: FulfillmentMode; sort?: string }) {
   const params = new URLSearchParams();
 
   if (input.department) {
     params.set("department", input.department);
+  }
+
+  if (input.collection) {
+    params.set("collection", input.collection);
   }
 
   if (input.brand) {
@@ -212,5 +282,9 @@ function validAgeGroup(value: string | undefined): ProductAgeGroup | undefined {
 }
 
 function validFulfillmentMode(value: string | undefined): FulfillmentMode | undefined {
+  if (value === "delivery") {
+    return "local-delivery";
+  }
+
   return (["pickup", "local-delivery", "shipping"] as const).find((mode) => mode === value);
 }
