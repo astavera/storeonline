@@ -17,13 +17,12 @@ import Link from "next/link";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useMemo, useState, useSyncExternalStore, type ChangeEvent, type ReactNode } from "react";
-import { AlertTriangle, ArrowDown, ArrowUp, Check, ChevronRight, Download, Eye, EyeOff, FileSpreadsheet, Folder, FolderTree, Palette, Plus, Save, Search, Trash2, Upload } from "lucide-react";
+import { AlertTriangle, ArrowDown, ArrowUp, Check, ChevronRight, Download, Eye, EyeOff, FileSpreadsheet, Folder, FolderTree, Palette, PencilLine, Plus, Save, Search, Trash2, Upload } from "lucide-react";
 import { SectionFrame } from "@/components/sections/section-frame";
 import { Button } from "@/components/ui/button";
 import { BrandGtinImporter, type BrandGtinMutation } from "@/components/admin/brand-gtin-importer";
 import { HolidayProductManager, type HolidayProductMutation } from "@/components/admin/holiday-product-manager";
 import { SquareCatalogTestPanel } from "@/components/admin/square-catalog-test-panel";
-import { SquareCategoryBulkEditor } from "@/components/admin/square-category-bulk-editor";
 import { FullCatalogProductManager } from "@/components/admin/full-catalog-product-manager";
 import {
   productAgeGroups,
@@ -109,6 +108,8 @@ export function ProductPlacementManager({ products, initialConfig, fetchedAt, ha
   const [isDirty, setIsDirty] = useState(false);
   const [saveMessage, setSaveMessage] = useState("Square products are hidden until every website decision is complete.");
   const [brandProductCountOverrides, setBrandProductCountOverrides] = useState(initialBrandProductCounts);
+  const [categoryProductCountOverrides, setCategoryProductCountOverrides] = useState(initialCategoryProductCounts);
+  const [catalogWebsiteCategoryId, setCatalogWebsiteCategoryId] = useState("");
 
   const selectedCategory = categories.find((category) => category.id === selectedCategoryId) ?? null;
   const selectedBrand = brands.find((brand) => brand.id === selectedBrandId) ?? null;
@@ -120,7 +121,7 @@ export function ProductPlacementManager({ products, initialConfig, fetchedAt, ha
   const readyProductCount = placements.filter((placement) => !placement.visible && placementIssues(placement, categories, holidays).length === 0).length;
   const pendingProductCount = placements.length - liveProductCount - readyProductCount;
   const productCountByBrand = useMemo(() => Object.fromEntries(brands.map((brand) => [brand.id, brandProductCountOverrides[brand.id] ?? placements.filter((placement) => placement.brandIds.includes(brand.id)).length])), [brandProductCountOverrides, brands, placements]);
-  const productCountByCategory = useMemo(() => Object.fromEntries(categories.map((category) => [category.id, initialCategoryProductCounts[category.id] ?? placements.filter((placement) => placement.categoryIds.includes(category.id)).length])), [categories, initialCategoryProductCounts, placements]);
+  const productCountByCategory = useMemo(() => Object.fromEntries(categories.map((category) => [category.id, categoryProductCountOverrides[category.id] ?? placements.filter((placement) => placement.categoryIds.includes(category.id)).length])), [categories, categoryProductCountOverrides, placements]);
   function markChanged(message = "Unsaved website merchandising changes.") {
     setIsDirty(true);
     setSaveState("idle");
@@ -431,6 +432,19 @@ export function ProductPlacementManager({ products, initialConfig, fetchedAt, ha
     setSaveMessage(message);
   }
 
+  function manageCategoryProducts(categoryId: string) {
+    setCatalogWebsiteCategoryId(categoryId);
+    navigateCatalogPublishing("products");
+    window.setTimeout(() => document.getElementById("full-catalog-products")?.scrollIntoView({ behavior: "smooth", block: "start" }), 0);
+  }
+
+  function recordCategoryAssignmentsRemoved(categoryId: string, removedCount: number) {
+    setCategoryProductCountOverrides((current) => ({
+      ...current,
+      [categoryId]: Math.max(0, (current[categoryId] ?? placements.filter((placement) => placement.categoryIds.includes(categoryId)).length) - removedCount)
+    }));
+  }
+
   return (
     <main className="p-4 md:p-6">
       <SectionFrame area="Admin" className="surface-card overflow-hidden" component="ProductPlacementManager" sectionId="admin.product-placement-manager" variant="manager">
@@ -472,14 +486,13 @@ export function ProductPlacementManager({ products, initialConfig, fetchedAt, ha
         {activeModule === "structure" ? <section className="bg-surface-muted p-4 md:p-5" aria-label="Website structure">
           <div>
             {structureModule === "brands" ? <BrandManager brands={brands} disabled={isDirty || saveState === "saving"} newDescription={newBrandDescription} newName={newBrandName} onAdd={addBrand} onDescriptionChange={setNewBrandDescription} onNameChange={setNewBrandName} onProductsApplied={syncBrandProducts} onRemove={removeBrand} onSelect={setSelectedBrandId} onUpdate={updateBrand} productCountByBrand={productCountByBrand} selected={selectedBrand} squareVendors={squareVendors} /> : null}
-            {structureModule === "categories" ? <CategoryManager categories={categories} newDescription={newCategoryDescription} newName={newCategoryName} newParentId={newCategoryParentId} onAdd={addCategory} onDescriptionChange={setNewCategoryDescription} onMove={moveCategory} onNameChange={setNewCategoryName} onParentChange={setNewCategoryParentId} onRemove={removeCategory} onSelect={setSelectedCategoryId} onUpdate={updateCategory} productCountByCategory={productCountByCategory} selected={selectedCategory} /> : null}
+            {structureModule === "categories" ? <CategoryManager categories={categories} newDescription={newCategoryDescription} newName={newCategoryName} newParentId={newCategoryParentId} onAdd={addCategory} onDescriptionChange={setNewCategoryDescription} onManageProducts={manageCategoryProducts} onMove={moveCategory} onNameChange={setNewCategoryName} onParentChange={setNewCategoryParentId} onRemove={removeCategory} onSelect={setSelectedCategoryId} onUpdate={updateCategory} productCountByCategory={productCountByCategory} selected={selectedCategory} /> : null}
             {structureModule === "holidays" ? <HolidayManager disabled={isDirty || saveState === "saving"} endDate={newHolidayEndDate} holidays={holidays} newDescription={newHolidayDescription} newName={newHolidayName} onAdd={addHoliday} onDescriptionChange={setNewHolidayDescription} onEndDateChange={setNewHolidayEndDate} onNameChange={setNewHolidayName} onProductsApplied={syncHolidayProducts} onRemove={removeHoliday} onSelect={setSelectedHolidayId} onStartDateChange={setNewHolidayStartDate} onUpdate={updateHoliday} selected={selectedHoliday} startDate={newHolidayStartDate} /> : null}
           </div>
         </section> : null}
 
         {activeModule === "products" ? <>
-          <SquareCategoryBulkEditor brands={brands} categories={categories} disabled={isDirty || saveState === "saving"} />
-          <FullCatalogProductManager brands={brands} categories={categories} disabled={isDirty || saveState === "saving"} holidays={holidays} />
+          <FullCatalogProductManager brands={brands} categories={categories} disabled={isDirty || saveState === "saving"} holidays={holidays} initialWebsiteCategoryId={catalogWebsiteCategoryId} key={`full-catalog-${catalogWebsiteCategoryId || "all"}`} onCategoryAssignmentsRemoved={recordCategoryAssignmentsRemoved} onWebsiteCategoryChange={setCatalogWebsiteCategoryId} />
         </> : null}
 
         {activeModule === "catalog-test" ? <SquareCatalogTestPanel /> : null}
@@ -902,6 +915,7 @@ function CategoryManager({
   newParentId,
   onAdd,
   onDescriptionChange,
+  onManageProducts,
   onMove,
   onNameChange,
   onParentChange,
@@ -917,6 +931,7 @@ function CategoryManager({
   newParentId: string;
   onAdd: () => void;
   onDescriptionChange: (value: string) => void;
+  onManageProducts: (categoryId: string) => void;
   onMove: (direction: "up" | "down") => void;
   onNameChange: (value: string) => void;
   onParentChange: (value: string) => void;
@@ -1091,7 +1106,10 @@ function CategoryManager({
               </div>
 
               <div className="mt-6 border-t border-border pt-5">
-                <button className="inline-flex min-h-10 items-center justify-center rounded-md border border-red/30 px-4 text-sm font-semibold text-red hover:bg-red/5 disabled:cursor-not-allowed disabled:opacity-40" disabled={selectedChildren.length > 0} onClick={onRemove} type="button"><Trash2 className="mr-2" size={16} />Remove category</button>
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <button className="inline-flex min-h-10 items-center justify-center rounded-md bg-primary px-4 text-sm font-semibold text-white" onClick={() => onManageProducts(selected.id)} type="button"><PencilLine className="mr-2" size={16} />Review or remove products ({formatProductCount(productCountByCategory[selected.id] ?? 0)})</button>
+                  <button className="inline-flex min-h-10 items-center justify-center rounded-md border border-red/30 px-4 text-sm font-semibold text-red hover:bg-red/5 disabled:cursor-not-allowed disabled:opacity-40" disabled={selectedChildren.length > 0} onClick={onRemove} type="button"><Trash2 className="mr-2" size={16} />Remove category</button>
+                </div>
               </div>
             </div>
           ) : (

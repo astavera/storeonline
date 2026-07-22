@@ -69,29 +69,39 @@ export async function GET(request: NextRequest) {
   const pageSize = readPositiveInteger(request.nextUrl.searchParams.get("pageSize"));
   const query = request.nextUrl.searchParams.get("q") ?? "";
   const categoryId = request.nextUrl.searchParams.get("categoryId") ?? "";
+  const websiteCategoryId = request.nextUrl.searchParams.get("websiteCategoryId") ?? "";
   const imageFilter = readImageFilter(request.nextUrl.searchParams.get("images"));
+  const config = await readWebsiteMerchandisingSnapshot();
+
+  if (websiteCategoryId && !config.categories.some((category) => category.id === websiteCategoryId)) {
+    return NextResponse.json({ ok: false, error: "The selected website category no longer exists. Refresh Products and try again." }, { status: 400 });
+  }
+
+  const assignedVariationIds = websiteCategoryId
+    ? config.placements.filter((placement) => placement.categoryIds.includes(websiteCategoryId)).map((placement) => placement.squareVariationId)
+    : undefined;
+  const cacheQuery = { query, categoryId, imageFilter, variationIds: assignedVariationIds };
 
   if (request.nextUrl.searchParams.get("selection") === "matching") {
     return NextResponse.json({
       ok: true,
-      ...readSquareStorefrontVariationSelection({ query, categoryId, imageFilter }, 5_000)
+      websiteCategoryId,
+      ...readSquareStorefrontVariationSelection(cacheQuery, 5_000)
     }, { headers: { "Cache-Control": "private, no-store" } });
   }
 
   const catalogPage = readSquareStorefrontCatalogPage({
-    query,
-    categoryId,
-    imageFilter,
+    ...cacheQuery,
     page,
     pageSize
   });
   const { products, ...pageData } = catalogPage;
-  const config = await readWebsiteMerchandisingSnapshot();
   const placementByVariationId = new Map(config.placements.map((placement) => [placement.squareVariationId, placement]));
 
   return NextResponse.json({
     ok: true,
     ...pageData,
+    websiteCategoryId,
     records: products.map((product, index) => ({
       product,
       placement: placementByVariationId.get(product.squareVariationId) ?? createPendingPlacement(product.squareVariationId, (catalogPage.page - 1) * catalogPage.pageSize + index),
