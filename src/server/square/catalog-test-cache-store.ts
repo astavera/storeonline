@@ -21,6 +21,7 @@ type CacheQuery = {
   page?: number;
   pageSize?: number;
   query?: string;
+  variationIds?: string[];
 };
 
 export type SquareCatalogImageFilter = "all" | "with" | "without";
@@ -195,6 +196,7 @@ export function readSquareStorefrontCatalogPage(options: CacheQuery = {}): Squar
   const query = options.query?.trim().slice(0, 100) ?? "";
   const categoryId = options.categoryId?.trim().slice(0, 160) ?? "";
   const imageFilter = normalizeImageFilter(options.imageFilter);
+  const variationIdFilter = normalizeVariationIdFilter(options.variationIds);
   const pageSize = clampInteger(options.pageSize, 24, 12, 100);
   const requestedPage = clampInteger(options.page, 1, 1, 100_000);
 
@@ -221,7 +223,7 @@ export function readSquareStorefrontCatalogPage(options: CacheQuery = {}): Squar
 
   try {
     summary = readSummary(db);
-    const { parameters, whereClause } = buildStorefrontVariationFilter(query, categoryId, imageFilter);
+    const { parameters, whereClause } = buildStorefrontVariationFilter(query, categoryId, imageFilter, variationIdFilter);
     const totalRow = db.prepare(`
       SELECT COUNT(*) AS count
       FROM catalog_variations variation
@@ -265,6 +267,7 @@ export function readSquareStorefrontVariationSelection(
   const query = options.query?.trim().slice(0, 100) ?? "";
   const categoryId = options.categoryId?.trim().slice(0, 160) ?? "";
   const imageFilter = normalizeImageFilter(options.imageFilter);
+  const variationIdFilter = normalizeVariationIdFilter(options.variationIds);
   const safeLimit = clampInteger(limit, 5_000, 1, 5_000);
 
   if (!existsSync(cachePath)) {
@@ -274,7 +277,7 @@ export function readSquareStorefrontVariationSelection(
   const db = new DatabaseSync(cachePath, { readOnly: true, timeout: 5_000 });
 
   try {
-    const { parameters, whereClause } = buildStorefrontVariationFilter(query, categoryId, imageFilter);
+    const { parameters, whereClause } = buildStorefrontVariationFilter(query, categoryId, imageFilter, variationIdFilter);
     const totalRow = db.prepare(`
       SELECT COUNT(*) AS count
       FROM catalog_variations variation
@@ -558,7 +561,8 @@ export function readSquareStorefrontProductsByVariationIds(variationIds: string[
 function buildStorefrontVariationFilter(
   query: string,
   categoryId: string,
-  imageFilter: SquareCatalogImageFilter
+  imageFilter: SquareCatalogImageFilter,
+  variationIds?: string[]
 ) {
   const pattern = `%${escapeLike(query)}%`;
   const filters = [
@@ -589,6 +593,15 @@ function buildStorefrontVariationFilter(
     parameters.push(categoryId);
   }
 
+  if (variationIds) {
+    if (variationIds.length === 0) {
+      filters.push("0 = 1");
+    } else {
+      filters.push("variation.id IN (SELECT value FROM json_each(?))");
+      parameters.push(JSON.stringify(variationIds));
+    }
+  }
+
   const hasImageClause = `(
     variation.id IN (
       SELECT variation_image_filter.variation_id
@@ -616,6 +629,11 @@ function buildStorefrontVariationFilter(
 
 function normalizeImageFilter(value: SquareCatalogImageFilter | undefined): SquareCatalogImageFilter {
   return value === "with" || value === "without" ? value : "all";
+}
+
+function normalizeVariationIdFilter(values: string[] | undefined) {
+  if (values === undefined) return undefined;
+  return Array.from(new Set(values.map((id) => id.trim().slice(0, 160)).filter(Boolean))).slice(0, 100_000);
 }
 
 function readSummary(db: DatabaseSync): SquareCatalogCacheSummary {

@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
-import { Check, ChevronLeft, ChevronRight, ImageIcon, ListChecks, LoaderCircle, PencilLine, Search, Save, X } from "lucide-react";
+import { Check, ChevronLeft, ChevronRight, ImageIcon, ListChecks, LoaderCircle, PencilLine, Search, Save, Trash2, X } from "lucide-react";
 import {
   productAgeGroups,
   type FulfillmentMode,
@@ -41,6 +41,7 @@ type FullCatalogResponse = {
   summary: SquareCatalogCacheSummary;
   query: string;
   categoryId: string;
+  websiteCategoryId: string;
   imageFilter: ImageFilter;
   page: number;
   pageSize: number;
@@ -64,18 +65,25 @@ export function FullCatalogProductManager({
   brands,
   categories,
   holidays,
-  disabled = false
+  disabled = false,
+  initialWebsiteCategoryId = "",
+  onCategoryAssignmentsRemoved,
+  onWebsiteCategoryChange
 }: {
   brands: WebsiteBrand[];
   categories: WebsiteCategory[];
   holidays: WebsiteHoliday[];
   disabled?: boolean;
+  initialWebsiteCategoryId?: string;
+  onCategoryAssignmentsRemoved?: (categoryId: string, removedCount: number) => void;
+  onWebsiteCategoryChange?: (categoryId: string) => void;
 }) {
   const [catalog, setCatalog] = useState<FullCatalogResponse | null>(null);
   const [squareCategories, setSquareCategories] = useState<SquareCatalogCategorySummary[]>([]);
   const [queryInput, setQueryInput] = useState("");
   const [query, setQuery] = useState("");
   const [squareCategoryId, setSquareCategoryId] = useState("");
+  const [websiteCategoryId, setWebsiteCategoryId] = useState(initialWebsiteCategoryId);
   const [imageFilter, setImageFilter] = useState<ImageFilter>("all");
   const [page, setPage] = useState(1);
   const [reloadKey, setReloadKey] = useState(0);
@@ -87,6 +95,7 @@ export function FullCatalogProductManager({
   const [isSaving, setIsSaving] = useState(false);
   const [isBulkSaving, setIsBulkSaving] = useState(false);
   const [isSelectingImages, setIsSelectingImages] = useState(false);
+  const [isSelectingMatches, setIsSelectingMatches] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
 
@@ -111,6 +120,7 @@ export function FullCatalogProductManager({
     const parameters = new URLSearchParams({ page: String(page), pageSize: "24" });
     if (query) parameters.set("q", query);
     if (squareCategoryId) parameters.set("categoryId", squareCategoryId);
+    if (websiteCategoryId) parameters.set("websiteCategoryId", websiteCategoryId);
     if (imageFilter !== "all") parameters.set("images", imageFilter);
     fetch(`/api/admin/full-catalog-products?${parameters}`, { cache: "no-store", signal: controller.signal })
       .then(async (response) => {
@@ -134,7 +144,7 @@ export function FullCatalogProductManager({
       });
 
     return () => controller.abort();
-  }, [imageFilter, page, query, reloadKey, squareCategoryId]);
+  }, [imageFilter, page, query, reloadKey, squareCategoryId, websiteCategoryId]);
 
   const selectedRecord = catalog?.records.find((record) => record.product.squareVariationId === selectedId) ?? null;
   const currentPageIds = catalog?.records.map((record) => record.product.squareVariationId) ?? [];
@@ -145,6 +155,7 @@ export function FullCatalogProductManager({
     () => draft ? websitePlacementReadinessIssues(draft, categories, holidays) : [],
     [categories, draft, holidays]
   );
+  const selectedWebsiteCategory = categories.find((category) => category.id === websiteCategoryId) ?? null;
 
   function submitSearch(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -194,6 +205,42 @@ export function FullCatalogProductManager({
     setSuccess("");
   }
 
+  function changeWebsiteCategoryFilter(categoryId: string) {
+    setIsLoading(true);
+    setError("");
+    setSuccess("");
+    setSelectedIds(new Set());
+    setWebsiteCategoryId(categoryId);
+    setPage(1);
+    onWebsiteCategoryChange?.(categoryId);
+  }
+
+  async function selectAllMatchingProducts() {
+    setIsSelectingMatches(true);
+    setError("");
+    setSuccess("");
+
+    try {
+      const parameters = new URLSearchParams({ selection: "matching", images: imageFilter });
+      if (query) parameters.set("q", query);
+      if (squareCategoryId) parameters.set("categoryId", squareCategoryId);
+      if (websiteCategoryId) parameters.set("websiteCategoryId", websiteCategoryId);
+      const response = await fetch(`/api/admin/full-catalog-products?${parameters}`, { cache: "no-store" });
+      const result = await response.json() as { ok: boolean; error?: string; variationIds?: string[]; total?: number; truncated?: boolean };
+      if (!response.ok || !result.ok || !result.variationIds) throw new Error(result.error || "Matching products could not be selected.");
+      if (result.truncated) {
+        throw new Error(`${formatCount(result.total ?? result.variationIds.length)} products match. Refine the filters until there are 5,000 or fewer.`);
+      }
+
+      setSelectedIds(new Set(result.variationIds));
+      setSuccess(result.variationIds.length ? `${formatCount(result.variationIds.length)} matching products selected.` : "No products match these filters.");
+    } catch (selectionError) {
+      setError(selectionError instanceof Error ? selectionError.message : "Matching products could not be selected.");
+    } finally {
+      setIsSelectingMatches(false);
+    }
+  }
+
   async function selectAllMatchingImages() {
     setIsSelectingImages(true);
     setError("");
@@ -203,6 +250,7 @@ export function FullCatalogProductManager({
       const parameters = new URLSearchParams({ selection: "matching", images: "with" });
       if (query) parameters.set("q", query);
       if (squareCategoryId) parameters.set("categoryId", squareCategoryId);
+      if (websiteCategoryId) parameters.set("websiteCategoryId", websiteCategoryId);
       const response = await fetch(`/api/admin/full-catalog-products?${parameters}`, { cache: "no-store" });
       const result = await response.json() as { ok: boolean; error?: string; variationIds?: string[]; total?: number; truncated?: boolean };
       if (!response.ok || !result.ok || !result.variationIds) throw new Error(result.error || "Products with images could not be selected.");
@@ -219,6 +267,37 @@ export function FullCatalogProductManager({
       setError(selectionError instanceof Error ? selectionError.message : "Products with images could not be selected.");
     } finally {
       setIsSelectingImages(false);
+    }
+  }
+
+  async function removeSelectedFromWebsiteCategory() {
+    if (!selectedWebsiteCategory || selectedIds.size === 0 || disabled) return;
+    const variationIds = Array.from(selectedIds);
+    if (!window.confirm(`Remove ${formatCount(variationIds.length)} selected products from “${selectedWebsiteCategory.name}”? The products will stay in Square and return to private review.`)) return;
+
+    setIsBulkSaving(true);
+    setError("");
+    setSuccess("");
+
+    try {
+      const response = await fetch("/api/admin/full-catalog-products", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ variationIds, edit: createCategoryRemovalEdit(selectedWebsiteCategory.id) })
+      });
+      const result = await response.json() as { ok: boolean; error?: string; updatedCount?: number };
+      if (!response.ok || !result.ok) throw new Error(result.error || "The selected products could not be removed from this category.");
+
+      const removedCount = result.updatedCount ?? variationIds.length;
+      setSelectedIds(new Set());
+      setSuccess(`${formatCount(removedCount)} products removed from ${selectedWebsiteCategory.name}. They remain in Square and are now private for review.`);
+      onCategoryAssignmentsRemoved?.(selectedWebsiteCategory.id, removedCount);
+      setIsLoading(true);
+      setReloadKey((current) => current + 1);
+    } catch (removeError) {
+      setError(removeError instanceof Error ? removeError.message : "The selected products could not be removed from this category.");
+    } finally {
+      setIsBulkSaving(false);
     }
   }
 
@@ -301,7 +380,7 @@ export function FullCatalogProductManager({
   }
 
   return (
-    <section className="border-t border-border bg-surface p-4 md:p-6" aria-labelledby="full-catalog-products-heading">
+    <section className="border-t border-border bg-surface p-4 md:p-6" aria-labelledby="full-catalog-products-heading" id="full-catalog-products">
       <div className="flex flex-col justify-between gap-3 md:flex-row md:items-end">
         <div>
           <p className="text-xs font-black uppercase tracking-[0.14em] text-blue">Product publishing</p>
@@ -312,7 +391,7 @@ export function FullCatalogProductManager({
         </p>
       </div>
 
-      <div className="mt-5 grid gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(240px,360px)_180px]">
+      <div className="mt-5 grid gap-3 lg:grid-cols-2 2xl:grid-cols-[minmax(0,1fr)_minmax(220px,310px)_minmax(220px,310px)_180px]">
         <form className="flex min-h-11 items-center gap-2 rounded-md border border-border bg-surface px-3 focus-within:border-primary" onSubmit={submitSearch}>
           <Search className="shrink-0 text-secondary" size={17} />
           <input className="min-w-0 flex-1 bg-transparent py-3 text-sm outline-none" onChange={(event) => setQueryInput(event.target.value)} placeholder="Search name, SKU or GTIN" type="search" value={queryInput} />
@@ -322,12 +401,18 @@ export function FullCatalogProductManager({
           <option value="">All Square categories</option>
           {squareCategories.map((category) => <option key={category.id} value={category.id}>{category.path} ({formatCount(category.variationCount)})</option>)}
         </select>
+        <select aria-label="Filter by website category" className={inputClassName} onChange={(event) => changeWebsiteCategoryFilter(event.target.value)} value={websiteCategoryId}>
+          <option value="">All website category assignments</option>
+          {categories.map((category) => <option key={category.id} value={category.id}>{websiteCategoryLabel(category, categories)}</option>)}
+        </select>
         <select aria-label="Filter by image" className={inputClassName} onChange={(event) => { setIsLoading(true); setError(""); setImageFilter(event.target.value as ImageFilter); setPage(1); }} value={imageFilter}>
           <option value="all">All images</option>
           <option value="with">With images</option>
           <option value="without">Without images</option>
         </select>
       </div>
+
+      {selectedWebsiteCategory ? <div className="mt-4 rounded-md border border-blue/25 bg-cyan p-3 text-sm text-primary"><span className="font-semibold">Reviewing {selectedWebsiteCategory.name}.</span> Select the products placed here by mistake, then use “Remove from {selectedWebsiteCategory.name}”. The products are not deleted from Square.</div> : null}
 
       {error ? <p className="mt-4 rounded-md border border-red-300 bg-red-50 p-3 text-sm font-semibold text-red-800" role="alert">{error}</p> : null}
       {success ? <p className="mt-4 rounded-md border border-green/30 bg-green/10 p-3 text-sm font-semibold text-primary" role="status">{success}</p> : null}
@@ -341,9 +426,11 @@ export function FullCatalogProductManager({
           <div className="border-b border-border bg-surface p-3">
             <div className="flex flex-wrap items-center gap-2">
               <button className="inline-flex min-h-9 items-center gap-2 rounded-md border border-border px-3 text-xs font-semibold hover:border-primary disabled:opacity-40" disabled={isLoading || currentPageIds.length === 0} onClick={toggleCurrentPageSelection} type="button"><ListChecks size={15} />{isCurrentPageSelected ? "Unselect page" : "Select page"}</button>
+              <button className="inline-flex min-h-9 items-center gap-2 rounded-md border border-border px-3 text-xs font-semibold hover:border-primary disabled:opacity-40" disabled={isLoading || isSelectingMatches} onClick={selectAllMatchingProducts} type="button">{isSelectingMatches ? <LoaderCircle className="animate-spin" size={15} /> : <ListChecks size={15} />}All matches</button>
               <button className="inline-flex min-h-9 items-center gap-2 rounded-md border border-border px-3 text-xs font-semibold hover:border-primary disabled:opacity-40" disabled={isLoading || currentPageImageIds.length === 0} onClick={toggleCurrentPageImageSelection} type="button"><ImageIcon size={15} />{areCurrentPageImagesSelected ? "Unselect images" : `Select images (${currentPageImageIds.length})`}</button>
               <button className="inline-flex min-h-9 items-center gap-2 rounded-md border border-border px-3 text-xs font-semibold hover:border-primary disabled:opacity-40" disabled={isLoading || isSelectingImages} onClick={selectAllMatchingImages} type="button">{isSelectingImages ? <LoaderCircle className="animate-spin" size={15} /> : <ImageIcon size={15} />}All with images</button>
               {selectedIds.size > 0 ? <span className="inline-flex min-h-9 items-center gap-2 rounded-md bg-primary px-3 text-xs font-semibold text-white"><PencilLine size={15} />Editing {formatCount(selectedIds.size)}</span> : null}
+              {selectedIds.size > 0 && selectedWebsiteCategory ? <button className="inline-flex min-h-9 items-center gap-2 rounded-md border border-red/40 bg-red/5 px-3 text-xs font-semibold text-red hover:bg-red/10 disabled:opacity-40" disabled={disabled || isBulkSaving} onClick={removeSelectedFromWebsiteCategory} type="button"><Trash2 size={15} />Remove from {selectedWebsiteCategory.name}</button> : null}
               {selectedIds.size > 0 ? <button aria-label="Clear product selection" className="inline-flex min-h-9 items-center gap-1 rounded-md px-2 text-xs font-semibold text-secondary hover:bg-surface-muted" onClick={clearSelection} type="button"><X size={14} />Clear</button> : null}
             </div>
             <p className="mt-2 text-[11px] text-secondary">{selectedIds.size ? `${formatCount(selectedIds.size)} selected across all pages.` : "Select products with the checkboxes."}</p>
@@ -581,6 +668,23 @@ function BulkModeSection({ children, disabled, mode, onModeChange, title }: { ch
 
 function hasBulkValueAction(mode: BulkValueMode, selectedCount: number) {
   return mode === "replace" || ((mode === "add" || mode === "remove") && selectedCount > 0);
+}
+
+function createCategoryRemovalEdit(categoryId: string): WebsiteBulkEdit {
+  return {
+    categoryMode: "remove",
+    categoryIds: [categoryId],
+    brandMode: "keep",
+    brandIds: [],
+    surfaceMode: "keep",
+    surfaceIds: [],
+    ageMode: "keep",
+    ageGroups: [],
+    fulfillmentMode: "keep",
+    fulfillmentModes: [],
+    holidayMode: "keep",
+    visibilityMode: "keep"
+  };
 }
 
 function ChoiceSection({ children, label }: { children: React.ReactNode; label: string }) {

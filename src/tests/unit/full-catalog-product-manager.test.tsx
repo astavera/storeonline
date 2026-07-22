@@ -111,6 +111,95 @@ describe("full catalog product manager", () => {
     await waitFor(() => expect(screen.getByRole("heading", { name: "Edit 291 selected products" })).toBeTruthy());
     expect(screen.getByText("291 selected across all pages.")).toBeTruthy();
   });
+
+  it("filters assigned products and removes selected products from a website category", async () => {
+    let postedBody: { variationIds: string[]; edit: { categoryMode: string; categoryIds: string[]; visibilityMode: string } } | null = null;
+    const fetchMock = vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
+      const url = String(input);
+
+      if (init?.method === "POST") {
+        postedBody = JSON.parse(String(init.body)) as typeof postedBody;
+        return jsonResponse({ ok: true, updatedCount: 1, publishedCount: 0, skippedPublishCount: 0 });
+      }
+
+      if (url.includes("square-category-bulk")) return jsonResponse({ ok: true, categories: [] });
+
+      return jsonResponse({
+        ok: true,
+        records: [{
+          product: {
+            id: "square-item-vehicle",
+            squareVariationId: "play-vehicle-1",
+            slug: "play-vehicle-1",
+            name: "Play Vehicle 1",
+            department: "Toys/Play Vehicles",
+            shortDescription: "Vehicle",
+            description: "Vehicle",
+            imageUrl: "/images/product-fallback.svg",
+            priceCents: 1299,
+            fulfillmentModes: [],
+            inventoryStatus: "in-stock",
+            previewOnly: true
+          },
+          placement: {
+            squareVariationId: "play-vehicle-1",
+            categoryIds: [websiteCategory.id],
+            brandIds: [],
+            holidayAssignments: [],
+            ageGroups: [],
+            fulfillmentModes: ["pickup"],
+            surfaceIds: ["shop"],
+            visible: true,
+            sortOrder: 0
+          },
+          saved: true
+        }],
+        summary: {
+          available: true,
+          environment: "production",
+          status: "completed",
+          hasMore: false,
+          pagesCompleted: 1,
+          itemCount: 1,
+          variationCount: 1,
+          imageCount: 0,
+          categoryCount: 1,
+          vendorCount: 0,
+          updatedAt: "2026-07-21T18:00:00.000Z"
+        },
+        query: "",
+        categoryId: "",
+        websiteCategoryId: url.includes("websiteCategoryId=") ? websiteCategory.id : "",
+        imageFilter: "all",
+        page: 1,
+        pageSize: 24,
+        pageCount: 1,
+        total: 1
+      });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    vi.spyOn(window, "confirm").mockReturnValue(true);
+
+    render(<FullCatalogProductManager brands={[]} categories={[websiteCategory]} holidays={[]} />);
+
+    const websiteCategoryFilter = await screen.findByRole("combobox", { name: "Filter by website category" });
+    fireEvent.change(websiteCategoryFilter, { target: { value: websiteCategory.id } });
+    await waitFor(() => expect(fetchMock.mock.calls.some(([input]) => String(input).includes(`websiteCategoryId=${websiteCategory.id}`))).toBe(true));
+
+    fireEvent.click(await screen.findByRole("checkbox", { name: "Select Play Vehicle 1" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Remove from Vehicles" }));
+
+    await waitFor(() => expect(postedBody).not.toBeNull());
+    expect(postedBody).toMatchObject({
+      variationIds: ["play-vehicle-1"],
+      edit: {
+        categoryMode: "remove",
+        categoryIds: [websiteCategory.id],
+        visibilityMode: "keep"
+      }
+    });
+    expect(await screen.findByText(/1 products removed from Vehicles/)).toBeTruthy();
+  });
 });
 
 function jsonResponse(body: unknown) {
