@@ -49,7 +49,7 @@ export const storeSectionRegistry: StoreSectionRegistryEntry[] = [
     editableFields: ["product assignments", "badges", "sort order", "visibility"],
     relatedFiles: ["src/config/homepage.config.ts", "src/components/commerce/product-card.tsx"],
     doNotEditHere: ["price overrides without approval", "inventory counts"],
-    businessLogicFiles: ["src/server/square/catalog-sync.ts", "src/features/catalog/services/product-display-service.ts"],
+    businessLogicFiles: ["src/server/square/catalog-postgres-sync.ts", "src/features/catalog/services/product-display-service.ts"],
     riskLevel: "high"
   },
   {
@@ -192,7 +192,7 @@ export const storeSectionRegistry: StoreSectionRegistryEntry[] = [
     editableFields: ["types", "Square variation mapping", "visibility"],
     relatedFiles: ["src/config/balloons.config.ts"],
     doNotEditHere: ["inventory deduction logic"],
-    businessLogicFiles: ["src/features/balloons/services/balloon-builder-service.ts", "src/server/square/catalog-sync.ts"],
+    businessLogicFiles: ["src/features/balloons/services/balloon-builder-service.ts", "src/server/square/catalog-postgres-sync.ts"],
     riskLevel: "high"
   },
   {
@@ -528,7 +528,7 @@ export const storeSectionRegistry: StoreSectionRegistryEntry[] = [
     customerFacing: false,
     adminEditable: "Yes",
     editableFields: ["navigation labels", "sort order", "visibility", "links"],
-    relatedFiles: ["src/app/(admin)/admin/navigation/page.tsx", "src/config/navigation.config.ts"],
+    relatedFiles: ["src/app/(admin)/admin/navigation/page.tsx", "src/config/header-navigation.config.ts"],
     doNotEditHere: ["security headers", "auth routes", "Square categories"],
     businessLogicFiles: ["src/features/admin/services/cms-workflow-service.ts", "src/server/admin/admin-audit-service.ts"],
     riskLevel: "high"
@@ -621,7 +621,7 @@ export const storeSectionRegistry: StoreSectionRegistryEntry[] = [
     editableFields: ["user role", "location scope", "MFA readiness", "active status"],
     relatedFiles: ["src/app/(admin)/admin/users-roles/page.tsx"],
     doNotEditHere: ["password handling internals", "session secret", "payment tokens"],
-    businessLogicFiles: ["src/lib/auth/admin-auth.ts", "src/server/admin/admin-audit-service.ts"],
+    businessLogicFiles: ["src/server/admin/admin-security.ts", "src/server/admin/admin-audit-service.ts"],
     riskLevel: "critical"
   },
   {

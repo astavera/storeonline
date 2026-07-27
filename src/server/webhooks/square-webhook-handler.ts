@@ -5,6 +5,7 @@ import { syncConfiguredSquareCatalogChanges } from "@/server/square/catalog-post
 import { persistSquareInventorySnapshots } from "@/server/square/inventory-postgres-sync";
 import type { WebhookInboxRecord } from "@/server/webhooks/webhook-inbox";
 import type { WebhookEventHandler } from "@/server/webhooks/webhook-processor";
+import { confirmCompletedShippingPayment } from "@/server/webhooks/shipping-payment-confirmation";
 
 const inventoryWebhookSchema = z.object({
   data: z.object({
@@ -21,11 +22,23 @@ const inventoryWebhookSchema = z.object({
   })
 });
 
+const paymentWebhookSchema = z.object({
+  data: z.object({
+    object: z.object({
+      payment: z.object({
+        id: z.string().trim().min(1),
+        status: z.string().trim().min(1)
+      }).passthrough()
+    }).passthrough()
+  }).passthrough()
+}).passthrough();
+
 export type SquareInventoryProjection = z.infer<typeof inventoryWebhookSchema>["data"]["object"]["inventory_counts"][number];
 
 export type SquareWebhookOperations = {
   applyInventoryCounts(counts: SquareInventoryProjection[]): Promise<void>;
   synchronizeCatalog(): Promise<void>;
+  confirmCompletedShippingPayment(paymentId: string): Promise<void>;
 };
 
 export function createSquareWebhookHandler(operations: SquareWebhookOperations): WebhookEventHandler {
@@ -37,6 +50,19 @@ export function createSquareWebhookHandler(operations: SquareWebhookOperations):
     }
     if (record.eventType === "catalog.version.updated") {
       await operations.synchronizeCatalog();
+      return;
+    }
+    if (record.eventType === "payment.updated") {
+      const payload = paymentWebhookSchema.parse(record.payload);
+      if (payload.data.object.payment.status === "COMPLETED") {
+        await operations.confirmCompletedShippingPayment(payload.data.object.payment.id);
+      }
+      return;
+    }
+    if (record.eventType === "order.updated") {
+      // Payment confirmation is the only creator of operational orders.
+      // Order updates will later synchronize fulfillment state, never create a
+      // second OrderPRO order.
       return;
     }
     throw new Error(`Unsupported Square webhook event type: ${record.eventType}`);
@@ -56,6 +82,10 @@ const productionOperations: SquareWebhookOperations = {
 
   async synchronizeCatalog() {
     await syncConfiguredSquareCatalogChanges();
+  },
+
+  async confirmCompletedShippingPayment(paymentId) {
+    await confirmCompletedShippingPayment(paymentId);
   }
 };
 

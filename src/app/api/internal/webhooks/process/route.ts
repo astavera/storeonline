@@ -1,6 +1,7 @@
 import * as Sentry from "@sentry/nextjs";
 import { NextResponse } from "next/server";
 import { PersistenceUnavailableError } from "@/server/db/persistence-policy";
+import { cleanupExpiredShippingCheckouts } from "@/server/checkout/shipping-checkout-cleanup";
 import { getWebhookInboxRepository } from "@/server/webhooks/webhook-inbox";
 import { processWebhookBatch } from "@/server/webhooks/webhook-processor";
 import { authorizeWebhookWorker } from "@/server/webhooks/webhook-worker-auth";
@@ -28,7 +29,11 @@ export async function POST(request: Request) {
         });
       }
     });
-    return NextResponse.json({ ok: true, ...result }, { headers: { "Cache-Control": "no-store" } });
+    const shippingCleanup = await cleanupExpiredShippingCheckouts(10);
+    return NextResponse.json(
+      { ok: true, ...result, shippingCleanup },
+      { headers: { "Cache-Control": "no-store" } }
+    );
   } catch (error) {
     Sentry.captureException(error, { tags: { subsystem: "square-webhook-worker" } });
     const status = error instanceof PersistenceUnavailableError ? 503 : 500;

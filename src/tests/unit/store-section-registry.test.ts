@@ -1,3 +1,6 @@
+// @vitest-environment node
+import { existsSync } from "node:fs";
+import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import { storeSectionRegistry } from "@/config/store-section-registry";
 
@@ -70,5 +73,14 @@ describe("storeSectionRegistry", () => {
     const sensitiveSections = storeSectionRegistry.filter((section) => section.sectionId.startsWith("checkout.") || section.sectionId.includes("fulfillment") || section.sectionId.includes("slots"));
 
     expect(sensitiveSections.every((section) => section.riskLevel === "high" || section.riskLevel === "critical")).toBe(true);
+  });
+
+  it("does not reference source files that no longer exist", () => {
+    const documentedFiles = new Set(
+      storeSectionRegistry.flatMap((section) => [...section.relatedFiles, ...section.businessLogicFiles])
+    );
+    const missingFiles = [...documentedFiles].filter((file) => !existsSync(resolve(process.cwd(), file)));
+
+    expect(missingFiles).toEqual([]);
   });
 });

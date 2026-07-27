@@ -138,7 +138,9 @@ export async function readPostgresStorefrontProductsByVariationIds(
     });
     const imageIds = uniqueStrings(variations.flatMap((variation) => [
       ...jsonStringArray(jsonObject(variation.raw)?.itemVariationData, "imageIds"),
+      jsonString(variation.raw, "imageId"),
       ...jsonStringArray(variation.item.raw, "imageIds"),
+      jsonString(variation.item.raw, "imageId"),
       ...jsonStringArray(jsonObject(variation.item.raw)?.itemData, "imageIds")
     ]));
     const categoryIds = uniqueStrings(variations.flatMap((variation) => variation.item.categoryIds));
@@ -206,14 +208,21 @@ function jsonBoolean(value: Prisma.JsonValue | Record<string, Prisma.JsonValue> 
   return jsonObject(value as Prisma.JsonValue | undefined)?.[key] === true;
 }
 
+function jsonString(value: Prisma.JsonValue | Record<string, Prisma.JsonValue> | null | undefined, key: string) {
+  const nested = jsonObject(value as Prisma.JsonValue | undefined)?.[key];
+  return typeof nested === "string" && nested.trim() ? nested.trim() : "";
+}
+
 function imageIdsForVariation(variationRaw: Prisma.JsonValue, itemRaw: Prisma.JsonValue) {
   const variationData = jsonObject(variationRaw)?.itemVariationData;
   const itemData = jsonObject(itemRaw)?.itemData;
   return uniqueStrings([
     ...jsonStringArray(variationData as Prisma.JsonValue, "imageIds"),
     ...jsonStringArray(variationRaw, "imageIds"),
+    jsonString(variationRaw, "imageId"),
     ...jsonStringArray(itemData as Prisma.JsonValue, "imageIds"),
-    ...jsonStringArray(itemRaw, "imageIds")
+    ...jsonStringArray(itemRaw, "imageIds"),
+    jsonString(itemRaw, "imageId")
   ]);
 }
 

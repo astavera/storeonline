@@ -2,13 +2,13 @@
 
 import {
   ArrowLeft,
-  BadgeCheck,
   CalendarDays,
   ChevronLeft,
   ChevronRight,
   Clock3,
   LoaderCircle,
   MapPin,
+  Phone,
   Store,
   Truck,
   X
@@ -51,6 +51,7 @@ const secondaryCatalogItems: BalloonCatalogItem[] = [
 
 const catalogItems = [...primaryCatalogItems, ...secondaryCatalogItems];
 const pickupStores = storeLocations.filter((location) => location.pickupEnabled);
+const deliverySupportStore = storeLocations.find((location) => location.slug === "86th-street")!;
 
 export function BalloonCatalogGate({ initialCollection }: { initialCollection?: string }) {
   const router = useRouter();
@@ -167,7 +168,12 @@ export function BalloonCatalogGate({ initialCollection }: { initialCollection?: 
       });
       const result = await response.json() as { eligibility?: BalloonDeliveryPostalEligibility };
       if (requestVersion !== deliveryRequestVersionRef.current) return;
-      setPostalEligibility(result.eligibility ?? unavailablePostalEligibility());
+      const eligibility = result.eligibility ?? unavailablePostalEligibility();
+      if (eligibility.eligible && Date.parse(eligibility.expiresAt) > Date.now()) {
+        continueToCatalog(eligibility);
+        return;
+      }
+      setPostalEligibility(eligibility.eligible ? unavailablePostalEligibility() : eligibility);
     } catch {
       if (requestVersion !== deliveryRequestVersionRef.current) return;
       setPostalEligibility(unavailablePostalEligibility());
@@ -182,20 +188,22 @@ export function BalloonCatalogGate({ initialCollection }: { initialCollection?: 
     setPostalEligibility(null);
   }
 
-  function continueToCatalog() {
+  function continueToCatalog(deliveryApproval?: BalloonDeliveryPostalEligibility) {
     if (!selectedItem || !mode) return;
 
     const params = new URLSearchParams({ collection: selectedItem.collection, fulfillment: mode });
 
     if (mode === "delivery") {
-      if (!postalEligibility?.eligible || Date.parse(postalEligibility.expiresAt) <= Date.now()) return;
+      const approvedEligibility = deliveryApproval ?? postalEligibility;
+      if (!approvedEligibility?.eligible || Date.parse(approvedEligibility.expiresAt) <= Date.now()) return;
       window.sessionStorage.setItem("modern-state-balloon-fulfillment", JSON.stringify({
         version: 1,
         mode,
-        postalCode: postalEligibility.postalCode,
-        approvalId: postalEligibility.approvalId,
-        expiresAt: postalEligibility.expiresAt
+        postalCode: approvedEligibility.postalCode,
+        approvalId: approvedEligibility.approvalId,
+        expiresAt: approvedEligibility.expiresAt
       }));
+      params.set("postalCode", approvedEligibility.postalCode);
     }
 
     if (mode === "pickup") {
@@ -233,25 +241,14 @@ export function BalloonCatalogGate({ initialCollection }: { initialCollection?: 
               if (event.target === event.currentTarget) closeGate();
             }}>
               <section
-                aria-label={mode ? undefined : "Choose fulfillment"}
-                aria-labelledby={mode ? "balloons-gate-title" : undefined}
+                aria-label={mode === "delivery" ? "Local delivery" : mode === "pickup" ? "Store pickup" : "Choose fulfillment"}
                 aria-modal="true"
                 className={`balloons-gate-modal${mode ? "" : " balloons-gate-modal--compact"}`}
                 role="dialog"
               >
                 <button aria-label="Close fulfillment selection" className="balloons-gate-modal__close" onClick={closeGate} ref={closeButtonRef} type="button">
-                  <X aria-hidden="true" size={21} />
+                  <X aria-hidden="true" size={18} strokeWidth={2} />
                 </button>
-
-                {mode ? (
-                  <div className="balloons-gate-modal__header">
-                    <span aria-hidden="true" className="balloons-gate-modal__product" style={{ backgroundImage: `url(${selectedItem.imageUrl})` }} />
-                    <div>
-                      <p className="balloons-eyebrow">Shopping {selectedItem.title}</p>
-                      <h2 id="balloons-gate-title">{mode === "delivery" ? "Local delivery" : "Store pickup"}</h2>
-                    </div>
-                  </div>
-                ) : null}
 
                 {!mode ? (
                   <div className="balloons-gate-choices">
@@ -270,42 +267,36 @@ export function BalloonCatalogGate({ initialCollection }: { initialCollection?: 
                   <div className="balloons-gate-panel">
                     <button className="balloons-gate-back" onClick={() => { setMode("pickup"); resetPostalEligibility(); }} type="button"><ArrowLeft aria-hidden="true" size={16} /> Change to pickup</button>
 
-                    {postalEligibility?.eligible ? (
-                      <div className="balloons-gate-success" role="status">
-                        <span><BadgeCheck aria-hidden="true" size={26} /></span>
-                        <div>
-                          <p className="balloons-eyebrow">Approved by OrderPro</p>
-                          <h3>Local delivery is available for ZIP {postalEligibility.postalCode}.</h3>
-                          <div className="balloons-gate-success__details">
-                            <span><MapPin aria-hidden="true" size={16} /> ZIP {postalEligibility.postalCode}</span>
-                            <span><BadgeCheck aria-hidden="true" size={16} /> Eligibility confirmed</span>
-                          </div>
-                          <button className="balloons-gate-primary" onClick={continueToCatalog} type="button">Continue to {selectedItem.title} order <ChevronRight aria-hidden="true" size={18} /></button>
-                          <p className="balloons-gate-fine-print">We will collect the full address and ask OrderPro to confirm the store, delivery fee, and time during checkout.</p>
-                        </div>
+                    <form className="balloons-gate-form" onSubmit={checkDeliveryPostalCode}>
+                      <PanelIntro icon="delivery" title="Enter ZIP code" />
+                      <div className="balloons-gate-form__postal">
+                        <GateField
+                          autoComplete="postal-code"
+                          inputMode="numeric"
+                          label="ZIP code"
+                          maxLength={5}
+                          onChange={(value) => { setPostalCode(value.replace(/\D/g, "").slice(0, 5)); resetPostalEligibility(); }}
+                          pattern="[0-9]{5}"
+                          placeholder="10075"
+                          value={postalCode}
+                        />
                       </div>
-                    ) : (
-                      <form className="balloons-gate-form" onSubmit={checkDeliveryPostalCode}>
-                        <PanelIntro icon="delivery" title="Check your ZIP code">Enter your 5-digit ZIP code. OrderPro will confirm whether you can continue with local delivery.</PanelIntro>
-                        <div className="balloons-gate-form__postal">
-                          <GateField
-                            autoComplete="postal-code"
-                            inputMode="numeric"
-                            label="ZIP code"
-                            maxLength={5}
-                            onChange={(value) => { setPostalCode(value.replace(/\D/g, "").slice(0, 5)); resetPostalEligibility(); }}
-                            pattern="[0-9]{5}"
-                            placeholder="10075"
-                            value={postalCode}
-                          />
+                      {postalEligibility && !postalEligibility.eligible ? (
+                        <div className="balloons-gate-error" role="alert">
+                          <strong>Sorry, we don&apos;t currently deliver to this area.</strong>
+                          <span>We may still be able to help. Contact our store:</span>
+                          <a className="balloons-gate-error__phone" href={`tel:${deliverySupportStore.phone.replace(/\D/g, "")}`}>{deliverySupportStore.phone}</a>
+                          <a className="balloons-gate-call-action" href={`tel:${deliverySupportStore.phone.replace(/\D/g, "")}`}>
+                            <Phone aria-hidden="true" size={17} />
+                            Call our store
+                          </a>
                         </div>
-                        {postalEligibility && !postalEligibility.eligible ? <p className="balloons-gate-error" role="alert">{postalEligibility.message}</p> : null}
-                        <button className="balloons-gate-primary balloons-gate-primary--postal" disabled={isChecking || postalCode.length !== 5} type="submit">
-                          {isChecking ? <LoaderCircle aria-hidden="true" className="animate-spin" size={18} /> : <MapPin aria-hidden="true" size={18} />}
-                          {isChecking ? "Checking with OrderPro..." : "Check ZIP code"}
-                        </button>
-                      </form>
-                    )}
+                      ) : null}
+                      <button className="balloons-gate-primary balloons-gate-primary--postal" disabled={isChecking || postalCode.length !== 5} type="submit">
+                        {isChecking ? <LoaderCircle aria-hidden="true" className="animate-spin" size={18} /> : <MapPin aria-hidden="true" size={18} />}
+                        {isChecking ? "Checking..." : "Check delivery"}
+                      </button>
+                    </form>
                   </div>
                 ) : null}
 
@@ -336,7 +327,7 @@ export function BalloonCatalogGate({ initialCollection }: { initialCollection?: 
                         title="Pickup time"
                       />
                     </div>
-                    <button className="balloons-gate-primary balloons-gate-primary--full" disabled={isPickupSlotsLoading || !pickupSlotId} onClick={continueToCatalog} type="button">Shop {selectedItem.title} balloons <ChevronRight aria-hidden="true" size={18} /></button>
+                    <button className="balloons-gate-primary balloons-gate-primary--full" disabled={isPickupSlotsLoading || !pickupSlotId} onClick={() => continueToCatalog()} type="button">Shop {selectedItem.title} balloons <ChevronRight aria-hidden="true" size={18} /></button>
                   </div>
                 ) : null}
               </section>
@@ -361,18 +352,18 @@ function CatalogNavigation({ items, ariaLabel, className, onSelect }: { items: B
   );
 }
 
-function PanelIntro({ icon, title, children }: { icon: FulfillmentMode; title: string; children: string }) {
+function PanelIntro({ icon, title, children }: { icon: FulfillmentMode; title: string; children?: string }) {
   return (
     <div className="balloons-gate-panel__intro">
       <span>{icon === "delivery" ? <MapPin aria-hidden="true" size={20} /> : <Store aria-hidden="true" size={20} />}</span>
-      <div><h3>{title}</h3><p>{children}</p></div>
+      <div><h3>{title}</h3>{children ? <p>{children}</p> : null}</div>
     </div>
   );
 }
 
 function GateField({ label, placeholder, value, onChange, required = true, inputMode, maxLength, autoComplete, pattern }: { label: string; placeholder: string; value: string; onChange: (value: string) => void; required?: boolean; inputMode?: "numeric"; maxLength?: number; autoComplete?: string; pattern?: string; }) {
   return (
-    <label className="balloons-gate-field">{label}<input autoComplete={autoComplete} inputMode={inputMode} maxLength={maxLength} onChange={(event) => onChange(event.target.value)} pattern={pattern} placeholder={placeholder} required={required} value={value} /></label>
+    <label className="balloons-gate-field"><span className="sr-only">{label}</span><input autoComplete={autoComplete} inputMode={inputMode} maxLength={maxLength} onChange={(event) => onChange(event.target.value)} pattern={pattern} placeholder={placeholder} required={required} value={value} /></label>
   );
 }
 

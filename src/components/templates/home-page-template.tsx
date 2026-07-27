@@ -11,30 +11,20 @@ RELATED FILES: src/config/homepage.config.ts, src/config/store-section-registry.
 BUSINESS LOGIC FILES: src/features/departments/services/department-service.ts
 */
 
-import { DepartmentCardGrid } from "@/components/commerce/department-card-grid";
 import { ProductCard } from "@/components/commerce/product-card";
 import { ProductGrid } from "@/components/commerce/product-grid";
 import { PageRenderer } from "@/components/cms";
+import HalloweenHeroCard from "@/components/HalloweenHeroCard/HalloweenHeroCard";
 import { ButtonLink } from "@/components/ui/button";
-import { defaultHomepageImage, type HomepageSectionConfig, type HomepageSectionElement, type HomepageSectionItem } from "@/config/homepage.config";
+import { defaultHomepageImage, halloweenHomepageImage, type HomepageSectionConfig, type HomepageSectionElement, type HomepageSectionItem } from "@/config/homepage.config";
+import { defaultHomepageSeo } from "@/config/homepage-seo.config";
 import { storeLocations } from "@/config/locations.config";
 import type { StorefrontProduct } from "@/features/catalog/product-catalog";
 import { homepageSectionsToCmsPageDocument, type CmsSection } from "@/lib/cms";
 import { cn } from "@/lib/utils";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import Image from "next/image";
-import Link from "next/link";
 import { SectionFrame } from "../sections/section-frame";
-
-const defaultHomepageTemplateSeo: Parameters<typeof homepageSectionsToCmsPageDocument>[0]["seo"] = {
-  title: "Modern State - State News NYC",
-  description: "Toys, party supplies, balloons, stationery, arts and crafts, greeting cards, and gifts on the Upper East Side.",
-  ogTitle: "Modern State - State News NYC",
-  ogDescription: "Shop Modern State for toys, balloons, party supplies, stationery, gifts, and neighborhood essentials.",
-  ogImage: defaultHomepageImage,
-  canonicalUrl: "/",
-  indexable: true
-};
 
 export function HomePageTemplate({
   locations = storeLocations.filter((location) => location.slug !== "warehouse"),
@@ -48,7 +38,7 @@ export function HomePageTemplate({
   const homepageSectionsById = new Map(sections.map((section) => [section.sectionId, section]));
   const cmsDocument = homepageSectionsToCmsPageDocument({
     sections,
-    seo: defaultHomepageTemplateSeo,
+    seo: defaultHomepageSeo,
     status: "PUBLISHED"
   });
 
@@ -98,11 +88,15 @@ function renderHomepageSection(section: CmsSection, sectionsById: Map<string, Ho
 
 function HeroSection({ section }: { section: HomepageSectionConfig }) {
   const isBackToSchoolHero = section.variant === "back-to-school";
-  const heroImage = isBackToSchoolHero ? section.backgroundImage : section.backgroundImage || defaultHomepageImage;
+  const isSeasonalCardHero = section.variant === "seasonal-card";
+  const heroImage = section.backgroundImage || defaultHomepageImage;
+  const isHalloweenHeroCard =
+    isSeasonalCardHero &&
+    (heroImage === halloweenHomepageImage || section.title.toLowerCase().includes("halloween"));
   const showPrimaryCta = isSectionElementVisible(section, "primaryCta") && Boolean(section.ctaHref);
-  const showSecondaryCta = isSectionElementVisible(section, "secondaryCta");
-  const secondaryCtaHref = section.secondaryCtaHref || (isBackToSchoolHero ? "/stationery" : "/balloons");
-  const secondaryCtaLabel = section.secondaryCtaLabel || (isBackToSchoolHero ? "Build a School Kit" : "Balloon order");
+  const secondaryCtaHref = section.secondaryCtaHref || (isBackToSchoolHero ? "/stationery" : isSeasonalCardHero ? "/party-supplies" : "/balloons");
+  const secondaryCtaLabel = section.secondaryCtaLabel || (isBackToSchoolHero ? "Build a School Kit" : isSeasonalCardHero ? "Browse party supplies" : "Balloon order");
+  const showSecondaryCta = isSectionElementVisible(section, "secondaryCta") && Boolean(secondaryCtaHref && secondaryCtaLabel);
   const heroSizeClasses = {
     compact: "min-h-[680px] py-10 lg:min-h-[720px] lg:py-12",
     standard: "min-h-[calc(100svh-106px)] py-12 lg:min-h-[calc(100svh-106px)] lg:py-16",
@@ -121,36 +115,31 @@ function HeroSection({ section }: { section: HomepageSectionConfig }) {
       {heroImage ? <div aria-hidden="true" className="homepage-hero-bg" style={{ backgroundImage: `url(${heroImage})` }} /> : null}
       {isBackToSchoolHero && !heroImage ? <BackToSchoolHeroBackdrop /> : null}
       <div className={cn("container-shell relative z-10 flex flex-col justify-center gap-8", heroSizeClasses[section.heroSize ?? "large"])}>
-        <div className="homepage-hero-copy mx-auto max-w-5xl text-center">
-          {isSectionElementVisible(section, "eyebrow") && section.eyebrow ? <p className="inline-flex rounded-pill bg-yellow px-4 py-2 text-xs font-black uppercase tracking-[0.14em] text-primary">{section.eyebrow}</p> : null}
-          {isSectionElementVisible(section, "title") && section.title ? <h1 className={cn("mx-auto mt-5 max-w-5xl font-display text-5xl font-black uppercase text-white drop-shadow md:text-7xl", isBackToSchoolHero ? "leading-[0.86] xl:text-[6.5rem]" : "leading-[0.94] xl:text-8xl")}>{section.title}</h1> : null}
-          {isSectionElementVisible(section, "body") && section.body ? <p className="homepage-hero-body mx-auto mt-5 max-w-3xl text-lg font-bold leading-relaxed text-white md:text-xl">{section.body}</p> : null}
-          {showPrimaryCta || showSecondaryCta ? (
-            <div className="mt-8 flex flex-wrap justify-center gap-3">
-              {showPrimaryCta ? (
-                <ButtonLink className="rounded-pill bg-white px-10 py-4 text-base font-black text-primary hover:bg-yellow" href={section.ctaHref || "/shop"}>
-                  {section.ctaLabel}
-                </ButtonLink>
+        <div className={cn("homepage-hero-copy", isSeasonalCardHero ? "homepage-seasonal-hero-card max-w-2xl" : "mx-auto max-w-5xl text-center", isSeasonalCardHero && heroCardPositionClass(section), isHalloweenHeroCard && "homepage-seasonal-hero-card--interactive")}>
+          {isHalloweenHeroCard ? (
+            <HalloweenHeroCard href={section.ctaHref || "/shop"} />
+          ) : (
+            <>
+              {isSectionElementVisible(section, "eyebrow") && section.eyebrow ? <p className={cn("inline-flex rounded-pill px-4 py-2 text-xs font-black uppercase tracking-[0.14em]", isSeasonalCardHero ? "bg-primary text-white" : "bg-yellow text-primary")}>{section.eyebrow}</p> : null}
+              {isSectionElementVisible(section, "title") && section.title ? <h1 className={cn("mt-5 font-display text-5xl font-black md:text-7xl", isSeasonalCardHero ? "max-w-xl text-center leading-[0.92] text-primary" : "mx-auto max-w-5xl uppercase leading-[0.94] text-white drop-shadow xl:text-8xl", isBackToSchoolHero && "leading-[0.86] xl:text-[6.5rem]")}>{section.title}</h1> : null}
+              {isSectionElementVisible(section, "body") && section.body ? <p className={cn("homepage-hero-body mt-5 max-w-3xl text-lg font-bold leading-relaxed md:text-xl", isSeasonalCardHero ? "text-primary" : "mx-auto text-white")}>{section.body}</p> : null}
+              {showPrimaryCta || showSecondaryCta ? (
+                <div className={cn("mt-8 flex flex-wrap justify-center gap-3", isSeasonalCardHero && "homepage-seasonal-hero-actions")}>
+                  {showPrimaryCta ? (
+                    <ButtonLink className={cn("px-10 py-4 text-base font-black", isSeasonalCardHero ? "rounded-sm bg-primary text-white hover:bg-blue" : "rounded-pill bg-white text-primary hover:bg-yellow")} href={section.ctaHref || "/shop"}>
+                      {section.ctaLabel}
+                    </ButtonLink>
+                  ) : null}
+                  {showSecondaryCta ? (
+                    <ButtonLink className={cn("px-10 py-4 text-base font-black", isSeasonalCardHero ? "rounded-sm border-2 border-primary bg-transparent text-primary hover:bg-white/35" : "rounded-pill bg-yellow text-blue hover:bg-cyan")} href={secondaryCtaHref}>
+                      {secondaryCtaLabel}
+                    </ButtonLink>
+                  ) : null}
+                </div>
               ) : null}
-              {showSecondaryCta ? (
-                <ButtonLink className="rounded-pill bg-yellow px-10 py-4 text-base font-black text-blue hover:bg-cyan" href={secondaryCtaHref}>
-                  {secondaryCtaLabel}
-                </ButtonLink>
-              ) : null}
-            </div>
-          ) : null}
+            </>
+          )}
         </div>
-        {isSectionElementVisible(section, "items") ? (
-          <div className="homepage-hero-visual mx-auto w-full max-w-5xl">
-            <div className="mb-3 flex flex-wrap items-center justify-between gap-3 text-white">
-              <p className="text-xs font-black uppercase tracking-[0.18em]">{isBackToSchoolHero ? "Shop by brand or category" : "Shop the essentials"}</p>
-              <Link className="rounded-pill bg-white px-4 py-2 text-sm font-black text-primary hover:bg-yellow" href={isBackToSchoolHero ? "/shop" : section.ctaHref || "/shop"}>
-                Shop all
-              </Link>
-            </div>
-            <HeroCategoryTiles campaign={isBackToSchoolHero} items={section.items} />
-          </div>
-        ) : null}
       </div>
     </SectionFrame>
   );
@@ -163,50 +152,6 @@ function BackToSchoolHeroBackdrop() {
       <span className="homepage-school-pencil" />
       <span className="homepage-school-ruler" />
       <span className="homepage-school-eraser" />
-    </div>
-  );
-}
-
-function HeroCategoryTiles({ campaign = false, items }: { campaign?: boolean; items?: HomepageSectionItem[] }) {
-  const defaultTiles: HomepageSectionItem[] = [
-    { id: "toys", title: "Toys", href: "/toys", image: "/images/category-toys.svg" },
-    { id: "party", title: "Party", href: "/party-supplies", image: "/images/category-party.svg" },
-    { id: "balloons", title: "Balloons", href: "/balloons", image: "/images/category-balloons.svg" },
-    { id: "gifts", title: "Gifts", href: "/gifts", image: "/images/category-gifts.svg" }
-  ];
-  const tiles = (items && items.length > 0 ? items : defaultTiles).slice(0, 4);
-  const tones = ["bg-yellow text-primary", "bg-cyan text-primary", "bg-green text-primary", "bg-red text-white"];
-  const toneClasses = {
-    yellow: "bg-yellow text-primary",
-    cyan: "bg-cyan text-primary",
-    green: "bg-green text-primary",
-    red: "bg-red text-white",
-    white: "bg-white text-primary"
-  } as const;
-
-  return (
-    <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
-      {tiles.map((tile, index) => {
-        const isCutout = tile.presentation === "cutout" && Boolean(tile.image);
-
-        if (isCutout) {
-          return (
-            <Link className={cn("group flex items-center justify-center rounded-md p-2 transition hover:-translate-y-1", campaign && "min-h-[142px]")} data-card-presentation="cutout" href={tile.href || "/shop"} key={tile.id}>
-              <span className="sr-only">{tile.title}</span>
-              <Image alt="" aria-hidden="true" className="h-36 w-full object-contain drop-shadow-[0_14px_18px_rgba(15,23,42,0.28)] transition duration-200 group-hover:scale-[1.06]" height={144} src={tile.image!} unoptimized width={260} />
-            </Link>
-          );
-        }
-
-        return (
-          <Link className={cn("group rounded-md p-4 transition hover:-translate-y-1 hover:shadow-card", campaign ? "min-h-[142px] text-left" : "text-center", tile.tone ? toneClasses[tile.tone] : tones[index % tones.length])} data-card-presentation="card" href={tile.href || "/shop"} key={tile.id}>
-            {tile.image ? <Image alt={tile.imageAlt || `${tile.title} logo`} className="mx-auto aspect-[4/3] h-20 w-full rounded bg-white object-contain p-2 transition group-hover:scale-[1.04]" height={80} src={tile.image} unoptimized width={240} /> : null}
-            {tile.label ? <span className="block text-[11px] font-black uppercase tracking-[0.14em]">{tile.label}</span> : null}
-            <span className={cn("block font-black", campaign ? "mt-3 text-xl leading-none" : "mt-3 text-sm")}>{tile.title}</span>
-            {tile.body ? <span className="mt-3 block text-xs font-extrabold leading-snug">{tile.body}</span> : null}
-          </Link>
-        );
-      })}
     </div>
   );
 }
@@ -234,7 +179,7 @@ function RetailPromoTiles() {
       <div className="container-shell grid gap-5 lg:grid-cols-2">
         {tiles.map((tile) => (
           <article className="relative min-h-[260px] overflow-hidden rounded-md bg-blue text-white" key={tile.title}>
-            <img alt="" className="absolute inset-0 h-full w-full object-cover" decoding="async" loading="lazy" src={tile.image} />
+            <Image alt="" className="object-cover" fill sizes="(max-width: 1024px) 100vw, 50vw" src={tile.image} unoptimized />
             <div className="absolute inset-0 bg-gradient-to-r from-blue/90 via-blue/50 to-transparent" />
             <div className="relative flex min-h-[260px] max-w-sm flex-col justify-center p-8">
               <h2 className="font-display text-4xl font-black uppercase leading-none">{tile.title}</h2>
@@ -247,52 +192,6 @@ function RetailPromoTiles() {
         ))}
       </div>
     </SectionFrame>
-  );
-}
-
-function DepartmentsSection({ products, section }: { products: StorefrontProduct[]; section: HomepageSectionConfig }) {
-  return (
-    <SectionFrame area="Homepage" className={cn(publicToneClass(section), publicPaddingClass(section))} component="DepartmentCardGrid" sectionId={section.sectionId} variant={section.variant}>
-      <div className="container-shell">
-        <div className="mb-8 flex flex-col justify-between gap-4 md:flex-row md:items-end">
-          <div className={cn("max-w-2xl", textPositionClass(section))}>
-            {isSectionElementVisible(section, "title") && section.title ? <h2 className="font-display text-4xl font-black">{section.title}</h2> : null}
-            {isSectionElementVisible(section, "body") && section.body ? <p className="mt-3 text-secondary">{section.body}</p> : null}
-          </div>
-          <div className="hidden items-center gap-2 md:flex" aria-hidden="true">
-            <span className="grid h-10 w-10 place-items-center rounded-full bg-blue/45 text-white">
-              <ChevronLeft size={20} />
-            </span>
-            <span className="grid h-10 w-10 place-items-center rounded-full bg-blue text-white">
-              <ChevronRight size={20} />
-            </span>
-          </div>
-        </div>
-        {section.items?.length ? <RetailCategoryRail items={section.items} products={products} /> : <DepartmentCardGrid />}
-      </div>
-    </SectionFrame>
-  );
-}
-
-function RetailCategoryRail({ items, products }: { items: HomepageSectionItem[]; products: StorefrontProduct[] }) {
-  return (
-    <div className="grid grid-cols-2 gap-5 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6">
-      {items.map((item) => {
-        const linkedProduct = item.productSlug ? products.find((product) => product.slug === item.productSlug) : null;
-        const href = item.href || (linkedProduct ? `/products/${linkedProduct.slug}` : "/shop");
-        const image = item.image || linkedProduct?.imageUrl || "/images/product-fallback.svg";
-
-        return (
-          <Link className="group text-center" href={href} key={item.id}>
-            <span className="block aspect-square overflow-hidden rounded-md bg-surface-muted p-3 transition group-hover:-translate-y-1 group-hover:shadow-card">
-              <img alt={item.imageAlt || item.title} className="h-full w-full rounded-sm object-cover" decoding="async" loading="lazy" src={image} />
-            </span>
-            <span className="mt-4 block text-lg font-black leading-tight">{item.title}</span>
-            {item.body ? <span className="mt-1 block text-sm font-semibold text-secondary">{item.body}</span> : null}
-          </Link>
-        );
-      })}
-    </div>
   );
 }
 
@@ -398,12 +297,14 @@ function FlexibleSection({ products, section }: { products: StorefrontProduct[];
   const sectionType = sectionTypeFromSection(section);
   const hasImage = Boolean(section.backgroundImage) && section.mediaPlacement !== "none";
   const image = hasImage ? (
-    <img
+    <Image
       alt={section.imageAlt || section.title}
       className="aspect-[4/3] h-full w-full rounded-md object-cover"
-      decoding="async"
+      height={600}
       loading="lazy"
       src={section.backgroundImage || defaultHomepageImage}
+      unoptimized
+      width={800}
     />
   ) : null;
 
@@ -503,7 +404,7 @@ function HomepageItemCard({ item, products }: { item: HomepageSectionItem; produ
 
   return (
     <article className="surface-card p-5">
-      {item.image ? <img alt={item.imageAlt || item.title} className="mb-4 aspect-[4/3] w-full rounded-md object-cover" decoding="async" loading="lazy" src={item.image} /> : null}
+      {item.image ? <Image alt={item.imageAlt || item.title} className="mb-4 aspect-[4/3] w-full rounded-md object-cover" height={600} loading="lazy" src={item.image} unoptimized width={800} /> : null}
       {item.badge ? <p className="mb-2 text-xs font-semibold uppercase tracking-[0.14em] text-secondary">{item.badge}</p> : null}
       <h3 className="font-display text-xl font-semibold">{item.title}</h3>
       {item.body ? <p className="mt-2 text-sm text-secondary">{item.body}</p> : null}
@@ -531,6 +432,18 @@ function InlineItemGrid({ className, items, tone }: { className?: string; items:
   );
 }
 
+function heroCardPositionClass(section: HomepageSectionConfig) {
+  if (section.textPosition === "center") {
+    return "mx-auto text-center";
+  }
+
+  if (section.textPosition === "right") {
+    return "ml-auto text-right";
+  }
+
+  return "mr-auto text-left";
+}
+
 function textPositionClass(section: HomepageSectionConfig) {
   if (section.textPosition === "center") {
     return "mx-auto text-center";
@@ -545,18 +458,6 @@ function textPositionClass(section: HomepageSectionConfig) {
 
 function textWidthClass(section: HomepageSectionConfig) {
   return section.textPosition === "center" ? "mx-auto" : section.textPosition === "right" ? "ml-auto" : "";
-}
-
-function imagePositionClass(section: HomepageSectionConfig) {
-  if (section.mediaPlacement === "left") {
-    return "bg-left";
-  }
-
-  if (section.mediaPlacement === "right") {
-    return "bg-right";
-  }
-
-  return "bg-center";
 }
 
 function sectionTypeFromSection(section: HomepageSectionConfig): NonNullable<HomepageSectionConfig["sectionType"]> {

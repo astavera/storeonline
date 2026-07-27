@@ -4,6 +4,7 @@ import { z } from "zod";
 import { storeLocations } from "@/config/locations.config";
 import type { OrderProPickupAvailability } from "@/features/fulfillment/contracts/orderpro-pickup";
 import { isWithinNewYorkDeliveryWindow } from "@/features/fulfillment/utils/new-york-delivery-date";
+import { getOrderProPrivatePreviewClient } from "@/server/orderpro/private-preview-client";
 
 export const orderProPickupAvailabilityRequestSchema = z.object({
   locationId: z.string().trim().min(1).max(160),
@@ -19,9 +20,7 @@ export type OrderProPickupSelectionInput = {
 };
 
 export function isOrderProPickupTestMode() {
-  return process.env.NODE_ENV !== "production"
-    || process.env.E2E_CATALOG_FIXTURE === "true"
-    || process.env.ORDERPRO_PICKUP_TEST_MODE === "true";
+  return process.env.NODE_ENV !== "production";
 }
 
 export async function getOrderProPickupAvailability(input: unknown): Promise<OrderProPickupAvailability> {
@@ -32,10 +31,43 @@ export async function getOrderProPickupAvailability(input: unknown): Promise<Ord
   if (!location) return failure("LOCATION_UNAVAILABLE", "This store is not available for pickup.");
 
   if (!isOrderProPickupTestMode()) {
-    return failure(
-      process.env.ORDERPRO_API_URL ? "ORDERPRO_UNAVAILABLE" : "ORDERPRO_NOT_CONFIGURED",
-      "Pickup times are temporarily unavailable. Please try again or contact the store."
-    );
+    const client = getOrderProPrivatePreviewClient();
+    if (!client) {
+      return failure(
+        "ORDERPRO_NOT_CONFIGURED",
+        "Pickup times are temporarily unavailable. Please try again or contact the store.",
+        "ORDERPRO"
+      );
+    }
+
+    const orderProLocationId = parsed.data.locationId === "store-3rd-avenue"
+      ? "third_avenue"
+      : "east_86th_street";
+    try {
+      const availability = await client.getPickupAvailability({
+        locationId: orderProLocationId,
+        requestedDate: parsed.data.requestedDate
+      });
+      return {
+        available: true,
+        source: "ORDERPRO",
+        locationId: parsed.data.locationId,
+        requestedDate: availability.requestedDate,
+        availableSlots: availability.availableSlots.map((slot) => ({
+          id: slot.slotId,
+          startsAt: slot.startsAt,
+          endsAt: slot.endsAt,
+          label: slotLabel(slot.startsAt, slot.endsAt)
+        })),
+        expiresAt: availability.expiresAt
+      };
+    } catch {
+      return failure(
+        "ORDERPRO_UNAVAILABLE",
+        "Pickup times are temporarily unavailable. Please try again or contact the store.",
+        "ORDERPRO"
+      );
+    }
   }
 
   return {
@@ -59,6 +91,19 @@ export async function validateOrderProPickupSelection(input: OrderProPickupSelec
     : { valid: false as const, message: "The pickup time is no longer available. Choose another time." };
 }
 
-function failure(reasonCode: Extract<OrderProPickupAvailability, { available: false }>["reasonCode"], message: string): OrderProPickupAvailability {
-  return { available: false, source: "MOCK", reasonCode, message };
+function failure(
+  reasonCode: Extract<OrderProPickupAvailability, { available: false }>["reasonCode"],
+  message: string,
+  source: OrderProPickupAvailability["source"] = "MOCK"
+): OrderProPickupAvailability {
+  return { available: false, source, reasonCode, message };
+}
+
+function slotLabel(startsAt: string, endsAt: string) {
+  const formatter = new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/New_York",
+    hour: "numeric",
+    minute: "2-digit"
+  });
+  return `${formatter.format(new Date(startsAt))}–${formatter.format(new Date(endsAt))}`;
 }

@@ -23,9 +23,12 @@ export function AddToCartButton({
   disabledReason?: string;
 }) {
   const [message, setMessage] = useState("");
+  const isProductionDemo = process.env.NODE_ENV === "production" && isDemoVariationId(squareVariationId);
+  const isDisabled = disabled || isProductionDemo;
+  const effectiveDisabledReason = isProductionDemo ? "This demo item is not available." : disabledReason;
 
   function addToCart() {
-    if (disabled) return;
+    if (isDisabled) return;
     const items = readCartItems();
     const existingItem = items.find((item) => item.squareVariationId === squareVariationId);
 
@@ -43,9 +46,9 @@ export function AddToCartButton({
 
   return (
     <div>
-      <Button className="w-full gap-2 rounded-pill py-3 font-black" disabled={disabled} onClick={addToCart} title={disabled ? disabledReason : undefined} type="button">
+      <Button className="w-full gap-2 rounded-pill py-3 font-black" disabled={isDisabled} onClick={addToCart} title={isDisabled ? effectiveDisabledReason : undefined} type="button">
         <ShoppingCart aria-hidden="true" size={16} />
-        {disabled ? disabledReason : message || label}
+        {isDisabled ? effectiveDisabledReason : message || label}
       </Button>
       <span className="sr-only" role="status">
         {message ? "Item added to cart." : ""}
@@ -66,12 +69,21 @@ export function readCartItems(): StoredCartItem[] {
       return [];
     }
 
-    return parsed
+    const normalizedItems = parsed
       .map((item) => ({
         squareVariationId: String(item.squareVariationId ?? ""),
         quantity: Number(item.quantity)
       }))
       .filter((item) => item.squareVariationId && Number.isInteger(item.quantity) && item.quantity > 0 && item.quantity <= 99);
+    const cartItems = process.env.NODE_ENV === "production"
+      ? normalizedItems.filter((item) => !isDemoVariationId(item.squareVariationId))
+      : normalizedItems;
+
+    if (cartItems.length !== normalizedItems.length) {
+      window.localStorage.setItem(cartStorageKey, JSON.stringify(cartItems));
+    }
+
+    return cartItems;
   } catch {
     return [];
   }
@@ -84,4 +96,8 @@ export function writeCartItems(items: StoredCartItem[]) {
 export function clearCartItems() {
   window.localStorage.removeItem(cartStorageKey);
   window.dispatchEvent(new CustomEvent("modern-state-cart-updated"));
+}
+
+function isDemoVariationId(squareVariationId: string) {
+  return squareVariationId.startsWith("seed-");
 }

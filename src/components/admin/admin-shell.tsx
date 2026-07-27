@@ -49,7 +49,6 @@ const catalogPublishingLinks = [
   ["Categories", "#structure-categories"],
   ["Holidays", "#structure-holidays"],
   ["Products", "#products"],
-  ["Real Catalog", "#catalog-test"],
   ["Bulk & Import", "#bulk"]
 ] as const;
 

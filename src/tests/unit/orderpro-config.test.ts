@@ -80,7 +80,7 @@ describe("OrderPRO M2M configuration", () => {
     expect(JSON.stringify(result)).not.toContain("server-secret");
   });
 
-  it("recognizes only an exact checkout request and keeps the unreleased flow disabled", () => {
+  it("recognizes only the exact released checkout switch", () => {
     expect(isOrderProLocalDeliveryCheckoutRequested({})).toBe(false);
     expect(isOrderProLocalDeliveryCheckoutRequested({ ORDERPRO_LOCAL_DELIVERY_CHECKOUT_ENABLED: "false" })).toBe(false);
     expect(isOrderProLocalDeliveryCheckoutRequested({ ORDERPRO_LOCAL_DELIVERY_CHECKOUT_ENABLED: "TRUE" })).toBe(false);
@@ -89,6 +89,6 @@ describe("OrderPRO M2M configuration", () => {
 
     expect(isOrderProLocalDeliveryCheckoutEnabled({})).toBe(false);
     expect(isOrderProLocalDeliveryCheckoutEnabled({ ORDERPRO_LOCAL_DELIVERY_CHECKOUT_ENABLED: "false" })).toBe(false);
-    expect(isOrderProLocalDeliveryCheckoutEnabled({ ORDERPRO_LOCAL_DELIVERY_CHECKOUT_ENABLED: "true" })).toBe(false);
+    expect(isOrderProLocalDeliveryCheckoutEnabled({ ORDERPRO_LOCAL_DELIVERY_CHECKOUT_ENABLED: "true" })).toBe(true);
   });
 });

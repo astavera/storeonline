@@ -55,12 +55,15 @@ describe("LatexOrderExperience", () => {
         collection={{ slug: "mylar", title: "Mylar Balloons", description: "Choose a design and quantity." }}
         fulfillment="local-delivery"
         location="86th-street"
+        postalCode="10028"
         products={[mylar]}
       />
     );
 
-    expect(screen.getByRole("heading", { level: 1, name: "Mylar Balloons" })).toBeTruthy();
-    expect(screen.getByText("86th Street Store")).toBeTruthy();
+    expect(screen.queryByRole("heading", { level: 1, name: "Mylar Balloons" })).toBeNull();
+    expect(screen.queryByText("86th Street Store")).toBeNull();
+    expect(screen.getByLabelText("Delivering to: 10028")).toBeTruthy();
+    expect(screen.queryByLabelText("Current fulfillment")).toBeNull();
     expect(screen.queryByLabelText("Filter Latex balloons by finish")).toBeNull();
 
     fireEvent.click(screen.getByRole("button", { name: /Happy Birthday Mylar Balloon/ }));

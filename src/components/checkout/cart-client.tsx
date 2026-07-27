@@ -1,9 +1,10 @@
 "use client";
 
 import { Minus, Plus, ShoppingBag, Trash2 } from "lucide-react";
+import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { readCartItems, writeCartItems, type StoredCartItem } from "@/components/commerce/add-to-cart-button";
+import { clearCartItems, readCartItems, writeCartItems, type StoredCartItem } from "@/components/commerce/add-to-cart-button";
 import { Button } from "@/components/ui/button";
 import { formatMoney } from "@/lib/utils";
 
@@ -43,11 +44,14 @@ const emptyQuote: CartQuote = {
 export function CartClient({ mode = "cart" }: { mode?: "cart" | "summary" }) {
   const [items, setItems] = useState<StoredCartItem[]>([]);
   const [quote, setQuote] = useState<CartQuote>(emptyQuote);
+  const [isHydrated, setIsHydrated] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [requestFailed, setRequestFailed] = useState(false);
   const canCheckout = quote.lines.length > 0 && quote.errors.length === 0;
 
   useEffect(() => {
     setItems(readCartItems());
+    setIsHydrated(true);
 
     function handleCartUpdate() {
       setItems(readCartItems());
@@ -63,8 +67,11 @@ export function CartClient({ mode = "cart" }: { mode?: "cart" | "summary" }) {
   }, []);
 
   useEffect(() => {
+    if (!isHydrated) return;
+
     let ignore = false;
     setIsLoading(true);
+    setRequestFailed(false);
 
     fetch("/api/cart", {
       method: "POST",
@@ -73,14 +80,17 @@ export function CartClient({ mode = "cart" }: { mode?: "cart" | "summary" }) {
       },
       body: JSON.stringify({ items })
     })
-      .then((response) => response.json())
-      .then((result) => {
+      .then(async (response) => ({ response, result: await response.json() }))
+      .then(({ response, result }) => {
         if (!ignore) {
-          setQuote(result.quote ?? emptyQuote);
+          const errors = Array.isArray(result.errors) ? result.errors.filter((error: unknown): error is string => typeof error === "string") : [];
+          setQuote(result.quote ?? { ...emptyQuote, errors });
+          setRequestFailed(!response.ok && !result.quote);
         }
       })
       .catch(() => {
         if (!ignore) {
+          setRequestFailed(true);
           setQuote({ ...emptyQuote, errors: ["We couldn’t update your cart. Refresh the page and try again."] });
         }
       })
@@ -93,7 +103,7 @@ export function CartClient({ mode = "cart" }: { mode?: "cart" | "summary" }) {
     return () => {
       ignore = true;
     };
-  }, [items]);
+  }, [isHydrated, items]);
 
   function updateQuantity(squareVariationId: string, quantity: number) {
     const nextItems = items
@@ -104,7 +114,22 @@ export function CartClient({ mode = "cart" }: { mode?: "cart" | "summary" }) {
     window.dispatchEvent(new CustomEvent("modern-state-cart-updated"));
   }
 
-  if (!isLoading && quote.lines.length === 0) {
+  function removeUnavailableItems() {
+    clearCartItems();
+    setItems([]);
+  }
+
+  if (!isHydrated || isLoading) {
+    return (
+      <div className="surface-card p-6 text-center" role="status">
+        <ShoppingBag aria-hidden="true" className="mx-auto text-secondary" size={32} />
+        <h2 className="mt-4 font-display text-2xl font-semibold">Reviewing your cart</h2>
+        <p className="mt-2 text-secondary">Confirming current products, prices, and availability.</p>
+      </div>
+    );
+  }
+
+  if (items.length === 0) {
     return (
       <div className="surface-card p-6 text-center">
         <ShoppingBag aria-hidden="true" className="mx-auto text-secondary" size={32} />
@@ -117,6 +142,32 @@ export function CartClient({ mode = "cart" }: { mode?: "cart" | "summary" }) {
     );
   }
 
+  if (requestFailed) {
+    return (
+      <div className="surface-card p-6 text-center" role="alert">
+        <ShoppingBag aria-hidden="true" className="mx-auto text-secondary" size={32} />
+        <h2 className="mt-4 font-display text-2xl font-semibold">We couldn&apos;t review your cart</h2>
+        <p className="mt-2 text-secondary">{quote.errors.join(" ") || "Refresh the page and try again."}</p>
+        <button className="mt-5 min-h-11 rounded-md bg-[var(--theme-action)] px-5 py-2.5 text-sm font-semibold text-[var(--theme-action-foreground)]" onClick={() => window.location.reload()} type="button">
+          Try again
+        </button>
+      </div>
+    );
+  }
+
+  if (quote.lines.length === 0) {
+    return (
+      <div className="surface-card p-6 text-center" role="alert">
+        <ShoppingBag aria-hidden="true" className="mx-auto text-secondary" size={32} />
+        <h2 className="mt-4 font-display text-2xl font-semibold">These items are no longer available</h2>
+        <p className="mt-2 text-secondary">{quote.errors.join(" ") || "Remove these saved items before adding current products."}</p>
+        <button className="mt-5 min-h-11 rounded-md bg-[var(--theme-action)] px-5 py-2.5 text-sm font-semibold text-[var(--theme-action-foreground)]" onClick={removeUnavailableItems} type="button">
+          Remove unavailable items
+        </button>
+      </div>
+    );
+  }
+
   return (
     <div className={mode === "summary" ? "grid gap-4" : "grid gap-6 lg:grid-cols-[1fr_360px]"}>
       {mode === "cart" ? (
@@ -124,7 +175,7 @@ export function CartClient({ mode = "cart" }: { mode?: "cart" | "summary" }) {
           {quote.lines.map((line) => (
             <article className="surface-card grid gap-4 p-4 sm:grid-cols-[120px_minmax(0,1fr)]" key={line.squareVariationId}>
               <Link className="block overflow-hidden rounded-md bg-surface-muted" href={`/products/${line.slug}`}>
-                <img alt={line.name} className="aspect-square h-full w-full object-cover" src={line.imageUrl} />
+                <Image alt={line.name} className="aspect-square h-full w-full object-cover" height={120} src={line.imageUrl} unoptimized width={120} />
               </Link>
               <div className="grid gap-3">
                 <div className="flex flex-wrap justify-between gap-3">

@@ -186,25 +186,24 @@
 }
 
 .balloons-gate-modal--compact {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  gap: 0.5rem;
-  width: min(100%, 600px);
-  padding: 0.75rem;
-  border-radius: 1.25rem;
-  box-shadow: 0 24px 70px rgba(3, 18, 42, 0.28);
+  display: block;
+  width: min(100%, 390px);
+  padding: 1.25rem 4rem 1.25rem 1.25rem;
+  border-color: rgba(255, 255, 255, 0.95);
+  border-radius: 1.35rem;
+  box-shadow: 0 24px 64px rgba(3, 18, 42, 0.28);
 }
 
 .balloons-gate-modal--compact .balloons-gate-modal__close {
-  position: static;
-  grid-column: 1;
-  grid-row: 1;
-  justify-self: end;
+  position: absolute;
+  top: 0.65rem;
+  right: 0.65rem;
   width: 2.25rem;
   height: 2.25rem;
-  border-color: transparent;
-  border-radius: 0.7rem;
+  border-color: rgba(6, 44, 104, 0.08);
+  border-radius: 999px;
   background: #f6f8fc;
+  box-shadow: 0 5px 16px rgba(3, 18, 42, 0.08);
 }
 
 .balloons-gate-modal__close {
@@ -221,50 +220,34 @@
   background: #ffffff;
   color: var(--color-legacy-navy);
   cursor: pointer;
+  transition: color 160ms ease, background-color 160ms ease, border-color 160ms ease, box-shadow 160ms ease, transform 160ms ease;
 }
 
 .balloons-gate-modal__close:hover {
   background: var(--color-surface-muted);
 }
 
-.balloons-gate-modal__header {
-  display: grid;
-  grid-template-columns: 94px minmax(0, 1fr);
-  align-items: center;
-  gap: 1.15rem;
-  padding-right: 3rem;
-}
-
-.balloons-gate-modal__product {
-  width: 94px;
-  aspect-ratio: 1;
-  background-position: center;
-  background-repeat: no-repeat;
-  background-size: contain;
-  filter: drop-shadow(0 12px 16px rgba(6, 44, 104, 0.18));
-}
-
-.balloons-gate-modal__header h2 {
-  margin-top: 0.35rem;
-  font-family: var(--font-display);
-  font-size: clamp(1.65rem, 3vw, 2.35rem);
-  font-weight: 700;
-  letter-spacing: -0.035em;
-  line-height: 1.02;
+.balloons-gate-modal--compact .balloons-gate-modal__close:hover {
+  border-color: var(--color-legacy-navy);
+  background: var(--color-legacy-navy);
+  box-shadow: 0 8px 20px rgba(3, 18, 42, 0.2);
+  color: #ffffff;
+  transform: translateY(-1px);
 }
 
 .balloons-gate-choices {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 0.85rem;
+  gap: 0.75rem;
   width: 100%;
-  max-width: 34rem;
+  max-width: 29rem;
   margin: 1.35rem auto 0;
 }
 
 .balloons-gate-modal--compact .balloons-gate-choices {
-  grid-column: 1;
-  grid-row: 2;
+  grid-template-columns: 1fr;
+  gap: 0.55rem;
+  max-width: 17.5rem;
   margin: 0 auto;
 }
 
@@ -273,12 +256,13 @@
   grid-template-columns: auto auto;
   align-items: center;
   justify-content: center;
-  gap: 0.85rem;
-  min-height: 78px;
-  padding: 0.85rem;
-  border: 1px solid var(--color-border);
-  border-radius: 0.9rem;
-  background: linear-gradient(180deg, #ffffff 0%, #fbfcff 100%);
+  gap: 0.65rem;
+  min-height: 58px;
+  padding: 0.55rem 0.8rem;
+  border: 1px solid rgba(6, 44, 104, 0.14);
+  border-radius: 1rem;
+  background: #ffffff;
+  box-shadow: 0 1px 2px rgba(3, 18, 42, 0.03);
   color: var(--color-legacy-navy);
   cursor: pointer;
   text-align: center;
@@ -286,9 +270,10 @@
 }
 
 .balloons-gate-choice:hover {
-  border-color: var(--color-legacy-blue);
-  box-shadow: 0 10px 24px rgba(6, 44, 104, 0.1);
-  transform: translateY(-2px);
+  border-color: rgba(6, 44, 104, 0.3);
+  background: #fcfdff;
+  box-shadow: 0 9px 22px rgba(6, 44, 104, 0.09);
+  transform: translateY(-1px);
 }
 
 .balloons-gate-choice:focus-visible,
@@ -300,10 +285,10 @@
 .balloons-gate-choice__icon,
 .balloons-gate-panel__intro > span {
   display: grid;
-  width: 3rem;
-  height: 3rem;
+  width: 2.4rem;
+  height: 2.4rem;
   place-items: center;
-  border-radius: 0.85rem;
+  border-radius: 0.8rem;
   background: rgba(117, 220, 235, 0.2);
   color: var(--color-legacy-blue);
 }
@@ -320,7 +305,7 @@
 }
 
 .balloons-gate-choice strong {
-  font-size: 0.95rem;
+  font-size: 0.875rem;
   font-weight: 800;
 }
 
@@ -361,8 +346,7 @@
   color: var(--color-legacy-navy);
 }
 
-.balloons-gate-panel__intro h3,
-.balloons-gate-success h3 {
+.balloons-gate-panel__intro h3 {
   font-size: 1.12rem;
   font-weight: 800;
 }
@@ -640,13 +624,33 @@
 }
 
 .balloons-gate-error {
+  display: grid;
+  gap: 0.3rem;
   margin-top: 0.85rem;
-  padding: 0.8rem;
+  padding: 0.9rem;
   border: 1px solid #fecaca;
   border-radius: 0.7rem;
   background: #fef2f2;
   color: #991b1b;
   font-size: 0.75rem;
+  line-height: 1.45;
+}
+
+.balloons-gate-error strong {
+  font-size: 0.82rem;
+}
+
+.balloons-gate-error a {
+  width: fit-content;
+  margin-top: 0.15rem;
+  font-size: 0.9rem;
+  font-weight: 900;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.balloons-gate-call-action {
+  display: none;
 }
 
 .balloons-gate-stores {
@@ -714,10 +718,6 @@
   margin: 0;
   padding: 0;
   border: 0;
-}
-
-.balloons-gate-success .balloons-gate-slots {
-  margin-top: 0.9rem;
 }
 
 .balloons-gate-delivery-slots-preview {
@@ -831,45 +831,6 @@
   font-size: 0.68rem;
   line-height: 1.35;
   text-align: center;
-}
-
-.balloons-gate-success {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
-  gap: 0.9rem;
-  margin-top: 1rem;
-  padding: 1rem;
-  border: 1px solid #bbf7d0;
-  border-radius: 0.9rem;
-  background: #f0fdf4;
-}
-
-.balloons-gate-success > span {
-  color: #15803d;
-}
-
-.balloons-gate-success h3 {
-  margin-top: 0.35rem;
-}
-
-.balloons-gate-success__details {
-  display: grid;
-  gap: 0.55rem;
-  margin-top: 0.85rem;
-}
-
-.balloons-gate-success__details span {
-  display: flex;
-  align-items: center;
-  gap: 0.45rem;
-  color: var(--color-text-secondary);
-  font-size: 0.76rem;
-}
-
-.balloons-gate-fine-print {
-  margin-top: 0.65rem;
-  color: var(--color-text-secondary);
-  font-size: 0.68rem;
 }
 
 @keyframes balloons-gate-backdrop-in {
@@ -1226,21 +1187,10 @@
   }
 
   .balloons-gate-modal--compact {
-    padding: 0.75rem 1rem 1rem;
-  }
-
-  .balloons-gate-modal__header {
-    grid-template-columns: 64px minmax(0, 1fr);
-    gap: 0.75rem;
-    padding-right: 2.5rem;
-  }
-
-  .balloons-gate-modal__product {
-    width: 64px;
-  }
-
-  .balloons-gate-modal__header h2 {
-    font-size: 1.45rem;
+    width: min(calc(100% - 1.5rem), 390px);
+    margin-bottom: 0.75rem;
+    padding: 3.5rem 1rem 1rem;
+    border-radius: 1.35rem;
   }
 
   .balloons-gate-choices,
@@ -1258,6 +1208,24 @@
 
   .balloons-gate-choice {
     min-height: 76px;
+  }
+
+  .balloons-gate-error__phone {
+    display: none;
+  }
+
+  .balloons-gate-error .balloons-gate-call-action {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.45rem;
+    width: 100%;
+    min-height: 44px;
+    margin-top: 0.45rem;
+    border-radius: 0.65rem;
+    background: #991b1b;
+    color: #ffffff;
+    text-decoration: none;
   }
 
   .balloons-directory-grid {

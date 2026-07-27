@@ -12,6 +12,7 @@ import type {
 import {
   isWithinNewYorkDeliveryWindow
 } from "@/features/fulfillment/utils/new-york-delivery-date";
+import { getOrderProPrivatePreviewClient } from "@/server/orderpro/private-preview-client";
 
 export const localDeliveryQuoteRequestSchema = z.object({
   context: z.enum(["checkout", "balloon-order"]),
@@ -94,9 +95,7 @@ const deliveryFixtures: DeliveryFixture[] = [
 ];
 
 export function isOrderProDeliveryTestMode() {
-  return process.env.NODE_ENV !== "production"
-    || process.env.E2E_CATALOG_FIXTURE === "true"
-    || process.env.ORDERPRO_DELIVERY_TEST_MODE === "true";
+  return process.env.NODE_ENV !== "production";
 }
 
 export async function quoteOrderProLocalDelivery(input: unknown): Promise<LocalDeliveryQuote> {
@@ -106,10 +105,76 @@ export async function quoteOrderProLocalDelivery(input: unknown): Promise<LocalD
   }
 
   if (!isOrderProDeliveryTestMode()) {
-    return failure(
-      process.env.ORDERPRO_API_URL ? "ORDERPRO_UNAVAILABLE" : "ORDERPRO_NOT_CONFIGURED",
-      "Local delivery quoting is temporarily unavailable. Please choose pickup or contact the store."
-    );
+    const client = getOrderProPrivatePreviewClient();
+    if (!client) {
+      return failure(
+        "ORDERPRO_NOT_CONFIGURED",
+        "Local delivery quoting is temporarily unavailable. Please choose pickup or contact the store."
+      );
+    }
+
+    try {
+      const quote = await client.quoteLocalDelivery({
+        line1: parsed.data.address.line1,
+        line2: parsed.data.address.line2 ?? null,
+        postalCode: parsed.data.address.postalCode,
+        quantity: 1,
+        requestedDate: parsed.data.requestedDate
+      });
+      if (!quote.eligible) {
+        return failure(
+          quote.reasonCode === "OUTSIDE_WALKING_AREA" ? "OUTSIDE_WALKING_AREA" : "ORDERPRO_UNAVAILABLE",
+          quote.storefrontMessage
+        );
+      }
+
+      const walkingDurationMinutes = Math.max(1, Math.ceil(quote.walkingDurationSeconds / 60));
+      const quoteSeed = [
+        parsed.data.requestedDate,
+        quote.normalizedAddress.line1,
+        quote.normalizedAddress.postalCode,
+        quote.selectedLocationId,
+        quote.feeCents
+      ].join("|");
+
+      return {
+        eligible: true,
+        source: "ORDERPRO",
+        quoteId: `orderpro-preview-${createHash("sha256").update(quoteSeed).digest("hex").slice(0, 20)}`,
+        requestedDate: parsed.data.requestedDate,
+        normalizedAddress: {
+          line1: quote.normalizedAddress.line1,
+          ...(quote.normalizedAddress.line2 ? { line2: quote.normalizedAddress.line2 } : {}),
+          city: quote.normalizedAddress.city,
+          state: quote.normalizedAddress.state,
+          postalCode: quote.normalizedAddress.postalCode.slice(0, 5),
+          country: "US"
+        },
+        selectedLocationId: storefrontLocationId(quote.selectedLocationId),
+        selectedLocationName: quote.selectedLocationName,
+        assignmentRule: quote.candidateRoutes.length > 1 ? "NEAREST_WALKING_ROUTE" : "FIXED_POSTAL_ZONE",
+        walkingDistanceFeet: Math.round(quote.walkingDistanceFeet),
+        walkingDurationMinutes,
+        estimatedRoundTripMinutes: walkingDurationMinutes * 2 + 8,
+        feeCents: quote.feeCents,
+        currency: "USD",
+        feeTierId: "orderpro-published-preview",
+        availableSlots: quote.availableSlots.map((slot) => ({
+          id: slot.slotId,
+          startsAt: slot.startsAt,
+          endsAt: slot.endsAt,
+          label: slotLabel(slot.startsAt, slot.endsAt)
+        })),
+        zoneVersionId: "orderpro-published-zone-set",
+        feePolicyVersionId: "orderpro-published-fee-policy",
+        expiresAt: quote.expiresAt
+      };
+    } catch {
+      return failure(
+        "ORDERPRO_UNAVAILABLE",
+        "Local delivery quoting is temporarily unavailable. Please choose pickup or contact the store."
+      );
+    }
   }
 
   return quoteMockLocalDelivery(parsed.data);
@@ -122,11 +187,35 @@ export async function checkOrderProBalloonPostalEligibility(input: unknown): Pro
   }
 
   if (!isOrderProDeliveryTestMode()) {
-    return postalEligibilityFailure(
-      process.env.ORDERPRO_API_URL ? "ORDERPRO_UNAVAILABLE" : "ORDERPRO_NOT_CONFIGURED",
-      "Local delivery approval is temporarily unavailable. Please choose pickup or contact the store.",
-      "ORDERPRO"
-    );
+    const client = getOrderProPrivatePreviewClient();
+    if (!client) {
+      return postalEligibilityFailure(
+        "ORDERPRO_NOT_CONFIGURED",
+        "Local delivery approval is temporarily unavailable. Please choose pickup or contact the store.",
+        "ORDERPRO"
+      );
+    }
+
+    try {
+      const eligibility = await client.checkPostalEligibility(parsed.data.postalCode);
+      return eligibility.eligible ? {
+        eligible: true,
+        source: "ORDERPRO",
+        postalCode: eligibility.postalCode,
+        approvalId: eligibility.approvalId,
+        expiresAt: eligibility.expiresAt
+      } : postalEligibilityFailure(
+        "OUTSIDE_DELIVERY_AREA",
+        eligibility.message,
+        "ORDERPRO"
+      );
+    } catch {
+      return postalEligibilityFailure(
+        "ORDERPRO_UNAVAILABLE",
+        "Local delivery approval is temporarily unavailable. Please choose pickup or contact the store.",
+        "ORDERPRO"
+      );
+    }
   }
 
   return checkMockBalloonPostalEligibility(parsed.data.postalCode);
@@ -231,6 +320,19 @@ function normalizeAddress(address: LocalDeliveryAddress): LocalDeliveryAddress {
 
 function normalizeLine1(value: string) {
   return value.toLowerCase().replace(/\bstreet\b/g, "st").replace(/[.,#-]/g, " ").replace(/\s+/g, " ").trim();
+}
+
+function storefrontLocationId(locationId: "third_avenue" | "east_86th_street") {
+  return locationId === "third_avenue" ? "store-3rd-avenue" : "store-86th-street";
+}
+
+function slotLabel(startsAt: string, endsAt: string) {
+  const formatter = new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/New_York",
+    hour: "numeric",
+    minute: "2-digit"
+  });
+  return `${formatter.format(new Date(startsAt))}–${formatter.format(new Date(endsAt))}`;
 }
 
 function failure(

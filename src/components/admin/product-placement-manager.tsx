@@ -17,19 +17,14 @@ import Link from "next/link";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useMemo, useState, useSyncExternalStore, type ChangeEvent, type ReactNode } from "react";
-import { AlertTriangle, ArrowDown, ArrowUp, Check, ChevronRight, Download, Eye, EyeOff, FileSpreadsheet, Folder, FolderTree, Palette, PencilLine, Plus, Save, Search, Trash2, Upload } from "lucide-react";
+import { AlertTriangle, ArrowDown, ArrowUp, Check, ChevronRight, Download, FileSpreadsheet, Folder, FolderTree, Palette, PencilLine, Plus, Save, Search, Trash2, Upload } from "lucide-react";
 import { SectionFrame } from "@/components/sections/section-frame";
 import { Button } from "@/components/ui/button";
 import { BrandGtinImporter, type BrandGtinMutation } from "@/components/admin/brand-gtin-importer";
 import { HolidayProductManager, type HolidayProductMutation } from "@/components/admin/holiday-product-manager";
-import { SquareCatalogTestPanel } from "@/components/admin/square-catalog-test-panel";
+import { SearchableSingleSelect } from "@/components/admin/searchable-select";
 import { FullCatalogProductManager } from "@/components/admin/full-catalog-product-manager";
-import {
-  productAgeGroups,
-  type FulfillmentMode,
-  type ProductAgeGroup,
-  type StorefrontProduct
-} from "@/features/catalog/product-catalog";
+import type { StorefrontProduct } from "@/features/catalog/product-catalog";
 import {
   MAX_WEBSITE_CATEGORY_DEPTH,
   orderWebsiteCategories,
@@ -39,21 +34,12 @@ import {
   websiteCategoryLabel,
   websiteCategoryPath,
   websitePlacementReadinessIssues,
-  websiteSurfaceOptions,
   type WebsiteBrand,
   type WebsiteCategory,
   type WebsiteHoliday,
   type WebsiteProductPlacement,
-  type WebsiteSurface,
   type WebsiteMerchandisingConfig
 } from "@/features/catalog/services/website-merchandising-service";
-import {
-  applyWebsiteBulkEdit,
-  type BulkHolidayMode,
-  type BulkValueMode,
-  type BulkVisibilityMode,
-  type WebsiteBulkEdit
-} from "@/features/catalog/services/bulk-merchandising-service";
 import {
   applyWebsiteMerchandisingSpreadsheetRows,
   createWebsiteMerchandisingCsv,
@@ -62,7 +48,6 @@ import {
   type MerchandisingSpreadsheetParseResult,
   type MerchandisingSpreadsheetPatch
 } from "@/features/catalog/services/merchandising-spreadsheet-service";
-import { formatMoney } from "@/lib/utils";
 import type { SquareVendorReference } from "@/server/square/read-only-catalog";
 
 type ProductPlacementManagerProps = {
@@ -76,15 +61,8 @@ type ProductPlacementManagerProps = {
 };
 
 type SaveState = "idle" | "saving" | "saved" | "error";
-type ProductFilter = "all" | "needs-setup" | "ready" | "live";
-type WorkspaceModule = "overview" | "structure" | "products" | "catalog-test" | "bulk";
+type WorkspaceModule = "overview" | "structure" | "products" | "bulk";
 type StructureModule = "brands" | "categories" | "holidays";
-
-const fulfillmentOptions: Array<{ id: FulfillmentMode; label: string }> = [
-  { id: "pickup", label: "Pickup" },
-  { id: "local-delivery", label: "Local delivery" },
-  { id: "shipping", label: "Shipping" }
-];
 
 export function ProductPlacementManager({ products, initialConfig, fetchedAt, hasMoreItems, initialBrandProductCounts, initialCategoryProductCounts, squareVendors }: ProductPlacementManagerProps) {
   const router = useRouter();
@@ -116,7 +94,6 @@ export function ProductPlacementManager({ products, initialConfig, fetchedAt, ha
   const selectedHoliday = holidays.find((holiday) => holiday.id === selectedHolidayId) ?? null;
   const catalogPublishingHash = useSyncExternalStore(subscribeToCatalogHashChange, readCatalogPublishingHash, () => "#overview");
   const { activeModule, structureModule } = resolveCatalogPublishingModule(catalogPublishingHash);
-  const placementByProduct = useMemo(() => new Map(placements.map((placement) => [placement.squareVariationId, placement])), [placements]);
   const liveProductCount = placements.filter((placement) => placement.visible && placementIssues(placement, categories, holidays).length === 0).length;
   const readyProductCount = placements.filter((placement) => !placement.visible && placementIssues(placement, categories, holidays).length === 0).length;
   const pendingProductCount = placements.length - liveProductCount - readyProductCount;
@@ -350,38 +327,6 @@ export function ProductPlacementManager({ products, initialConfig, fetchedAt, ha
     setSaveMessage(`${mutation.variationIds.length.toLocaleString()} Square variation${mutation.variationIds.length === 1 ? "" : "s"} updated for ${selectedBrand.name}.`);
   }
 
-  function applyBulkEdit(selectedVariationIds: Iterable<string>, edit: WebsiteBulkEdit) {
-    const selectedIds = Array.from(selectedVariationIds);
-
-    if (selectedIds.length === 0) {
-      return showError("Select at least one Square product for bulk editing.");
-    }
-
-    if (edit.holidayMode !== "keep" && !edit.holidayId) {
-      return showError("Choose a holiday before applying the bulk edit.");
-    }
-
-    if (edit.holidayMode === "assign") {
-      const holiday = holidays.find((current) => current.id === edit.holidayId);
-      if (!holiday || !edit.holidayStartsAt || !edit.holidayEndsAt) {
-        return showError("Choose a holiday and valid product dates before applying the bulk edit.");
-      }
-      if (edit.holidayStartsAt < holiday.startDate || edit.holidayEndsAt > holiday.endDate || edit.holidayStartsAt > edit.holidayEndsAt) {
-        return showError("Bulk product dates must stay inside the selected holiday campaign.");
-      }
-    }
-
-    const result = applyWebsiteBulkEdit(placements, selectedIds, edit, categories, holidays);
-    setPlacements(result.placements);
-    setIsDirty(true);
-    setSaveState("idle");
-    setSaveMessage(
-      edit.visibilityMode === "publish-ready"
-        ? `Bulk draft applied to ${result.updatedCount} products. ${result.publishedCount} ready to publish; ${result.skippedPublishCount} kept hidden for review.`
-        : `Bulk draft applied to ${result.updatedCount} products. Review the changes, then save merchandising.`
-    );
-  }
-
   function applySpreadsheetEdit(rows: MerchandisingSpreadsheetPatch[]) {
     const result = applyWebsiteMerchandisingSpreadsheetRows(placements, rows, categories, holidays);
     setPlacements(result.placements);
@@ -479,7 +424,7 @@ export function ProductPlacementManager({ products, initialConfig, fetchedAt, ha
           <div className="mt-5 grid gap-3 lg:grid-cols-3">
             <ModuleLaunchCard action="Open" body="Brands, categories and holidays" onClick={() => navigateCatalogPublishing("structure-brands")} title="Website structure" />
             <ModuleLaunchCard action="Open" body={`${pendingProductCount} need setup`} onClick={() => navigateCatalogPublishing("products")} title="Products" />
-            <ModuleLaunchCard action="Open" body="CSV, Excel and multi-select" onClick={() => navigateCatalogPublishing("bulk")} title="Bulk & import" />
+            <ModuleLaunchCard action="Open" body="CSV and Excel import/export" onClick={() => navigateCatalogPublishing("bulk")} title="Import & export" />
           </div>
         </section> : null}
 
@@ -492,187 +437,24 @@ export function ProductPlacementManager({ products, initialConfig, fetchedAt, ha
         </section> : null}
 
         {activeModule === "products" ? <>
-          <FullCatalogProductManager brands={brands} categories={categories} disabled={isDirty || saveState === "saving"} holidays={holidays} initialWebsiteCategoryId={catalogWebsiteCategoryId} key={`full-catalog-${catalogWebsiteCategoryId || "all"}`} onCategoryAssignmentsRemoved={recordCategoryAssignmentsRemoved} onWebsiteCategoryChange={setCatalogWebsiteCategoryId} />
+          <FullCatalogProductManager brands={brands} categories={categories} disabled={isDirty || saveState === "saving"} holidays={holidays} initialWebsiteCategoryId={catalogWebsiteCategoryId} onCategoryAssignmentsRemoved={recordCategoryAssignmentsRemoved} onWebsiteCategoryChange={setCatalogWebsiteCategoryId} squareVendors={squareVendors} />
         </> : null}
 
-        {activeModule === "catalog-test" ? <SquareCatalogTestPanel /> : null}
-
         {activeModule === "bulk" ? <section className="p-4 md:p-6" aria-labelledby="bulk-publishing-heading">
-          <h2 className="font-display text-xl font-semibold" id="bulk-publishing-heading">Bulk &amp; import</h2>
-          <BulkMerchandisingEditor brands={brands} categories={categories} holidays={holidays} onApply={applyBulkEdit} onApplySpreadsheet={applySpreadsheetEdit} placementByProduct={placementByProduct} products={products} />
+          <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
+            <div>
+              <h2 className="font-display text-xl font-semibold" id="bulk-publishing-heading">Bulk catalog tools</h2>
+              <p className="mt-1 text-sm text-secondary">Use Products for manual bulk changes across the full Square catalog.</p>
+            </div>
+            <Button onClick={() => navigateCatalogPublishing("products")} type="button" variant="quiet">Open Products<ChevronRight className="ml-2" size={16} /></Button>
+          </div>
+          <div className="mt-5 overflow-hidden rounded-md border border-border bg-surface">
+            <SpreadsheetMerchandisingPanel brands={brands} categories={categories} holidays={holidays} onApply={applySpreadsheetEdit} placements={placements} products={products} />
+          </div>
         </section> : null}
       </SectionFrame>
       {isDirty ? <div className="fixed bottom-4 right-4 z-50 flex max-w-[calc(100vw-2rem)] items-center gap-3 rounded-md border border-primary/20 bg-primary p-3 text-white shadow-xl"><div className="hidden min-w-0 sm:block"><p className="text-sm font-semibold">Unsaved changes</p><p className="max-w-sm truncate text-xs text-white/75">Review the draft, then save it to update the website.</p></div><Button className="shrink-0 bg-white text-primary hover:bg-surface-muted" disabled={saveState === "saving"} onClick={saveConfiguration} type="button"><Save className="mr-2" size={16} />{saveState === "saving" ? "Saving…" : "Save changes"}</Button></div> : null}
     </main>
-  );
-}
-
-function BulkMerchandisingEditor({
-  brands,
-  categories,
-  holidays,
-  onApply,
-  onApplySpreadsheet,
-  placementByProduct,
-  products
-}: {
-  brands: WebsiteBrand[];
-  categories: WebsiteCategory[];
-  holidays: WebsiteHoliday[];
-  onApply: (selectedVariationIds: Iterable<string>, edit: WebsiteBulkEdit) => void;
-  onApplySpreadsheet: (rows: MerchandisingSpreadsheetPatch[]) => void;
-  placementByProduct: Map<string, WebsiteProductPlacement>;
-  products: StorefrontProduct[];
-}) {
-  const [query, setQuery] = useState("");
-  const [sourceCategory, setSourceCategory] = useState("");
-  const [statusFilter, setStatusFilter] = useState<ProductFilter>("all");
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
-  const [categoryMode, setCategoryMode] = useState<BulkValueMode>("keep");
-  const [categoryIds, setCategoryIds] = useState<string[]>([]);
-  const [brandMode, setBrandMode] = useState<BulkValueMode>("keep");
-  const [brandIds, setBrandIds] = useState<string[]>([]);
-  const [surfaceMode, setSurfaceMode] = useState<BulkValueMode>("keep");
-  const [surfaceIds, setSurfaceIds] = useState<WebsiteSurface[]>([]);
-  const [ageMode, setAgeMode] = useState<BulkValueMode>("keep");
-  const [ageGroups, setAgeGroups] = useState<ProductAgeGroup[]>([]);
-  const [fulfillmentMode, setFulfillmentMode] = useState<BulkValueMode>("keep");
-  const [fulfillmentModes, setFulfillmentModes] = useState<FulfillmentMode[]>([]);
-  const [holidayMode, setHolidayMode] = useState<BulkHolidayMode>("keep");
-  const [holidayId, setHolidayId] = useState("");
-  const [holidayStartsAt, setHolidayStartsAt] = useState("");
-  const [holidayEndsAt, setHolidayEndsAt] = useState("");
-  const [visibilityMode, setVisibilityMode] = useState<BulkVisibilityMode>("keep");
-  const [sortOrderEnabled, setSortOrderEnabled] = useState(false);
-  const [sortOrder, setSortOrder] = useState(0);
-  const [sortStep, setSortStep] = useState(0);
-  const sourceCategories = useMemo(() => Array.from(new Set(products.map((product) => product.department))).sort((a, b) => a.localeCompare(b)), [products]);
-  const normalizedQuery = query.trim().toLowerCase();
-  const filteredProducts = products.filter((product) => {
-    const placement = placementByProduct.get(product.squareVariationId);
-    const issues = placement ? placementIssues(placement, categories, holidays) : ["Missing placement"];
-    const matchesQuery = !normalizedQuery || `${product.name} ${product.department} ${product.squareVariationId}`.toLowerCase().includes(normalizedQuery);
-    const matchesSource = !sourceCategory || product.department === sourceCategory;
-    const matchesStatus =
-      statusFilter === "all" ||
-      (statusFilter === "needs-setup" && issues.length > 0) ||
-      (statusFilter === "ready" && issues.length === 0 && !placement?.visible) ||
-      (statusFilter === "live" && issues.length === 0 && placement?.visible);
-    return matchesQuery && matchesSource && matchesStatus;
-  });
-  const displayedProducts = filteredProducts.slice(0, 250);
-  const hasBulkAction =
-    hasBulkValueSelection(categoryMode, categoryIds.length) ||
-    hasBulkValueSelection(brandMode, brandIds.length) ||
-    hasBulkValueSelection(surfaceMode, surfaceIds.length) ||
-    hasBulkValueSelection(ageMode, ageGroups.length) ||
-    hasBulkValueSelection(fulfillmentMode, fulfillmentModes.length) ||
-    (holidayMode !== "keep" && Boolean(holidayId)) ||
-    visibilityMode !== "keep" ||
-    sortOrderEnabled;
-
-  function toggleSelected(id: string, checked: boolean) {
-    setSelectedIds((current) => {
-      const next = new Set(current);
-      if (checked) next.add(id);
-      else next.delete(id);
-      return next;
-    });
-  }
-
-  function selectAllMatching() {
-    setSelectedIds(new Set(filteredProducts.map((product) => product.squareVariationId)));
-  }
-
-  function selectHoliday(id: string) {
-    setHolidayId(id);
-    const holiday = holidays.find((current) => current.id === id);
-    setHolidayStartsAt(holiday?.startDate ?? "");
-    setHolidayEndsAt(holiday?.endDate ?? "");
-  }
-
-  function applyChanges() {
-    onApply(selectedIds, {
-      categoryMode,
-      categoryIds,
-      brandMode,
-      brandIds,
-      surfaceMode,
-      surfaceIds,
-      ageMode,
-      ageGroups,
-      fulfillmentMode,
-      fulfillmentModes,
-      holidayMode,
-      holidayId: holidayId || undefined,
-      holidayStartsAt: holidayStartsAt || undefined,
-      holidayEndsAt: holidayEndsAt || undefined,
-      sortOrder: sortOrderEnabled ? sortOrder : undefined,
-      sortStep: sortOrderEnabled ? sortStep : undefined,
-      visibilityMode
-    });
-  }
-
-  return (
-    <div className="mt-5 overflow-hidden rounded-md border border-border bg-surface">
-      <SpreadsheetMerchandisingPanel brands={brands} categories={categories} holidays={holidays} onApply={onApplySpreadsheet} placements={Array.from(placementByProduct.values())} products={products} />
-      <div className="border-b border-border bg-surface-muted p-4 md:p-5">
-        <div className="grid gap-3 lg:grid-cols-[minmax(260px,1fr)_minmax(220px,0.7fr)_180px]">
-          <label className="flex min-h-11 items-center gap-3 rounded-md border border-border bg-surface px-3 focus-within:border-primary"><Search className="text-secondary" size={17} /><input className="min-w-0 flex-1 bg-transparent py-3 text-sm outline-none" onChange={(event) => setQuery(event.target.value)} placeholder="Search name, Square category, or variation ID" type="search" value={query} /></label>
-          <select aria-label="Square source category" className={inputClassName} onChange={(event) => setSourceCategory(event.target.value)} value={sourceCategory}><option value="">All Square categories</option>{sourceCategories.map((category) => <option key={category} value={category}>{category}</option>)}</select>
-          <select aria-label="Publishing status" className={inputClassName} onChange={(event) => setStatusFilter(event.target.value as ProductFilter)} value={statusFilter}>{(["all", "needs-setup", "ready", "live"] as ProductFilter[]).map((filter) => <option key={filter} value={filter}>{productFilterLabel(filter)}</option>)}</select>
-        </div>
-        <div className="mt-4 flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
-          <p className="text-sm font-semibold"><span className="text-blue">{selectedIds.size} selected</span> · {filteredProducts.length} matching</p>
-          <div className="flex flex-wrap gap-2"><button className="rounded-md border border-border bg-surface px-4 py-2 text-sm font-semibold hover:border-primary" disabled={filteredProducts.length === 0} onClick={selectAllMatching} type="button">Select all {filteredProducts.length} matching</button><button className="rounded-md border border-border bg-surface px-4 py-2 text-sm font-semibold hover:border-primary" disabled={selectedIds.size === 0} onClick={() => setSelectedIds(new Set())} type="button">Clear selection</button></div>
-        </div>
-      </div>
-
-      <div className="grid xl:grid-cols-[minmax(420px,0.95fr)_minmax(0,1.25fr)]">
-        <section className="border-b border-border p-4 xl:border-b-0 xl:border-r" aria-label="Bulk product selection">
-          <div className="mb-3 flex items-center justify-between gap-3"><h3 className="font-display text-xl font-semibold">Products</h3><p className="text-xs text-secondary">Showing {displayedProducts.length} of {filteredProducts.length}</p></div>
-          {filteredProducts.length > 250 ? <p className="mb-3 rounded-md border border-blue/20 bg-cyan p-3 text-xs text-secondary">The list renders the first 250 matches for speed. “Select all matching” still includes every loaded result.</p> : null}
-          <div className="max-h-[920px] space-y-2 overflow-y-auto pr-1">
-            {displayedProducts.map((product) => {
-              const placement = placementByProduct.get(product.squareVariationId);
-              const issues = placement ? placementIssues(placement, categories, holidays) : ["Missing placement"];
-              const assignedCategories = placement?.categoryIds.map((id) => categories.find((category) => category.id === id)?.name).filter(Boolean) ?? [];
-              const assignedBrands = placement?.brandIds.map((id) => brands.find((brand) => brand.id === id)?.name).filter(Boolean) ?? [];
-              return (
-                <label className={`flex cursor-pointer gap-3 rounded-md border p-3 ${selectedIds.has(product.squareVariationId) ? "border-blue bg-cyan" : "border-border bg-surface hover:border-primary"}`} key={product.squareVariationId}>
-                  <input checked={selectedIds.has(product.squareVariationId)} className="mt-1 h-5 w-5 shrink-0" onChange={(event) => toggleSelected(product.squareVariationId, event.target.checked)} type="checkbox" />
-                  <span className="min-w-0 flex-1">
-                    <span className="flex items-start justify-between gap-2"><span className="line-clamp-2 text-sm font-semibold text-primary">{product.name}</span><StatusBadge issues={issues} visible={Boolean(placement?.visible)} /></span>
-                    <span className="mt-1 block truncate text-xs text-secondary">Square: {product.department}</span>
-                    <span className="mt-1 block truncate text-xs text-secondary">Categories: {assignedCategories.length ? assignedCategories.join(", ") : "Unassigned"}</span>
-                    <span className="mt-1 block truncate text-xs text-secondary">Brands: {assignedBrands.length ? assignedBrands.join(", ") : "Unassigned"}</span>
-                  </span>
-                </label>
-              );
-            })}
-            {displayedProducts.length === 0 ? <p className="rounded-md border border-dashed border-border p-8 text-center text-sm text-secondary">No products match these filters.</p> : null}
-          </div>
-        </section>
-
-        <section className="min-w-0 p-4 md:p-6" aria-label="Bulk actions">
-          <div className="rounded-md border border-blue/25 bg-cyan p-4"><p className="font-semibold text-primary">Safe bulk draft</p><p className="mt-1 text-sm text-secondary">Structural edits return affected products to hidden. Publishing approved products includes only records that pass every placement rule.</p></div>
-          <div className="mt-5 grid gap-4">
-            <BulkValueEditor description="Add, remove, or replace website-only category assignments." mode={categoryMode} onModeChange={setCategoryMode} title="Website categories"><ChoiceGrid>{categories.map((category) => <Choice checked={categoryIds.includes(category.id)} key={category.id} label={`${websiteCategoryLabel(category, categories)}${category.visible ? "" : " (hidden)"}`} onChange={(checked) => setCategoryIds(toggleValue(categoryIds, category.id, checked))} />)}</ChoiceGrid>{categories.length === 0 ? <EmptyDecision>Create website categories before assigning them in bulk.</EmptyDecision> : null}</BulkValueEditor>
-            <BulkValueEditor description="Add, remove, or replace the public brands that contain the selected products." mode={brandMode} onModeChange={setBrandMode} title="Website brands"><ChoiceGrid>{brands.map((brand) => <Choice checked={brandIds.includes(brand.id)} key={brand.id} label={`${brand.name}${brand.visible ? "" : " (hidden)"}`} onChange={(checked) => setBrandIds(toggleValue(brandIds, brand.id, checked))} />)}</ChoiceGrid>{brands.length === 0 ? <EmptyDecision>Create website brands before assigning them in bulk.</EmptyDecision> : null}</BulkValueEditor>
-            <BulkValueEditor description="Control every public destination where the selected products may appear." mode={surfaceMode} onModeChange={setSurfaceMode} title="Website surfaces"><ChoiceGrid>{websiteSurfaceOptions.map((surface) => <Choice checked={surfaceIds.includes(surface.id)} key={surface.id} label={surface.label} onChange={(checked) => setSurfaceIds(toggleValue(surfaceIds, surface.id, checked))} />)}</ChoiceGrid></BulkValueEditor>
-            <BulkValueEditor description="Apply recommended age ranges to all selected products." mode={ageMode} onModeChange={setAgeMode} title="Age ranges"><ChoiceGrid>{productAgeGroups.map((age) => <Choice checked={ageGroups.includes(age.id)} key={age.id} label={age.label} onChange={(checked) => setAgeGroups(toggleValue(ageGroups, age.id, checked))} />)}</ChoiceGrid></BulkValueEditor>
-            <BulkValueEditor description="Set pickup, local delivery, and shipping eligibility." mode={fulfillmentMode} onModeChange={setFulfillmentMode} title="Fulfillment"><ChoiceGrid>{fulfillmentOptions.map((mode) => <Choice checked={fulfillmentModes.includes(mode.id)} key={mode.id} label={mode.label} onChange={(checked) => setFulfillmentModes(toggleValue(fulfillmentModes, mode.id, checked))} />)}</ChoiceGrid></BulkValueEditor>
-
-            <fieldset className="rounded-md border border-border bg-surface-muted p-4"><legend className="px-1 font-display text-lg font-semibold">Holiday campaign</legend><p className="mb-3 text-xs text-secondary">Assign or remove one holiday campaign across the selection.</p><div className="grid gap-3 sm:grid-cols-2"><Field label="Operation"><select className={inputClassName} onChange={(event) => setHolidayMode(event.target.value as BulkHolidayMode)} value={holidayMode}><option value="keep">No change</option><option value="assign">Assign / update</option><option value="remove">Remove</option></select></Field><Field label="Holiday"><select className={inputClassName} disabled={holidayMode === "keep"} onChange={(event) => selectHoliday(event.target.value)} value={holidayId}><option value="">Choose holiday</option>{holidays.map((holiday) => <option key={holiday.id} value={holiday.id}>{holiday.name}{holiday.visible ? "" : " (hidden)"}</option>)}</select></Field>{holidayMode === "assign" ? <><Field label="Product starts"><input className={inputClassName} onChange={(event) => setHolidayStartsAt(event.target.value)} type="date" value={holidayStartsAt} /></Field><Field label="Product ends"><input className={inputClassName} onChange={(event) => setHolidayEndsAt(event.target.value)} type="date" value={holidayEndsAt} /></Field></> : null}</div></fieldset>
-
-            <fieldset className="rounded-md border border-border bg-surface-muted p-4"><legend className="px-1 font-display text-lg font-semibold">Sort order</legend><label className="flex items-center gap-3 text-sm font-semibold"><input checked={sortOrderEnabled} className="h-5 w-5" onChange={(event) => setSortOrderEnabled(event.target.checked)} type="checkbox" />Set sequential sort order</label>{sortOrderEnabled ? <div className="mt-3 grid gap-3 sm:grid-cols-2"><Field label="Start at"><input className={inputClassName} min={0} onChange={(event) => setSortOrder(Number(event.target.value) || 0)} type="number" value={sortOrder} /></Field><Field label="Increment"><input className={inputClassName} min={0} onChange={(event) => setSortStep(Number(event.target.value) || 0)} type="number" value={sortStep} /></Field></div> : null}</fieldset>
-
-            <fieldset className="rounded-md border border-border bg-surface-muted p-4"><legend className="px-1 font-display text-lg font-semibold">Website publishing</legend><p className="mb-3 text-xs text-secondary">Keep the current state, force hidden, or publish only complete records.</p><select className={inputClassName} onChange={(event) => setVisibilityMode(event.target.value as BulkVisibilityMode)} value={visibilityMode}><option value="keep">No change</option><option value="hidden">Set hidden</option><option value="publish-ready">Publish approved &amp; ready products</option></select></fieldset>
-          </div>
-          <div className="mt-6 rounded-md border border-border bg-surface-muted p-4"><p className="text-sm text-secondary">This edits the current Admin draft. Use <span className="font-semibold text-primary">Save merchandising</span> at the top to persist the bulk operation.</p><Button className="mt-4 w-full" disabled={selectedIds.size === 0 || !hasBulkAction} onClick={applyChanges} type="button">Apply bulk draft to {selectedIds.size} products</Button></div>
-        </section>
-      </div>
-    </div>
   );
 }
 
@@ -770,10 +552,6 @@ function SpreadsheetMerchandisingPanel({
   );
 }
 
-function BulkValueEditor({ children, mode, onModeChange, title }: { children: ReactNode; description: string; mode: BulkValueMode; onModeChange: (mode: BulkValueMode) => void; title: string }) {
-  return <fieldset className="rounded-md border border-border bg-surface-muted p-4"><legend className="px-1 font-display text-lg font-semibold">{title}</legend><Field label="Operation"><select className={`${inputClassName} max-w-56`} onChange={(event) => onModeChange(event.target.value as BulkValueMode)} value={mode}><option value="keep">No change</option><option value="add">Add selected</option><option value="remove">Remove selected</option><option value="replace">Replace with selected</option></select></Field>{mode !== "keep" ? <div className="mt-3">{children}</div> : null}</fieldset>;
-}
-
 function BrandManager({
   brands,
   disabled,
@@ -846,8 +624,8 @@ function BrandManager({
       {squareVendors.length > 0 ? (
         <div className="mt-3 grid gap-3 rounded-md border border-blue/20 bg-cyan p-3 sm:grid-cols-[1fr_auto]">
           <div>
-            <label className="mb-1.5 block text-xs font-semibold uppercase tracking-[0.08em] text-secondary" htmlFor="square-vendor-import">Or start from a Square vendor</label>
-            <select className={inputClassName} id="square-vendor-import" onChange={(event) => setVendorToImport(event.target.value)} value={vendorToImport}><option value="">Choose a Square vendor</option>{squareVendors.map((vendor) => <option disabled={importedVendorIds.has(vendor.id)} key={vendor.id} value={vendor.id}>{vendor.name}{importedVendorIds.has(vendor.id) ? " (already imported)" : ""}</option>)}</select>
+            <p className="mb-1.5 block text-xs font-semibold uppercase tracking-[0.08em] text-secondary">Or start from a Square vendor</p>
+            <SearchableSingleSelect allLabel="Choose a Square vendor" label="Square vendor to import" onChange={setVendorToImport} options={squareVendors.map((vendor) => ({ id: vendor.id, label: `${vendor.name}${importedVendorIds.has(vendor.id) ? " (already imported)" : ""}`, disabled: importedVendorIds.has(vendor.id) }))} value={vendorToImport} />
           </div>
           <button className="self-end rounded-md border border-border bg-surface px-4 py-2.5 text-sm font-semibold disabled:opacity-50" disabled={!vendorToImport} onClick={() => { const vendor = squareVendors.find((item) => item.id === vendorToImport); if (vendor) { onAdd(vendor); setVendorToImport(""); } }} type="button">Create from Square</button>
         </div>
@@ -891,7 +669,7 @@ function BrandManager({
               <Field label="Display name"><input className={inputClassName} onChange={(event) => onUpdate({ name: event.target.value })} value={selected.name} /></Field>
               <Field label="URL slug"><input className={inputClassName} onChange={(event) => onUpdate({ slug: slugifyWebsiteCategory(event.target.value) })} value={selected.slug} /></Field>
               <Field className="sm:col-span-2" label="Description"><textarea className={inputClassName} onChange={(event) => onUpdate({ description: event.target.value })} rows={2} value={selected.description} /></Field>
-              {squareVendors.length > 0 ? <Field label="Square vendor reference"><select className={inputClassName} onChange={(event) => onUpdate({ squareVendorIds: event.target.value ? [event.target.value] : [] })} value={selected.squareVendorIds[0] ?? ""}><option value="">No linked Square vendor</option>{squareVendors.map((vendor) => <option key={vendor.id} value={vendor.id}>{vendor.name}</option>)}</select></Field> : null}
+              {squareVendors.length > 0 ? <SearchableField label="Square vendor reference"><SearchableSingleSelect allLabel="No linked Square vendor" label="Square vendor reference" onChange={(vendorId) => onUpdate({ squareVendorIds: vendorId ? [vendorId] : [] })} options={squareVendors.map((vendor) => ({ id: vendor.id, label: vendor.name }))} value={selected.squareVendorIds[0] ?? ""} /></SearchableField> : null}
               <Field className={squareVendors.length > 0 ? "" : "sm:col-span-2"} label="Logo URL"><input className={inputClassName} onChange={(event) => onUpdate({ logoUrl: event.target.value })} placeholder="/uploads/admin/..." value={selected.logoUrl} /></Field>
               <Field className="sm:col-span-2" label="Image alt text"><input className={inputClassName} onChange={(event) => onUpdate({ imageAlt: event.target.value })} value={selected.imageAlt} /></Field>
 
@@ -997,12 +775,9 @@ function CategoryManager({
           <p className="text-xs font-semibold uppercase tracking-[0.1em] text-blue">Quick create</p>
         </div>
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-[minmax(180px,0.65fr)_minmax(0,1fr)_minmax(0,1.15fr)_auto] xl:items-end">
-          <Field label="Place under">
-            <select className={inputClassName} onChange={(event) => onParentChange(event.target.value)} value={newParentId}>
-              <option value="">Main category (level 1)</option>
-              {createParentCategories.map((category) => <option key={category.id} value={category.id}>{websiteCategoryLabel(category, categories)} (level {websiteCategoryDepth(category, categories) + 1})</option>)}
-            </select>
-          </Field>
+          <SearchableField label="Place under">
+            <SearchableSingleSelect allLabel="Main category (level 1)" label="Parent category for new category" onChange={onParentChange} options={createParentCategories.map((category) => ({ id: category.id, label: `${websiteCategoryLabel(category, categories)} (level ${websiteCategoryDepth(category, categories) + 1})` }))} searchLabel="Search parent categories" value={newParentId} />
+          </SearchableField>
           <Field label="Category name">
             <input autoComplete="off" className={inputClassName} maxLength={80} onChange={(event) => onNameChange(event.target.value)} placeholder="Example: Arts & Crafts" value={newName} />
           </Field>
@@ -1018,7 +793,7 @@ function CategoryManager({
 
       <div className="grid min-h-[540px] lg:grid-cols-[320px_minmax(0,1fr)]">
         <aside className="border-b border-border bg-surface-muted p-4 lg:border-b-0 lg:border-r">
-          <label className="flex min-h-11 items-center gap-3 rounded-md border border-border bg-surface px-3 focus-within:border-primary">
+          <label className="flex min-h-11 items-center gap-3 rounded-md border border-border bg-surface px-3 focus-within:border-border">
             <Search aria-hidden="true" className="text-secondary" size={17} />
             <span className="sr-only">Search website categories</span>
             <input className="min-w-0 flex-1 bg-transparent py-3 text-sm outline-none" onChange={(event) => setCategoryQuery(event.target.value)} placeholder="Search categories" type="search" value={categoryQuery} />
@@ -1075,13 +850,10 @@ function CategoryManager({
                   <input className={inputClassName} maxLength={100} onChange={(event) => onUpdate({ slug: slugifyWebsiteCategory(event.target.value) })} value={selected.slug} />
                   <span className="mt-1.5 block text-xs text-secondary">/categories/{selected.slug || "category"}</span>
                 </Field>
-                <Field className="sm:col-span-2" label="Category structure">
-                  <select className={inputClassName} onChange={(event) => onUpdate({ parentId: event.target.value || null })} value={selected.parentId ?? ""}>
-                    <option value="">Main category (level 1)</option>
-                    {availableParentCategories.map((category) => <option key={category.id} value={category.id}>Inside {websiteCategoryLabel(category, categories)} (level {websiteCategoryDepth(category, categories) + 1})</option>)}
-                  </select>
+                <SearchableField className="sm:col-span-2" label="Category structure">
+                  <SearchableSingleSelect allLabel="Main category (level 1)" label="Category structure" onChange={(parentId) => onUpdate({ parentId: parentId || null })} options={availableParentCategories.map((category) => ({ id: category.id, label: `Inside ${websiteCategoryLabel(category, categories)} (level ${websiteCategoryDepth(category, categories) + 1})` }))} searchLabel="Search parent categories" value={selected.parentId ?? ""} />
                   <span className="mt-1.5 block text-xs text-secondary">You can use up to {MAX_WEBSITE_CATEGORY_DEPTH} total levels. Parent choices that would make this branch too deep are hidden.</span>
-                </Field>
+                </SearchableField>
                 <Field className="sm:col-span-2" label="Customer-facing description">
                   <textarea className={inputClassName} maxLength={240} onChange={(event) => onUpdate({ description: event.target.value })} placeholder="Describe what shoppers will find in this category." rows={3} value={selected.description} />
                 </Field>
@@ -1226,37 +998,6 @@ function HolidayManager({ disabled, endDate, holidays, newDescription, newName, 
   );
 }
 
-export function ProductMerchandisingEditor({ brands, categories, holidays, onHolidayAssignmentChange, onPublishChange, onToggleAge, onToggleBrand, onToggleCategory, onToggleFulfillment, onToggleHoliday, onToggleSurface, onUpdatePlacement, placement, product }: { brands: WebsiteBrand[]; categories: WebsiteCategory[]; holidays: WebsiteHoliday[]; onHolidayAssignmentChange: (placement: WebsiteProductPlacement, holidayId: string, patch: { startsAt?: string; endsAt?: string }) => void; onPublishChange: (placement: WebsiteProductPlacement, checked: boolean) => void; onToggleAge: (placement: WebsiteProductPlacement, age: ProductAgeGroup, checked: boolean) => void; onToggleBrand: (placement: WebsiteProductPlacement, brandId: string, checked: boolean) => void; onToggleCategory: (placement: WebsiteProductPlacement, categoryId: string, checked: boolean) => void; onToggleFulfillment: (placement: WebsiteProductPlacement, mode: FulfillmentMode, checked: boolean) => void; onToggleHoliday: (placement: WebsiteProductPlacement, holiday: WebsiteHoliday, checked: boolean) => void; onToggleSurface: (placement: WebsiteProductPlacement, surface: WebsiteSurface, checked: boolean) => void; onUpdatePlacement: (id: string, patch: Partial<WebsiteProductPlacement>) => void; placement: WebsiteProductPlacement; product: StorefrontProduct }) {
-  const issues = placementIssues(placement, categories, holidays);
-  return (
-    <div>
-      <div className="flex flex-col gap-4 border-b border-border pb-5 sm:flex-row sm:items-center">
-        <Image alt="" className="h-24 w-24 rounded-md border border-border bg-white object-contain" height={96} src={product.imageUrl} unoptimized width={96} />
-        <div className="min-w-0 flex-1">
-          <p className="text-xs font-semibold uppercase tracking-[0.12em] text-blue">Square source product</p>
-          <h3 className="mt-1 font-display text-2xl font-semibold">{product.name}</h3>
-          <p className="mt-2 text-sm text-secondary">Square category: {product.department} · {formatMoney(product.priceCents)}</p>
-          {product.squareVendorNames?.length ? <p className="mt-1 text-sm text-secondary">Square vendor: {product.squareVendorNames.join(", ")}</p> : null}
-        </div>
-        <StatusBadge issues={issues} visible={placement.visible} />
-      </div>
-      <div className="mt-6 grid gap-5">
-        <DecisionGroup description="Choose every storefront surface where this product is allowed to appear." title="Where on the website?"><ChoiceGrid>{websiteSurfaceOptions.map((surface) => <Choice checked={placement.surfaceIds.includes(surface.id)} key={surface.id} label={surface.label} onChange={(checked) => onToggleSurface(placement, surface.id, checked)} />)}</ChoiceGrid></DecisionGroup>
-        <DecisionGroup description="Square categories are reference-only. Choose from the website categories you created." title="Website categories"><ChoiceGrid>{categories.map((category) => { const effectivelyVisible = category.visible && (!category.parentId || categories.find((candidate) => candidate.id === category.parentId)?.visible); return <Choice checked={placement.categoryIds.includes(category.id)} disabled={!effectivelyVisible} key={category.id} label={`${websiteCategoryLabel(category, categories)}${effectivelyVisible ? "" : " (hidden)"}`} onChange={(checked) => onToggleCategory(placement, category.id, checked)} />; })}</ChoiceGrid>{categories.length === 0 ? <EmptyDecision>Create and enable a website category above before publishing products.</EmptyDecision> : null}</DecisionGroup>
-        <DecisionGroup description="Assign the customer-facing brands that should contain this product. Square vendors remain read-only references." title="Website brands"><ChoiceGrid>{brands.map((brand) => <Choice checked={placement.brandIds.includes(brand.id)} disabled={!brand.visible} key={brand.id} label={`${brand.name}${brand.visible ? "" : " (hidden)"}`} onChange={(checked) => onToggleBrand(placement, brand.id, checked)} />)}</ChoiceGrid>{brands.length === 0 ? <EmptyDecision>Create and enable a website brand above before assigning products.</EmptyDecision> : null}</DecisionGroup>
-        <DecisionGroup description="Optional. Each product can use a narrower date window than the holiday campaign." title="Holiday placement">{holidays.length ? <div className="grid gap-3">{holidays.map((holiday) => { const assignment = placement.holidayAssignments.find((current) => current.holidayId === holiday.id); return <div className="rounded-md border border-border bg-surface-muted p-3" key={holiday.id}><Choice checked={Boolean(assignment)} disabled={!holiday.visible} label={`${holiday.name}${holiday.visible ? "" : " (hidden)"}`} onChange={(checked) => onToggleHoliday(placement, holiday, checked)} />{assignment ? <div className="mt-3 grid gap-3 sm:grid-cols-2"><Field label="Product starts"><input className={inputClassName} onChange={(event) => onHolidayAssignmentChange(placement, holiday.id, { startsAt: event.target.value })} type="date" value={assignment.startsAt} /></Field><Field label="Product ends"><input className={inputClassName} onChange={(event) => onHolidayAssignmentChange(placement, holiday.id, { endsAt: event.target.value })} type="date" value={assignment.endsAt} /></Field></div> : null}</div>; })}</div> : <EmptyDecision>Create and enable a holiday above to schedule products.</EmptyDecision>}</DecisionGroup>
-        <DecisionGroup description="Select all recommended customer age ranges that apply." title="Age range"><ChoiceGrid>{productAgeGroups.map((age) => <Choice checked={placement.ageGroups.includes(age.id)} key={age.id} label={age.label} onChange={(checked) => onToggleAge(placement, age.id, checked)} />)}</ChoiceGrid></DecisionGroup>
-        <DecisionGroup description="These website rules are independent from Square location and inventory data." title="Fulfillment"><ChoiceGrid>{fulfillmentOptions.map((mode) => <Choice checked={placement.fulfillmentModes.includes(mode.id)} key={mode.id} label={mode.label} onChange={(checked) => onToggleFulfillment(placement, mode.id, checked)} />)}</ChoiceGrid></DecisionGroup>
-        <DecisionGroup description="Lower numbers appear first within website product grids." title="Sort priority"><input className={`${inputClassName} max-w-40`} min={0} onChange={(event) => onUpdatePlacement(product.squareVariationId, { sortOrder: Number(event.target.value) || 0 })} type="number" value={placement.sortOrder} /></DecisionGroup>
-      </div>
-      <div className={`mt-6 rounded-md border p-5 ${issues.length ? "border-yellow/50 bg-yellow/10" : placement.visible ? "border-green/30 bg-green/10" : "border-blue/30 bg-cyan"}`}>
-        <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center"><div><p className="font-display text-xl font-semibold">Website publishing</p><p className="mt-1 text-sm text-secondary">{issues.length ? `${issues.length} decision${issues.length === 1 ? "" : "s"} remaining.` : placement.visible ? "This product is approved for the selected surfaces." : "All required decisions are complete. You can publish this product."}</p></div><label className={`flex items-center gap-3 rounded-md border px-4 py-3 text-sm font-semibold ${issues.length ? "cursor-not-allowed border-border bg-surface-muted text-secondary" : "cursor-pointer border-primary bg-surface"}`}><input checked={placement.visible} className="h-5 w-5" disabled={issues.length > 0} onChange={(event) => onPublishChange(placement, event.target.checked)} type="checkbox" />{placement.visible ? <><Eye size={17} />Live</> : <><EyeOff size={17} />Hidden</>}</label></div>
-        {issues.length ? <ul className="mt-4 grid gap-2 text-sm text-secondary">{issues.map((issue) => <li className="flex items-start gap-2" key={issue}><span className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-red" />{issue}</li>)}</ul> : <p className="mt-4 flex items-center gap-2 text-sm font-semibold text-green"><Check size={17} />Ready to publish</p>}
-      </div>
-    </div>
-  );
-}
-
 const inputClassName = "w-full rounded-md border border-border bg-surface px-3 py-2.5 text-sm outline-none focus:border-primary";
 
 function ModuleLaunchCard({ action, body, onClick, title }: { action: string; body: string; onClick: () => void; title: string }) {
@@ -1265,13 +1006,7 @@ function ModuleLaunchCard({ action, body, onClick, title }: { action: string; bo
 
 function Metric({ emphasis = false, label, value }: { emphasis?: boolean; label: string; value: number }) { return <div className="rounded-md border border-border bg-surface px-4 py-3"><p className="text-xs font-semibold uppercase tracking-[0.1em] text-secondary">{label}</p><p className={`mt-1 text-2xl font-black ${emphasis ? "text-red" : "text-primary"}`}>{value}</p></div>; }
 function Field({ children, className, label }: { children: ReactNode; className?: string; label: string }) { return <label className={className}><span className="mb-1.5 block text-xs font-semibold uppercase tracking-[0.08em] text-secondary">{label}</span>{children}</label>; }
-function DecisionGroup({ children, title }: { children: ReactNode; description: string; title: string }) { return <fieldset className="rounded-md border border-border bg-surface-muted p-4"><legend className="px-1 font-display text-lg font-semibold">{title}</legend>{children}</fieldset>; }
-function ChoiceGrid({ children }: { children: ReactNode }) { return <div className="flex flex-wrap gap-2">{children}</div>; }
-function Choice({ checked, disabled = false, label, onChange }: { checked: boolean; disabled?: boolean; label: string; onChange: (checked: boolean) => void }) { return <label className={`flex items-center gap-2 rounded-pill border px-3 py-2 text-xs font-semibold ${disabled ? "cursor-not-allowed border-border bg-surface-muted text-secondary opacity-60" : checked ? "cursor-pointer border-blue bg-cyan text-primary" : "cursor-pointer border-border bg-surface text-secondary hover:border-blue"}`}><input checked={checked} className="h-4 w-4" disabled={disabled} onChange={(event) => onChange(event.target.checked)} type="checkbox" />{label}</label>; }
-function EmptyDecision({ children }: { children: ReactNode }) { return <p className="rounded-md border border-dashed border-border bg-surface p-4 text-sm text-secondary">{children}</p>; }
-export function EmptyEditor() { return <div className="grid min-h-[560px] place-items-center text-center"><div><h3 className="font-display text-2xl font-semibold">Select a Square product</h3><p className="mt-2 text-secondary">Its website merchandising record will open here.</p></div></div>; }
-function StatusBadge({ issues, visible }: { issues: string[]; visible: boolean }) { const label = visible && issues.length === 0 ? "Live" : issues.length === 0 ? "Ready" : "Needs setup"; return <span className={`shrink-0 rounded-pill px-2 py-1 text-[10px] font-black uppercase tracking-[0.06em] ${visible && issues.length === 0 ? "bg-green/15 text-green" : issues.length === 0 ? "bg-cyan text-blue" : "bg-yellow/30 text-primary"}`}>{label}</span>; }
-function productFilterLabel(filter: ProductFilter) { if (filter === "needs-setup") return "Needs setup"; if (filter === "ready") return "Ready"; if (filter === "live") return "Live"; return "All products"; }
+function SearchableField({ children, className, label }: { children: ReactNode; className?: string; label: string }) { return <div className={className}><p className="mb-1.5 block text-xs font-semibold uppercase tracking-[0.08em] text-secondary">{label}</p>{children}</div>; }
 function formatProductCount(value: number) { return `${value.toLocaleString()} ${value === 1 ? "product" : "products"}`; }
 function formatSubcategoryCount(value: number) { return `${value.toLocaleString()} ${value === 1 ? "subcategory" : "subcategories"}`; }
 function subscribeToCatalogHashChange(callback: () => void) { window.addEventListener("hashchange", callback); return () => window.removeEventListener("hashchange", callback); }
@@ -1279,15 +1014,12 @@ function readCatalogPublishingHash() { return window.location.hash || "#overview
 function navigateCatalogPublishing(module: "structure-brands" | "products" | "bulk") { window.location.hash = module; }
 function resolveCatalogPublishingModule(hash: string): { activeModule: WorkspaceModule; structureModule: StructureModule } {
   if (hash === "#products") return { activeModule: "products", structureModule: "brands" };
-  if (hash === "#catalog-test") return { activeModule: "catalog-test", structureModule: "brands" };
   if (hash === "#bulk") return { activeModule: "bulk", structureModule: "brands" };
   if (hash === "#structure-categories") return { activeModule: "structure", structureModule: "categories" };
   if (hash === "#structure-holidays") return { activeModule: "structure", structureModule: "holidays" };
   if (hash === "#structure-brands" || hash === "#website-brands") return { activeModule: "structure", structureModule: "brands" };
   return { activeModule: "overview", structureModule: "brands" };
 }
-function hasBulkValueSelection(mode: BulkValueMode, selectedCount: number) { return mode === "replace" || ((mode === "add" || mode === "remove") && selectedCount > 0); }
-function toggleValue<T extends string>(values: T[], value: T, checked: boolean) { return checked ? Array.from(new Set([...values, value])) : values.filter((current) => current !== value); }
 function normalizeCategorySiblingOrder(categories: WebsiteCategory[]) {
   const ordered = orderWebsiteCategories(categories);
   const nextPositionByParent = new Map<string | null, number>();

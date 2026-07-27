@@ -37,7 +37,11 @@
     ".next-e2e/types/**/*.ts",
     ".next-e2e/dev/types/**/*.ts",
     ".next-admin-3001/types/**/*.ts",
-    ".next-admin-3001/dev/types/**/*.ts"
+    ".next-admin-3001/dev/types/**/*.ts",
+    ".next-audit/types/**/*.ts",
+    ".next-audit/dev/types/**/*.ts",
+    ".next-audit-webpack/types/**/*.ts",
+    ".next-audit-webpack/dev/types/**/*.ts"
   ],
   "exclude": [
     "node_modules"

@@ -18,7 +18,11 @@ function record(eventType: string, payload: unknown) {
 describe("Square webhook handler", () => {
   it("projects the documented inventory payload", async () => {
     const applyInventoryCounts = vi.fn().mockResolvedValue(undefined);
-    const handler = createSquareWebhookHandler({ applyInventoryCounts, synchronizeCatalog: vi.fn() });
+    const handler = createSquareWebhookHandler({
+      applyInventoryCounts,
+      synchronizeCatalog: vi.fn(),
+      confirmCompletedShippingPayment: vi.fn()
+    });
     await handler(record("inventory.count.updated", {
       data: {
         object: {
@@ -39,10 +43,35 @@ describe("Square webhook handler", () => {
 
   it("requests an incremental catalog sync and rejects unknown events", async () => {
     const synchronizeCatalog = vi.fn().mockResolvedValue(undefined);
-    const handler = createSquareWebhookHandler({ applyInventoryCounts: vi.fn(), synchronizeCatalog });
+    const handler = createSquareWebhookHandler({
+      applyInventoryCounts: vi.fn(),
+      synchronizeCatalog,
+      confirmCompletedShippingPayment: vi.fn()
+    });
 
     await handler(record("catalog.version.updated", {}));
     expect(synchronizeCatalog).toHaveBeenCalledOnce();
-    await expect(handler(record("payment.updated", {}))).rejects.toThrow("Unsupported Square webhook event type");
+    await expect(handler(record("customer.updated", {}))).rejects.toThrow("Unsupported Square webhook event type");
+  });
+
+  it("confirms only completed payments and never creates orders from order.updated", async () => {
+    const confirmCompletedShippingPayment = vi.fn().mockResolvedValue(undefined);
+    const handler = createSquareWebhookHandler({
+      applyInventoryCounts: vi.fn(),
+      synchronizeCatalog: vi.fn(),
+      confirmCompletedShippingPayment
+    });
+    const payment = (status: string) => ({
+      data: { object: { payment: { id: "payment-1", status } } }
+    });
+
+    await handler(record("payment.updated", payment("PENDING")));
+    expect(confirmCompletedShippingPayment).not.toHaveBeenCalled();
+
+    await handler(record("payment.updated", payment("COMPLETED")));
+    expect(confirmCompletedShippingPayment).toHaveBeenCalledWith("payment-1");
+
+    await handler(record("order.updated", {}));
+    expect(confirmCompletedShippingPayment).toHaveBeenCalledTimes(1);
   });
 });

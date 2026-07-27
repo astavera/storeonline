@@ -90,6 +90,7 @@ enum CheckoutAttemptStatus {
   VALIDATED
   REJECTED
   EXPIRED
+  COMPLETED
 }
 
 enum WebhookInboxStatus {
@@ -641,21 +642,28 @@ model WebhookEvent {
 }
 
 model CheckoutAttempt {
-  id               String                @id @default(cuid())
-  idempotencyKey   String                @unique
-  cartId           String?
-  requestHash      String
-  status           CheckoutAttemptStatus @default(RECEIVED)
-  quote            Json?
-  validationErrors Json?
-  expiresAt        DateTime
-  createdAt        DateTime              @default(now())
-  updatedAt        DateTime              @updatedAt
-  cart             Cart?                 @relation(fields: [cartId], references: [id], onDelete: Restrict)
-  capacityHolds    CapacityHold[]
+  id                      String                @id @default(cuid())
+  idempotencyKey          String                @unique
+  cartId                  String?
+  requestHash             String
+  status                  CheckoutAttemptStatus @default(RECEIVED)
+  quote                   Json?
+  validationErrors        Json?
+  fulfillmentMode         FulfillmentMode?
+  squareOrderId           String?               @unique
+  squarePaymentLinkId     String?               @unique
+  orderproShippingOrderId String?               @unique
+  shippingContext         Json?
+  hostedCheckoutCreatedAt DateTime?
+  expiresAt               DateTime
+  createdAt               DateTime              @default(now())
+  updatedAt               DateTime              @updatedAt
+  cart                    Cart?                 @relation(fields: [cartId], references: [id], onDelete: Restrict)
+  capacityHolds           CapacityHold[]
 
   @@index([cartId])
   @@index([status, expiresAt])
+  @@index([fulfillmentMode, hostedCheckoutCreatedAt])
 }
 
 model WebhookInboxEvent {

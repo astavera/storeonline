@@ -31,7 +31,7 @@ export function ProductGrid({
   const visibleProducts = products ?? getVisibleProducts(limit);
 
   return (
-    <div className={cn("grid", productGridPresets[preset])}>
+    <div className={cn("storefront-product-grid grid", productGridPresets[preset])}>
       {visibleProducts.map((product) => (
         <ProductCard key={product.squareVariationId} product={product} variant={cardVariant} />
       ))}

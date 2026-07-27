@@ -155,7 +155,7 @@ export function MobileSiteNavigation({
         aria-controls={menuId}
         aria-expanded={isOpen}
         aria-label={isOpen ? "Close navigation menu" : "Open navigation menu"}
-        className="grid h-11 w-11 place-items-center rounded-full text-white hover:bg-white/10 hover:text-yellow"
+        className="grid h-11 w-11 place-items-center rounded-full text-black hover:bg-white/10 hover:text-red"
         data-mobile-nav-trigger
         onClick={() => setIsOpen((open) => !open)}
         ref={triggerRef}
@@ -182,7 +182,7 @@ export function MobileSiteNavigation({
             id={menuId}
           >
             <div className="border-b border-border px-2 pb-4 pt-1">
-              <form action="/search" className="flex min-h-12 items-center gap-2 rounded-md border border-border bg-surface-muted px-3 focus-within:border-blue" role="search">
+              <form action="/search" className="flex min-h-12 items-center gap-2 rounded-md border border-border bg-surface-muted px-3 focus-within:border-border" role="search">
                 <Search aria-hidden="true" className="shrink-0 text-blue" size={20} />
                 <label className="sr-only" htmlFor={`${menuId}-search`}>
                   Search products

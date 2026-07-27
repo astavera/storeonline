@@ -1,12 +1,9 @@
-import { DepartmentPageTemplate } from "@/components/templates/department-page-template";
+import { DepartmentPageTemplate, getDepartmentPageMetadata } from "@/components/templates/department-page-template";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
-export const metadata = {
-  title: "Gifts",
-  description: "Shop gifts, gift wrap, frames, photo albums, candles, and local favorites."
-};
+export const generateMetadata = () => getDepartmentPageMetadata("gifts");
 
 export default function GiftsPage() {
   return <DepartmentPageTemplate slug="gifts" />;

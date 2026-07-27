@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { HomePageTemplate } from "@/components/templates/home-page-template";
 import { getPublishedHomepageSections, getPublishedHomepageState } from "@/features/admin/services/homepage-visual-editor-service";
 import { resolveHomepageStorefrontContent } from "@/features/catalog/services/homepage-storefront-content-service";
+import { storefrontIsIndexable } from "@/lib/seo/storefront-seo";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -9,6 +10,7 @@ export const revalidate = 0;
 export async function generateMetadata(): Promise<Metadata> {
   const homepageState = await getPublishedHomepageState();
   const seo = homepageState.seo;
+  const indexable = storefrontIsIndexable() && seo.indexable;
 
   return {
     title: seo.title,
@@ -22,8 +24,8 @@ export async function generateMetadata(): Promise<Metadata> {
       images: seo.ogImage ? [{ url: seo.ogImage }] : undefined
     },
     robots: {
-      index: seo.indexable,
-      follow: seo.indexable
+      index: indexable,
+      follow: indexable
     }
   };
 }

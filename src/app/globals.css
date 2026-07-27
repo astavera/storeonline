@@ -46,6 +46,28 @@ img {
   outline-offset: 3px;
 }
 
+[data-dropdown-search-input]:focus,
+[data-dropdown-search-input]:focus-visible {
+  outline: none;
+  box-shadow: none;
+}
+
+/* Search fields and native selects keep a quiet, neutral focus state. */
+input[type="search"]:focus,
+input[type="search"]:focus-visible,
+select:not([multiple]):focus,
+select:not([multiple]):focus-visible {
+  border-color: var(--color-border);
+  outline: none;
+  box-shadow: none;
+}
+
+:where(label, form, div):has(> input[type="search"]):focus-within {
+  border-color: var(--color-border);
+  outline: none;
+  box-shadow: none;
+}
+
 .skip-link {
   position: fixed;
   left: 1rem;
@@ -76,7 +98,7 @@ img {
 }
 
 .modern-state-top-stripe {
-  min-height: 34px;
+  min-height: 20px;
   width: 100%;
   background-color: var(--color-legacy-cyan);
   background-image: url("/assets/modern_state_top_stripe_1920x34.svg?v=20260709");
@@ -86,6 +108,10 @@ img {
 
 .homepage-full-hero {
   background: var(--color-legacy-blue);
+}
+
+.homepage-full-hero[data-store-variant="seasonal-card"] {
+  background: var(--color-legacy-white);
 }
 
 .homepage-full-hero[data-store-variant="back-to-school"] {
@@ -106,7 +132,7 @@ img {
 }
 
 .homepage-full-hero--has-image[data-store-variant="back-to-school"]::before {
-  opacity: 0.08;
+  opacity: 0.0;
 }
 
 .homepage-full-hero::after {
@@ -131,11 +157,54 @@ img {
     linear-gradient(90deg, rgba(4, 19, 55, 0.5), rgba(4, 19, 55, 0.1) 48%, rgba(4, 19, 55, 0.48));
 }
 
+.homepage-full-hero--has-image[data-store-variant="seasonal-card"]::after {
+  background:
+    linear-gradient(90deg, rgba(7, 16, 33, 0.2), rgba(7, 16, 33, 0.06) 58%, rgba(7, 16, 33, 0.26)),
+    linear-gradient(0deg, rgba(7, 16, 33, 0.18), transparent 45%);
+}
+
+.homepage-full-hero--has-image[data-store-variant="seasonal-card"] .homepage-hero-bg {
+  background-position: center;
+  filter: saturate(1.04) brightness(2);
+  transform: scale(1.035);
+}
+
+.homepage-seasonal-hero-card {
+  width: min(100%, 640px);
+  border: 1px solid rgba(8, 30, 75, 0.16);
+  border-radius: 4px;
+  padding: clamp(1.75rem, 4vw, 3.5rem);
+  color: var(--color-legacy-blue);
+  background: linear-gradient(145deg, rgba(255, 190, 63, 0.98), rgba(246, 147, 30, 0.98));
+  box-shadow: 0 28px 80px rgba(7, 16, 33, 0.36);
+}
+
+.homepage-seasonal-hero-card.homepage-seasonal-hero-card--interactive {
+  border: 0;
+  border-radius: 0;
+  padding: 0;
+  color: inherit;
+  background: none;
+  box-shadow: none;
+}
+
 .homepage-hero-copy h1,
 .homepage-hero-body {
   text-shadow:
     0 2px 8px rgba(0, 0, 0, 0.78),
     0 8px 24px rgba(0, 0, 0, 0.46);
+}
+
+.homepage-seasonal-hero-card h1,
+.homepage-seasonal-hero-card .homepage-hero-body {
+  text-shadow: none;
+}
+
+.homepage-seasonal-hero-card h1 {
+  font-family: Georgia, "Times New Roman", serif;
+  font-weight: 700;
+  letter-spacing: -0.045em;
+  text-wrap: balance;
 }
 
 .homepage-hero-bg {
@@ -306,6 +375,210 @@ img {
   .homepage-school-ruler,
   .homepage-school-eraser {
     display: none;
+  }
+
+  .homepage-seasonal-hero-card {
+    width: min(100%, 580px);
+  }
+}
+
+.product-card-media {
+  --product-media-inset: 1.5rem;
+
+  position: relative;
+  display: grid;
+  overflow: hidden;
+  place-items: center;
+}
+
+.product-card-image-frame {
+  position: absolute;
+  inset: var(--product-media-inset);
+}
+
+.product-card-image {
+  object-fit: contain;
+  object-position: center;
+}
+
+@media (max-width: 639px) {
+  .homepage-full-hero--has-image[data-store-variant="seasonal-card"]::after {
+    inset: 0;
+    height: auto;
+    background:
+      radial-gradient(circle at 50% 46%, rgba(7, 16, 33, 0.08), rgba(7, 16, 33, 0.42) 78%),
+      linear-gradient(0deg, rgba(7, 16, 33, 0.34), rgba(7, 16, 33, 0.08) 54%, rgba(7, 16, 33, 0.28));
+  }
+
+  .homepage-full-hero--has-image[data-store-variant="seasonal-card"] .homepage-hero-bg {
+    inset: 0;
+    height: 100%;
+    background-position: 68% center;
+    filter: saturate(1.06) brightness(0.72);
+    transform: scale(1.025);
+  }
+
+  .homepage-full-hero[data-store-variant="seasonal-card"] > .container-shell {
+    min-height: 0 !important;
+    padding-top: 1rem !important;
+    padding-bottom: 1rem !important;
+  }
+
+  .homepage-seasonal-hero-card {
+    width: 100%;
+    margin-inline: auto;
+    border-radius: 10px;
+    padding: 1.35rem 1rem 1.25rem;
+    text-align: center;
+    box-shadow: 0 14px 36px rgba(7, 16, 33, 0.28);
+  }
+
+  .homepage-seasonal-hero-card.homepage-seasonal-hero-card--interactive {
+    border-radius: 0;
+    padding: 0;
+    box-shadow: none;
+  }
+
+  .homepage-seasonal-hero-card h1 {
+    margin-top: 1rem;
+    font-size: clamp(2.15rem, 10.5vw, 3rem);
+    line-height: 0.98;
+  }
+
+  .homepage-seasonal-hero-card .homepage-hero-body {
+    margin-top: 0.75rem;
+    font-size: 1rem;
+    line-height: 1.5;
+  }
+
+  .homepage-seasonal-hero-actions {
+    margin-top: 1.25rem;
+  }
+
+  .homepage-seasonal-hero-actions a {
+    min-width: min(100%, 180px);
+    padding: 0.85rem 1.5rem;
+  }
+
+  .storefront-product-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    column-gap: clamp(1rem, 5vw, 1.5rem);
+    row-gap: 2.25rem;
+  }
+
+  .storefront-product-card {
+    min-height: 0;
+    overflow: visible;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+  }
+
+  .storefront-product-card .product-card-media {
+    --product-media-inset: clamp(0.35rem, 1.6vw, 0.55rem);
+
+    width: 100%;
+    aspect-ratio: 4 / 5;
+    padding: 0;
+  }
+
+  .storefront-product-card .product-card-image {
+    transform: none;
+  }
+
+  .storefront-product-card .product-card-content {
+    gap: 0.5rem;
+    padding: 0.6rem 0 0;
+  }
+
+  .storefront-product-card .product-card-meta,
+  .storefront-product-card .product-card-fulfillment {
+    display: none;
+  }
+
+  .storefront-product-card .product-card-title-wrap {
+    flex: none;
+    min-height: 2.35rem;
+  }
+
+  .storefront-product-card .product-card-title-wrap h3 {
+    display: -webkit-box;
+    overflow: hidden;
+    font-size: 0.78rem;
+    line-height: 1.08;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 3;
+  }
+
+  .storefront-product-card .product-card-inventory-price {
+    min-height: 2.9rem;
+    flex-direction: column-reverse;
+    align-items: flex-start;
+    justify-content: flex-end;
+    gap: 0.55rem;
+  }
+
+  .storefront-product-card .product-card-price {
+    font-size: 0.95rem;
+    line-height: 1;
+  }
+
+  .storefront-product-card .product-card-inventory {
+    font-size: 0.72rem;
+    line-height: 1.2;
+  }
+
+  .storefront-product-card[data-inventory-status="out-of-stock"] .product-card-inventory {
+    color: var(--color-legacy-red);
+  }
+
+  .storefront-product-card .product-card-actions {
+    margin-top: 0.15rem;
+  }
+
+  .storefront-product-card .product-card-primary-action button {
+    min-height: 2.75rem;
+    border: 1px solid var(--color-legacy-blue);
+    border-radius: 4px;
+    background: white;
+    padding: 0.55rem 0.35rem;
+    color: var(--color-legacy-blue);
+    font-size: 0.78rem;
+    line-height: 1.1;
+  }
+
+  .storefront-product-card .product-card-primary-action button:hover {
+    background: var(--color-legacy-blue);
+    color: white;
+  }
+
+  .storefront-product-card .product-card-primary-action button:disabled {
+    border-color: #a9a9a9;
+    background: white;
+    color: #8b8b8b;
+  }
+
+  .storefront-product-card .product-card-primary-action button svg {
+    display: none;
+  }
+
+  .storefront-product-card .product-card-wishlist {
+    position: absolute;
+    top: 0.2rem;
+    right: 0.2rem;
+    z-index: 2;
+    min-height: 2.75rem;
+    width: 2.75rem;
+    border: 0;
+    background: rgba(255, 255, 255, 0.86);
+    color: #111;
+    backdrop-filter: blur(3px);
+  }
+
+  .storefront-product-card .product-card-wishlist[aria-pressed="true"] {
+    background: rgba(255, 255, 255, 0.92);
+    color: var(--color-legacy-red);
   }
 }
 

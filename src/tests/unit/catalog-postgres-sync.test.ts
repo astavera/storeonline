@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import type { CatalogObject } from "square";
 import {
+  compactSquareCatalogObject,
   requireReadOnlySquareSyncAllowed,
   SquareProductionSyncDisabledError,
   synchronizeSquareCatalogChanges,
@@ -18,6 +19,55 @@ function store(overrides: Partial<SquareCatalogSyncStore> = {}): SquareCatalogSy
 }
 
 describe("PostgreSQL Square catalog synchronization", () => {
+  it("stores only the Square fields required by the storefront", () => {
+    const compactItem = compactSquareCatalogObject({
+      id: "item-1",
+      type: "ITEM",
+      version: 123n,
+      imageId: "image-primary",
+      customAttributeValues: { enormous: { type: "STRING", stringValue: "do-not-copy" } },
+      itemData: {
+        name: "Pilot item",
+        imageIds: ["image-secondary"],
+        variations: [{
+          id: "variation-nested",
+          type: "ITEM_VARIATION",
+          itemVariationData: { name: "Nested variation", sku: "NESTED" }
+        }]
+      }
+    } as CatalogObject);
+
+    expect(compactItem).toEqual({
+      imageId: "image-primary",
+      itemData: { imageIds: ["image-secondary"] }
+    });
+    expect(JSON.stringify(compactItem)).not.toContain("do-not-copy");
+    expect(JSON.stringify(compactItem)).not.toContain("variation-nested");
+
+    expect(compactSquareCatalogObject({
+      id: "variation-1",
+      type: "ITEM_VARIATION",
+      imageId: "variation-image",
+      itemVariationData: {
+        imageIds: ["variation-image-2"],
+        trackInventory: false,
+        sku: "SKU-NOT-IN-RAW"
+      }
+    } as CatalogObject)).toEqual({
+      imageId: "variation-image",
+      itemVariationData: { imageIds: ["variation-image-2"], trackInventory: false }
+    });
+  });
+
+  it("stores deleted Square objects as minimal tombstones", () => {
+    expect(compactSquareCatalogObject({
+      id: "deleted-item",
+      type: "ITEM",
+      isDeleted: true,
+      itemData: { name: "Deleted item", description: "Must not remain in the projection" }
+    } as CatalogObject)).toEqual({});
+  });
+
   it("allows Sandbox reads and blocks Production until explicitly approved", () => {
     expect(() => requireReadOnlySquareSyncAllowed("sandbox")).not.toThrow();
     expect(() => requireReadOnlySquareSyncAllowed("production")).toThrow(SquareProductionSyncDisabledError);

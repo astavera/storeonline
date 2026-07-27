@@ -32,13 +32,15 @@ export default defineConfig({
     // prevent the test server from starting after a production build.
     command: `npm run dev -- --webpack --hostname 127.0.0.1 --port ${e2ePort}`,
     url: e2eBaseUrl,
-    reuseExistingServer: false,
+    reuseExistingServer: !process.env.CI,
     timeout: 120000,
     env: {
       DATABASE_URL: "",
       DIRECT_URL: "",
       ALLOW_LOCAL_PERSISTENCE_FALLBACK: "true",
+      ADMIN_DEV_BYPASS: "true",
       E2E_CATALOG_FIXTURE: "true",
+      SQUARE_CHECKOUT_ENABLED: "false",
       NEXT_DIST_DIR: ".next-e2e"
     }
   }

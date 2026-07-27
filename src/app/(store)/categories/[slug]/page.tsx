@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { ProductGrid } from "@/components/commerce/product-grid";
 import { SectionFrame } from "@/components/sections/section-frame";
 import { filterWebsiteCatalogProducts } from "@/features/catalog/services/website-merchandising-service";
+import { buildStorefrontMetadata } from "@/lib/seo/storefront-seo";
 import { readResolvedSquareWebsiteCatalog } from "@/server/square/website-catalog-store";
 
 export const dynamic = "force-dynamic";
@@ -14,8 +15,17 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
   const category = catalog?.categories.find((current) => current.slug === slug);
 
   return category
-    ? { title: category.name, description: category.description || `Shop ${category.name} at Modern State.` }
-    : { title: "Category not found" };
+    ? buildStorefrontMetadata({
+        canonicalPath: `/categories/${category.slug}`,
+        description: category.description || `Shop ${category.name} at Modern State on the Upper East Side.`,
+        title: `${category.name} | Modern State - State News NYC`
+      })
+    : buildStorefrontMetadata({
+        canonicalPath: `/categories/${slug}`,
+        description: "The requested Modern State category could not be found.",
+        indexable: false,
+        title: "Category not found | Modern State - State News NYC"
+      });
 }
 
 export default async function WebsiteCategoryPage({ params }: { params: Promise<{ slug: string }> }) {

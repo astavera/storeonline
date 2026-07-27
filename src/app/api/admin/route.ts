@@ -8,21 +8,24 @@ export async function GET(request: NextRequest) {
   const authorization = await authorizeAdminRequest(request, adminCapabilities.read);
   if (!authorization.ok) return adminAuthorizationResponse(authorization);
 
-  return NextResponse.json({
-    status: "operable",
-    policy: "Admin mutations are validated through declared module fields. Production persistence uses CmsContentVersion when DATABASE_URL is configured.",
-    readiness: getAdminControlReadiness(),
-    modules: adminModules.filter((module) => !externallyManagedAdminModuleIds.has(module.id)).map((module) => ({
-      id: module.id,
-      href: module.href,
-      title: module.title,
-      sectionId: module.sectionId,
-      category: module.category,
-      riskLevel: module.riskLevel,
-      editableFieldCount: module.editableFields.length,
-      workflowActions: module.workflowActions
-    }))
-  });
+  return NextResponse.json(
+    {
+      status: "operable",
+      policy: "Admin mutations are validated through declared module fields. Production persistence uses CmsContentVersion when DATABASE_URL is configured.",
+      readiness: getAdminControlReadiness(),
+      modules: adminModules.filter((module) => !externallyManagedAdminModuleIds.has(module.id)).map((module) => ({
+        id: module.id,
+        href: module.href,
+        title: module.title,
+        sectionId: module.sectionId,
+        category: module.category,
+        riskLevel: module.riskLevel,
+        editableFieldCount: module.editableFields.length,
+        workflowActions: module.workflowActions
+      }))
+    },
+    { headers: { "Cache-Control": "private, no-store" } }
+  );
 }
 
 export async function POST(request: NextRequest) {

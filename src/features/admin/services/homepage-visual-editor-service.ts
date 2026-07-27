@@ -2,6 +2,7 @@ import "server-only";
 
 import { defaultHeaderNavigation, normalizeHeaderNavigation, type HeaderNavigationConfig } from "@/config/header-navigation.config";
 import { defaultHomepageImage, homepageImagePresets, homepageSectionElements, homepageSections, type HomepageImagePreset, type HomepageSectionConfig } from "@/config/homepage.config";
+import { defaultHomepageSeo, type HomepageSeoConfig } from "@/config/homepage-seo.config";
 import type { CmsVersionStatus } from "@/lib/cms";
 import { readLocalCmsVersions, type LocalCmsVersion } from "@/server/admin/admin-local-cms-store";
 import { getPrismaClient } from "@/server/db/prisma";
@@ -16,15 +17,8 @@ type CmsHomepagePayload = {
   visualSections?: string | HomepageSectionConfig[];
 };
 
-export type HomepageSeoConfig = {
-  title: string;
-  description: string;
-  ogTitle: string;
-  ogDescription: string;
-  ogImage: string;
-  canonicalUrl: string;
-  indexable: boolean;
-};
+export { defaultHomepageSeo };
+export type { HomepageSeoConfig };
 
 export type HomepageVersionSummary = {
   versionNumber: number;
@@ -45,16 +39,6 @@ export type HomepageVisualEditorState = {
 
 type HomepageStoredVersion = Omit<LocalCmsVersion, "status"> & {
   status: string;
-};
-
-export const defaultHomepageSeo: HomepageSeoConfig = {
-  title: "Modern State - State News NYC",
-  description: "Toys, party supplies, balloons, stationery, arts and crafts, greeting cards, and gifts on the Upper East Side.",
-  ogTitle: "Modern State - State News NYC",
-  ogDescription: "Shop Modern State for toys, balloons, party supplies, stationery, gifts, and neighborhood essentials.",
-  ogImage: defaultHomepageImage,
-  canonicalUrl: "/",
-  indexable: true
 };
 
 export function normalizeHomepageSections(sections: HomepageSectionConfig[]) {
@@ -202,6 +186,15 @@ export function normalizeHomepageImagePresets(presets: HomepageImagePreset[]) {
   return normalizedPresets.length > 0 ? normalizedPresets : homepageImagePresets;
 }
 
+export function mergeHomepageImagePresets(basePresets: HomepageImagePreset[], editedPresets: HomepageImagePreset[]) {
+  const editedIds = new Set(editedPresets.map((preset) => preset.id));
+
+  return normalizeHomepageImagePresets([
+    ...editedPresets,
+    ...basePresets.filter((preset) => !editedIds.has(preset.id))
+  ]);
+}
+
 function parsePhotoPresets(value: CmsHomepagePayload["photoPresets"]) {
   if (Array.isArray(value)) {
     return value;
@@ -252,7 +245,7 @@ function buildHomepageStateFromPayload(payload: CmsHomepagePayload, fallbackStat
 
   return {
     headerNavigation: parseHeaderNavigation(payload.headerNavigation, fallbackState.headerNavigation),
-    photoPresets: normalizeHomepageImagePresets(photoPresets.length > 0 ? photoPresets : fallbackState.photoPresets),
+    photoPresets: mergeHomepageImagePresets(fallbackState.photoPresets, photoPresets),
     sections: visualSections.length > 0 ? mergeHomepageSections(fallbackState.sections, visualSections) : fallbackState.sections,
     seo: normalizeHomepageSeo(payload.seoMetadata),
     versions: fallbackState.versions

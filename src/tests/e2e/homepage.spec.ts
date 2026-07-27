@@ -100,7 +100,8 @@ test("homepage exposes the correct desktop and mobile navigation", async ({ page
 
   await expect(header).not.toContainText("Candy");
   await expect(page.locator("[data-store-section='home.hero']")).toBeVisible();
-  await expect(page.locator(".homepage-hero-bg")).toHaveCSS("background-image", /home-hero-back-to-school(?:-ecommerce-wireframe)?\.svg/);
+  await expect(page.locator(".homepage-hero-bg")).toHaveCSS("background-image", /halloween-pumpkins-hero-hd\.webp/);
+  await expect(page.locator(".homepage-seasonal-hero-card")).toBeVisible();
   await page.emulateMedia({ reducedMotion: "reduce" });
   await expect(page.locator(".homepage-hero-bg")).toHaveCSS("animation-name", "none");
 });

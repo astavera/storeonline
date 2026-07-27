@@ -1,6 +1,6 @@
 "use client";
 
-import { Image, LayoutDashboard, PanelRight } from "lucide-react";
+import { Image as ImageIcon, LayoutDashboard, PanelRight } from "lucide-react";
 import { useRouter } from "next/navigation";
 import type { MouseEvent, ReactNode } from "react";
 import { PageRenderer } from "@/components/cms";
@@ -187,7 +187,7 @@ function BuilderCanvasSection({
           <PanelRight aria-hidden="true" size={14} />
         </HotspotButton>
         <HotspotButton label="Image" onClick={() => onEdit(section.id, "media")}>
-          <Image aria-hidden="true" size={14} />
+          <ImageIcon aria-hidden="true" size={14} />
         </HotspotButton>
         <HotspotButton label="Layout" onClick={() => onEdit(section.id, "layout")}>
           <LayoutDashboard aria-hidden="true" size={14} />

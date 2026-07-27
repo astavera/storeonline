@@ -1,4 +1,5 @@
 import { AdminLoginForm } from "@/components/admin/admin-login-form";
+import { safeAdminReturnTo } from "@/lib/security/admin-return-to";
 import { isAdminLoginConfigured } from "@/server/admin/admin-login";
 
 export default async function AdminLoginPage({ searchParams }: { searchParams?: Promise<{ next?: string }> }) {
@@ -15,9 +16,4 @@ export default async function AdminLoginPage({ searchParams }: { searchParams?: 
       </section>
     </main>
   );
-}
-
-function safeAdminReturnTo(value?: string) {
-  if (!value || !value.startsWith("/admin") || value.startsWith("/admin/login") || value.startsWith("//")) return "/admin";
-  return value;
 }

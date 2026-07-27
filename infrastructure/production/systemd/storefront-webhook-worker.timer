@@ -1,0 +1,12 @@
+[Unit]
+Description=Run the Storefront Square webhook worker every 15 seconds
+
+[Timer]
+OnBootSec=30s
+OnUnitActiveSec=15s
+AccuracySec=1s
+Persistent=true
+Unit=storefront-webhook-worker.service
+
+[Install]
+WantedBy=timers.target

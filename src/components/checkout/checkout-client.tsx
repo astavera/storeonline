@@ -4,6 +4,7 @@ import { CalendarDays, CreditCard, MapPin, PackageCheck, ShieldCheck } from "luc
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { readCartItems, type StoredCartItem } from "@/components/commerce/add-to-cart-button";
 import { LocalDeliveryQuotePanel } from "@/components/fulfillment/local-delivery-quote-panel";
+import { ShippingRatePanel, type ShippingSelection } from "@/components/fulfillment/shipping-rate-panel";
 import { Button } from "@/components/ui/button";
 import type { LocalDeliveryAddress, LocalDeliverySelection } from "@/features/fulfillment/contracts/orderpro-local-delivery";
 import { formatMoney } from "@/lib/utils";
@@ -36,13 +37,14 @@ const fulfillmentLabels = {
   shipping: "Shipping"
 };
 
-export function CheckoutClient({ locations, deliveryTestMode = false, localDeliveryCheckoutEnabled = false }: { locations: CheckoutLocation[]; deliveryTestMode?: boolean; localDeliveryCheckoutEnabled?: boolean }) {
+export function CheckoutClient({ locations, deliveryTestMode = false, localDeliveryCheckoutEnabled = false, shippingCheckoutEnabled = false, shippingPilotVariationIds = [], squareCheckoutEnabled = false }: { locations: CheckoutLocation[]; deliveryTestMode?: boolean; localDeliveryCheckoutEnabled?: boolean; shippingCheckoutEnabled?: boolean; shippingPilotVariationIds?: string[]; squareCheckoutEnabled?: boolean }) {
   const [cartState, setCartState] = useState<{ hydrated: boolean; items: StoredCartItem[] }>({ hydrated: false, items: [] });
   const [quote, setQuote] = useState<CartQuote | null>(null);
   const [isCartQuoteLoading, setIsCartQuoteLoading] = useState(true);
   const [locationId, setLocationId] = useState(locations[0]?.id ?? "");
   const [fulfillmentMode, setFulfillmentMode] = useState<"pickup" | "local-delivery" | "shipping">("pickup");
   const [localDeliverySelection, setLocalDeliverySelection] = useState<LocalDeliverySelection | null>(null);
+  const [shippingSelection, setShippingSelection] = useState<ShippingSelection | null>(null);
   const [deliveryPrefill, setDeliveryPrefill] = useState<{ address?: LocalDeliveryAddress; postalCode?: string; requestedDate?: string } | null>(null);
   const [pickupSchedule, setPickupSchedule] = useState<{ requestedDate: string; slotId: string; slotLabel: string } | null>(null);
   const [message, setMessage] = useState<{ tone: "idle" | "success" | "error"; text: string }>({ tone: "idle", text: "" });
@@ -97,8 +99,12 @@ export function CheckoutClient({ locations, deliveryTestMode = false, localDeliv
         setQuote(nextQuote);
         setIsCartQuoteLoading(false);
 
+        const pilotIds = new Set(shippingPilotVariationIds);
+        const pilotCart = items.length > 0 && items.every((item) => pilotIds.has(item.squareVariationId));
         const availableModes = nextQuote?.compatibleFulfillmentModes?.filter(
-          (mode: "pickup" | "local-delivery" | "shipping") => mode !== "local-delivery" || localDeliveryCheckoutEnabled
+          (mode: "pickup" | "local-delivery" | "shipping") =>
+            (mode !== "local-delivery" || localDeliveryCheckoutEnabled)
+            && (mode !== "shipping" || (shippingCheckoutEnabled && pilotCart))
         );
         if (availableModes?.length) {
           setFulfillmentMode((current) => availableModes.includes(current) ? current : availableModes[0]);
@@ -114,13 +120,13 @@ export function CheckoutClient({ locations, deliveryTestMode = false, localDeliv
     return () => {
       ignore = true;
     };
-  }, [cartState.hydrated, items, localDeliveryCheckoutEnabled, locationId]);
+  }, [cartState.hydrated, items, localDeliveryCheckoutEnabled, locationId, shippingCheckoutEnabled, shippingPilotVariationIds]);
 
   async function submitCheckout(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const formData = new FormData(event.currentTarget);
     setIsSubmitting(true);
-    setMessage({ tone: "idle", text: "Checking your order details..." });
+    setMessage({ tone: "idle", text: "Preparing your secure Square checkout..." });
 
     try {
       const payload = {
@@ -137,6 +143,7 @@ export function CheckoutClient({ locations, deliveryTestMode = false, localDeliv
           }
         } : {}),
         ...(fulfillmentMode === "pickup" && pickupSchedule ? { pickup: pickupSchedule } : {}),
+        ...(fulfillmentMode === "shipping" && shippingSelection ? { shipping: shippingSelection } : {}),
         customer: {
           name: String(formData.get("name") ?? ""),
           email: String(formData.get("email") ?? ""),
@@ -162,7 +169,13 @@ export function CheckoutClient({ locations, deliveryTestMode = false, localDeliv
         return;
       }
 
-      setMessage({ tone: "success", text: "Your order details were checked. No order was placed and no payment was taken. Contact the store to complete your purchase." });
+      if (typeof result.checkoutUrl !== "string" || !result.checkoutUrl.startsWith("https://")) {
+        setMessage({ tone: "error", text: "Square did not return a secure checkout page. Please try again." });
+        return;
+      }
+
+      setMessage({ tone: "success", text: "Opening Square secure checkout..." });
+      window.location.assign(result.checkoutUrl);
     } catch {
       setMessage({ tone: "error", text: "Checkout request failed. Please try again." });
     } finally {
@@ -197,11 +210,18 @@ export function CheckoutClient({ locations, deliveryTestMode = false, localDeliv
     );
   }
 
-  const availableFulfillmentModes = quote.compatibleFulfillmentModes.filter((mode) => mode !== "local-delivery" || localDeliveryCheckoutEnabled);
+  const shippingPilotIds = new Set(shippingPilotVariationIds);
+  const shippingPilotCart = items.length > 0 && items.every((item) => shippingPilotIds.has(item.squareVariationId));
+  const availableFulfillmentModes = quote.compatibleFulfillmentModes.filter((mode) =>
+    (mode !== "local-delivery" || localDeliveryCheckoutEnabled)
+    && (mode !== "shipping" || (shippingCheckoutEnabled && shippingPilotCart))
+  );
   const selectedLocation = locations.find((location) => location.id === locationId);
   const deliveryReady = fulfillmentMode !== "local-delivery" || Boolean(localDeliverySelection);
-  const canSubmit = Boolean(selectedLocation) && deliveryReady && quote.errors.length === 0 && availableFulfillmentModes.includes(fulfillmentMode);
+  const shippingReady = fulfillmentMode !== "shipping" || Boolean(shippingSelection);
+  const canSubmit = squareCheckoutEnabled && Boolean(selectedLocation) && deliveryReady && shippingReady && quote.errors.length === 0 && availableFulfillmentModes.includes(fulfillmentMode);
   const deliveryFeeCents = fulfillmentMode === "local-delivery" ? localDeliverySelection?.quote.feeCents ?? 0 : 0;
+  const shippingFeeCents = fulfillmentMode === "shipping" ? shippingSelection?.amountCents ?? 0 : 0;
   const fulfillmentSummary = availableFulfillmentModes.includes(fulfillmentMode) ? fulfillmentLabels[fulfillmentMode] : "Not available";
 
   return (
@@ -224,7 +244,7 @@ export function CheckoutClient({ locations, deliveryTestMode = false, localDeliv
           {locations.length > 0 && fulfillmentMode !== "local-delivery" ? (
             <label className="mt-5 block text-sm font-semibold">
               Store fulfilling this order
-              <select className="mt-2 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm font-normal outline-none focus:border-primary" onChange={(event) => { setLocationId(event.target.value); setPickupSchedule(null); }} value={locationId}>
+              <select className="mt-2 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm font-normal outline-none focus:border-primary" onChange={(event) => { setLocationId(event.target.value); setPickupSchedule(null); setShippingSelection(null); }} value={locationId}>
                 {locations.map((location) => <option key={location.id} value={location.id}>{location.name} — {location.address}</option>)}
               </select>
             </label>
@@ -235,6 +255,7 @@ export function CheckoutClient({ locations, deliveryTestMode = false, localDeliv
                 <input checked={fulfillmentMode === mode} className="sr-only" name="fulfillmentMode" onChange={() => {
                   setFulfillmentMode(mode);
                   if (mode !== "local-delivery") setLocalDeliverySelection(null);
+                  if (mode !== "shipping") setShippingSelection(null);
                 }} type="radio" value={mode} />
                 {fulfillmentLabels[mode]}
               </label>
@@ -251,6 +272,9 @@ export function CheckoutClient({ locations, deliveryTestMode = false, localDeliv
           ) : null}
           {!localDeliveryCheckoutEnabled && quote.compatibleFulfillmentModes.includes("local-delivery") ? (
             <p className="mt-4 rounded-md border border-border bg-surface-muted p-3 text-sm text-secondary">Local delivery is being connected to OrderPRO and is not available at checkout yet.</p>
+          ) : null}
+          {!shippingCheckoutEnabled && quote.compatibleFulfillmentModes.includes("shipping") ? (
+            <p className="mt-4 rounded-md border border-border bg-surface-muted p-3 text-sm text-secondary">Shipping is in a private OrderPRO and Shippo pilot and is not available at checkout yet.</p>
           ) : null}
           {quote.errors.length > 0 ? <p className="mt-4 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-900">{quote.errors.join(" ")}</p> : null}
           {quote.warnings?.length > 0 ? <p className="mt-4 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">{quote.warnings.join(" ")}</p> : null}
@@ -270,12 +294,21 @@ export function CheckoutClient({ locations, deliveryTestMode = false, localDeliv
           />
         ) : null}
 
+        {fulfillmentMode === "shipping" ? (
+          <ShippingRatePanel
+            items={items}
+            locationId={locationId}
+            onSelectionChange={setShippingSelection}
+          />
+        ) : null}
+
         <section className="surface-card p-6" data-store-area="Checkout" data-store-component="CheckoutPaymentSection" data-store-section="checkout.payment" data-store-variant="square-web-payments">
           <div className="flex items-center gap-2">
             <CreditCard aria-hidden="true" size={18} />
             <h2 className="font-display text-2xl font-semibold">Payment</h2>
           </div>
-          <p className="mt-3 text-secondary">Online payment is not available yet. You will not be charged when you submit this form.</p>
+          <p className="mt-3 text-secondary">Square securely handles your card and payment details. This website never receives or stores your card number.</p>
+          {!squareCheckoutEnabled ? <p className="mt-3 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">Secure checkout is temporarily unavailable. Please contact the store to complete your purchase.</p> : null}
         </section>
       </div>
 
@@ -292,13 +325,15 @@ export function CheckoutClient({ locations, deliveryTestMode = false, localDeliv
           <SummaryRow label="Fulfillment" value={fulfillmentSummary} />
           {fulfillmentMode === "pickup" && pickupSchedule ? <SummaryRow label="Pickup time" value={`${formatPickupDate(pickupSchedule.requestedDate)} · ${pickupSchedule.slotLabel}`} /> : null}
           {fulfillmentMode === "local-delivery" ? <SummaryRow label="Delivery fee" value={localDeliverySelection ? formatMoney(deliveryFeeCents) : "Check address"} /> : null}
+          {fulfillmentMode === "shipping" ? <SummaryRow label="Shipping" value={shippingSelection ? `${shippingSelection.carrier} · ${formatMoney(shippingFeeCents)}` : "Check address"} /> : null}
+          {fulfillmentMode === "shipping" && shippingSelection ? <SummaryRow label="Ready at WH01" value={formatPickupDate(shippingSelection.readyToShipDate)} /> : null}
           <div className="border-t border-border pt-3">
-            <SummaryRow label="Estimated total" value={formatMoney(quote.totalCents + deliveryFeeCents)} strong />
+            <SummaryRow label="Estimated total" value={formatMoney(quote.totalCents + deliveryFeeCents + shippingFeeCents)} strong />
           </div>
         </div>
         <Button className="mt-6 w-full gap-2" disabled={!canSubmit || isSubmitting} type="submit">
           <ShieldCheck aria-hidden="true" size={16} />
-          {isSubmitting ? "Checking..." : "Check order details"}
+          {isSubmitting ? "Opening Square..." : "Continue to Square"}
         </Button>
         {message.text ? (
           <p className={`mt-4 rounded-md border p-3 text-sm ${message.tone === "error" ? "border-red-200 bg-red-50 text-red-900" : message.tone === "success" ? "border-green-200 bg-green-50 text-green-900" : "border-border bg-surface-muted text-secondary"}`} role="status">

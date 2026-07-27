@@ -1,12 +1,18 @@
 import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { backToSchoolHomepageImage, defaultHomepageImage, homepageSections } from "@/config/homepage.config";
-import { mergeHomepageSections, normalizeHomepageImagePresets, normalizeHomepageSections } from "@/features/admin/services/homepage-visual-editor-service";
+import { backToSchoolHomepageImage, defaultHomepageImage, halloweenHomepageImage, homepageSections } from "@/config/homepage.config";
+import { mergeHomepageImagePresets, mergeHomepageSections, normalizeHomepageImagePresets, normalizeHomepageSections } from "@/features/admin/services/homepage-visual-editor-service";
 
 describe("homepage visual editor service", () => {
   it("uses a tracked hero asset and customer-facing homepage copy", () => {
     expect(existsSync(join(process.cwd(), "public", backToSchoolHomepageImage.slice(1)))).toBe(true);
+    expect(existsSync(join(process.cwd(), "public", halloweenHomepageImage.slice(1)))).toBe(true);
+    expect(homepageSections[0]).toMatchObject({
+      variant: "seasonal-card",
+      backgroundImage: halloweenHomepageImage,
+      textPosition: "left"
+    });
     expect(JSON.stringify(homepageSections)).not.toMatch(/Square-ready|backend validation|capacity points/i);
   });
 
@@ -134,5 +140,17 @@ describe("homepage visual editor service", () => {
       { id: "hero", label: "Hero", url: defaultHomepageImage },
       { id: "hero-2", label: "Photo 2", url: "https://example.com/photo.jpg" }
     ]);
+  });
+
+  it("adds new built-in campaign photos without deleting saved presets", () => {
+    const merged = mergeHomepageImagePresets(
+      [
+        { id: "storefront", label: "Storefront", url: "/images/storefront.jpg" },
+        { id: "halloween", label: "Halloween", url: halloweenHomepageImage }
+      ],
+      [{ id: "custom", label: "My saved photo", url: "/uploads/admin/custom.jpg" }]
+    );
+
+    expect(merged.map((preset) => preset.id)).toEqual(["custom", "storefront", "halloween"]);
   });
 });
