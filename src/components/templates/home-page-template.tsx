@@ -16,7 +16,7 @@ import { ProductGrid } from "@/components/commerce/product-grid";
 import { PageRenderer } from "@/components/cms";
 import HalloweenHeroCard from "@/components/HalloweenHeroCard/HalloweenHeroCard";
 import { ButtonLink } from "@/components/ui/button";
-import { defaultHomepageImage, type HomepageSectionConfig, type HomepageSectionElement, type HomepageSectionItem } from "@/config/homepage.config";
+import { defaultHomepageImage, halloweenHomepageImage, type HomepageSectionConfig, type HomepageSectionElement, type HomepageSectionItem } from "@/config/homepage.config";
 import { defaultHomepageSeo } from "@/config/homepage-seo.config";
 import { storeLocations } from "@/config/locations.config";
 import type { StorefrontProduct } from "@/features/catalog/product-catalog";
@@ -92,8 +92,7 @@ function HeroSection({ section }: { section: HomepageSectionConfig }) {
   const heroImage = section.backgroundImage || defaultHomepageImage;
   const isHalloweenHeroCard =
     isSeasonalCardHero &&
-    section.ctaLabel === "Shop Now" &&
-    (section.title === "The Headquarter OF Halloween" || section.title === "The Halloween Headquarter");
+    (heroImage === halloweenHomepageImage || section.title.toLowerCase().includes("halloween"));
   const showPrimaryCta = isSectionElementVisible(section, "primaryCta") && Boolean(section.ctaHref);
   const secondaryCtaHref = section.secondaryCtaHref || (isBackToSchoolHero ? "/stationery" : isSeasonalCardHero ? "/party-supplies" : "/balloons");
   const secondaryCtaLabel = section.secondaryCtaLabel || (isBackToSchoolHero ? "Build a School Kit" : isSeasonalCardHero ? "Browse party supplies" : "Balloon order");

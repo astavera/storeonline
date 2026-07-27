@@ -98,7 +98,7 @@ select:not([multiple]):focus-visible {
 }
 
 .modern-state-top-stripe {
-  min-height: 8px;
+  min-height: 20px;
   width: 100%;
   background-color: var(--color-legacy-cyan);
   background-image: url("/assets/modern_state_top_stripe_1920x34.svg?v=20260709");
@@ -165,7 +165,7 @@ select:not([multiple]):focus-visible {
 
 .homepage-full-hero--has-image[data-store-variant="seasonal-card"] .homepage-hero-bg {
   background-position: center;
-  filter: saturate(1.04) brightness(0.9);
+  filter: saturate(1.04) brightness(2);
   transform: scale(1.035);
 }
 
@@ -403,24 +403,24 @@ select:not([multiple]):focus-visible {
 
 @media (max-width: 639px) {
   .homepage-full-hero--has-image[data-store-variant="seasonal-card"]::after {
-    inset: 0 0 auto;
-    height: clamp(350px, 110vw, 430px);
+    inset: 0;
+    height: auto;
     background:
-      linear-gradient(0deg, rgba(7, 16, 33, 0.56), transparent 32%),
-      linear-gradient(90deg, rgba(7, 16, 33, 0.08), transparent 58%, rgba(7, 16, 33, 0.14));
+      radial-gradient(circle at 50% 46%, rgba(7, 16, 33, 0.08), rgba(7, 16, 33, 0.42) 78%),
+      linear-gradient(0deg, rgba(7, 16, 33, 0.34), rgba(7, 16, 33, 0.08) 54%, rgba(7, 16, 33, 0.28));
   }
 
   .homepage-full-hero--has-image[data-store-variant="seasonal-card"] .homepage-hero-bg {
-    inset: 0 0 auto;
-    height: clamp(350px, 110vw, 430px);
-    background-position: 72% center;
-    filter: saturate(1.06) brightness(0.96);
-    transform: none;
+    inset: 0;
+    height: 100%;
+    background-position: 68% center;
+    filter: saturate(1.06) brightness(0.72);
+    transform: scale(1.025);
   }
 
   .homepage-full-hero[data-store-variant="seasonal-card"] > .container-shell {
     min-height: 0 !important;
-    padding-top: calc(clamp(350px, 110vw, 430px) + 1rem) !important;
+    padding-top: 1rem !important;
     padding-bottom: 1rem !important;
   }
 
