@@ -53,7 +53,6 @@ export async function BalloonsPageTemplate({
     return (
       <BalloonsLandingExperience
         body={balloons.hero_subtitle_en}
-        heroImage={balloons.hero_image_url}
         initialCollection={initialCollection}
         title={balloons.hero_title_en}
       />

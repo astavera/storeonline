@@ -11,6 +11,7 @@ const scriptSrc = [
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   distDir: process.env.NEXT_DIST_DIR?.trim() || ".next",
+  output: "standalone",
   reactStrictMode: true,
   poweredByHeader: false,
   async redirects() {

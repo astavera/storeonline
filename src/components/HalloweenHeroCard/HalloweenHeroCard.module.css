@@ -1,0 +1,363 @@
+.card {
+  --rotate-x: 0deg;
+  --rotate-y: 0deg;
+  --glow-x: 50%;
+  --glow-y: 34%;
+
+  position: relative;
+  isolation: isolate;
+  display: flex;
+  width: 100%;
+  min-height: 250px;
+  aspect-ratio: 1.72 / 1;
+  box-sizing: border-box;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  padding: clamp(38px, 6vw, 68px) clamp(34px, 7vw, 74px);
+  border: 1px solid rgba(255, 220, 157, 0.92);
+  border-radius: 28px;
+  background:
+    radial-gradient(circle at 50% 31%, rgba(255, 239, 181, 0.84) 0%, rgba(255, 201, 101, 0.42) 27%, transparent 49%),
+    linear-gradient(135deg, #fdb653 0%, #f49a3d 52%, #eb7e31 100%);
+  box-shadow:
+    0 30px 70px -30px rgba(0, 0, 0, 0.9),
+    inset 0 1px 0 rgba(255, 255, 255, 0.36);
+  transform: perspective(1100px) rotateX(var(--rotate-x)) rotateY(var(--rotate-y)) translateY(0);
+  transform-style: preserve-3d;
+  transform-origin: center;
+  will-change: transform;
+  transition:
+    transform 320ms ease,
+    box-shadow 320ms ease;
+}
+
+.card::before {
+  position: absolute;
+  z-index: 0;
+  inset: 0;
+  content: "";
+  pointer-events: none;
+  opacity: 0.085;
+  background-image: radial-gradient(rgba(55, 28, 8, 0.82) 0.65px, transparent 0.65px);
+  background-size: 10px 10px;
+}
+
+.card::after {
+  position: absolute;
+  z-index: 0;
+  inset: 0;
+  content: "";
+  pointer-events: none;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.11), transparent 25%, rgba(75, 28, 5, 0.09));
+}
+
+.card:hover {
+  box-shadow:
+    0 42px 90px -34px rgba(0, 0, 0, 0.96),
+    inset 0 1px 0 rgba(255, 255, 255, 0.42);
+  transform: perspective(1100px) rotateX(var(--rotate-x)) rotateY(var(--rotate-y)) translateY(-6px);
+}
+
+.cursorGlow {
+  position: absolute;
+  z-index: 1;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.32;
+  background: radial-gradient(circle at var(--glow-x) var(--glow-y), rgba(255, 255, 220, 0.45), transparent 31%);
+  transition: opacity 250ms ease;
+}
+
+.card:hover .cursorGlow {
+  opacity: 0.82;
+}
+
+.innerFrame {
+  position: absolute;
+  z-index: 2;
+  inset: 7px;
+  pointer-events: none;
+  border: 1px solid rgba(255, 236, 190, 0.58);
+  border-radius: 21px;
+}
+
+.content {
+  position: relative;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  flex-direction: column;
+  text-align: center;
+  transform: translateZ(34px);
+}
+
+.card .title {
+  max-width: 13ch;
+  margin: 0;
+  color: #142313;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: clamp(2.35rem, 5.2vw, 5rem);
+  font-weight: 900;
+  line-height: 0.87;
+  letter-spacing: -0.045em;
+  text-shadow: none;
+}
+
+.title span {
+  display: block;
+  white-space: nowrap;
+  transition: transform 420ms ease;
+}
+
+.card:hover .title span:first-child {
+  transform: translateY(-2px);
+}
+
+.card:hover .title span:last-child {
+  transform: translateY(2px);
+}
+
+.button {
+  position: relative;
+  display: inline-flex;
+  min-width: 144px;
+  min-height: 48px;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  box-sizing: border-box;
+  margin-top: 28px;
+  padding: 12px 26px;
+  border: 0;
+  border-radius: 8px;
+  background: #142313;
+  color: #fff;
+  box-shadow: 0 13px 28px -15px rgba(0, 0, 0, 0.95);
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 800;
+  line-height: 1;
+  text-decoration: none;
+  transition:
+    transform 260ms ease,
+    background-color 260ms ease,
+    box-shadow 260ms ease;
+}
+
+.button:hover {
+  background: #203820;
+  box-shadow: 0 18px 36px -16px rgb(0 0 0);
+  transform: translateY(-3px);
+}
+
+.button:active {
+  transform: translateY(0) scale(0.97);
+}
+
+.button:focus-visible {
+  outline: 4px solid rgba(255, 255, 255, 0.72);
+  outline-offset: 3px;
+}
+
+.buttonShine {
+  position: absolute;
+  top: -30%;
+  bottom: -30%;
+  left: -35%;
+  width: 28px;
+  background: rgba(255, 255, 255, 0.32);
+  filter: blur(5px);
+  transform: translateX(-180%) skewX(-18deg);
+  transition: transform 680ms ease;
+}
+
+.button:hover .buttonShine {
+  transform: translateX(650%) skewX(-18deg);
+}
+
+.buttonText {
+  position: relative;
+  z-index: 1;
+}
+
+.batEntry {
+  position: absolute;
+  z-index: 4;
+  width: clamp(58px, 7vw, 76px);
+  color: #142313;
+  opacity: 1;
+  pointer-events: none;
+  filter: drop-shadow(0 4px 5px rgba(49, 22, 5, 0.24));
+  transform-origin: center;
+  will-change: transform, opacity;
+}
+
+.topLeft {
+  --rest-angle: -2.5deg;
+
+  top: 6px;
+  left: 8px;
+}
+
+.topRight {
+  --rest-angle: 2.5deg;
+
+  top: 6px;
+  right: 8px;
+}
+
+.bottomLeft {
+  --rest-angle: 2.5deg;
+
+  bottom: 6px;
+  left: 8px;
+}
+
+.bottomRight {
+  --rest-angle: -2.5deg;
+
+  right: 8px;
+  bottom: 6px;
+}
+
+.card[data-intro-state="checking"] .batEntry {
+  opacity: 0;
+}
+
+.batFloat {
+  width: 100%;
+  transform: rotate(var(--rest-angle));
+}
+
+.batIcon {
+  display: block;
+  width: 100%;
+  height: auto;
+  overflow: visible;
+}
+
+.leftWing,
+.rightWing {
+  transform-box: fill-box;
+  will-change: transform;
+}
+
+.leftWing {
+  transform-origin: right center;
+}
+
+.rightWing {
+  transform-origin: left center;
+}
+
+.card[data-intro-state="flying"] .leftWing {
+  animation: flapLeft 150ms ease-in-out infinite alternate;
+}
+
+.card[data-intro-state="flying"] .rightWing {
+  animation: flapRight 150ms ease-in-out infinite alternate;
+}
+
+.card[data-intro-state="settled"] .batFloat {
+  animation: batIdle 4.8s ease-in-out infinite;
+}
+
+@keyframes flapLeft {
+  from {
+    transform: rotate(1deg);
+  }
+
+  to {
+    transform: rotate(-14deg) translateY(2px);
+  }
+}
+
+@keyframes flapRight {
+  from {
+    transform: rotate(-1deg);
+  }
+
+  to {
+    transform: rotate(14deg) translateY(2px);
+  }
+}
+
+@keyframes batIdle {
+  0%,
+  100% {
+    transform: translateY(0) rotate(var(--rest-angle));
+  }
+
+  50% {
+    transform: translateY(-3px) rotate(var(--rest-angle));
+  }
+}
+
+@media (max-width: 640px) {
+  .card {
+    min-height: 225px;
+    padding: 42px 30px;
+    border-radius: 22px;
+  }
+
+  .innerFrame {
+    inset: 5px;
+    border-radius: 17px;
+  }
+
+  .batEntry {
+    width: 48px;
+  }
+
+  .topLeft {
+    top: 5px;
+    left: 6px;
+  }
+
+  .topRight {
+    top: 5px;
+    right: 6px;
+  }
+
+  .bottomLeft {
+    bottom: 5px;
+    left: 6px;
+  }
+
+  .bottomRight {
+    right: 6px;
+    bottom: 5px;
+  }
+
+  .card .title {
+    font-size: clamp(2.05rem, 10.5vw, 3.35rem);
+  }
+
+  .button {
+    min-width: 132px;
+    min-height: 44px;
+    margin-top: 23px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .card,
+  .title span,
+  .button,
+  .buttonShine,
+  .cursorGlow {
+    transition: none;
+  }
+
+  .card,
+  .card:hover {
+    transform: none;
+  }
+
+  .batFloat,
+  .leftWing,
+  .rightWing {
+    animation: none !important;
+  }
+}

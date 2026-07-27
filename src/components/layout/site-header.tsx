@@ -7,11 +7,12 @@ ADMIN-EDITABLE: Partially
 WHAT THIS CONTROLS: Public navigation order and utility links.
 SAFE TO EDIT: Navigation labels and token-based styling.
 DO NOT EDIT HERE: Department business rules, Square category mappings, auth, or cart totals.
-RELATED FILES: src/config/navigation.config.ts, src/config/storefront.config.ts
+RELATED FILES: src/config/header-navigation.config.ts, src/design/tokens/colors.css
 BUSINESS LOGIC FILES: src/features/departments/services/department-service.ts
 */
 
 import { Heart, Search, UserRound } from "lucide-react";
+import Image from "next/image";
 import Link from "next/link";
 import { defaultHeaderNavigation, type HeaderNavigationConfig, type HeaderNavigationLink } from "@/config/header-navigation.config";
 import { CartLink } from "./cart-link";
@@ -37,11 +38,11 @@ export function SiteHeader({ navigation = defaultHeaderNavigation }: { navigatio
           backgroundSize: "100% 100%"
         }}
       />
-      <div className="bg-[#367DCB] text-white">
+      <div className="bg-[#FFFFFF] text-black">
         <div className="mx-auto flex min-h-[72px] w-full items-center justify-between gap-3 px-4 py-3 sm:gap-6 sm:px-8 lg:gap-8 xl:px-12 2xl:px-16">
           <MobileSiteNavigation mobileCta={navigation.mobileCta} primaryLinks={primaryLinks} utilityLinks={drawerUtilityLinks} />
           <Link className="hidden min-w-0 flex-1 items-center sm:flex lg:min-w-[220px] lg:flex-none" data-header-logo href="/">
-            <img alt="Modern State" className="h-12 w-auto max-w-[175px] object-contain sm:h-14 sm:max-w-[230px]" decoding="async" src="/images/modern-state-logo-original.png" />
+            <Image alt="Modern State" className="h-12 w-auto max-w-[175px] object-contain sm:h-14 sm:max-w-[230px]" height={56} priority src="/images/modern-state-logo-original.png" width={230} />
             <span className="sr-only">Modern State - Toys, party, balloons and gifts</span>
           </Link>
           <nav aria-label="Primary navigation" className="hidden flex-1 items-center gap-8 text-[15px] font-bold leading-none xl:flex">
@@ -67,6 +68,16 @@ export function SiteHeader({ navigation = defaultHeaderNavigation }: { navigatio
           </div>
         </div>
       </div>
+      <div
+        aria-hidden="true"
+        className="h-[4px] w-full"
+        style={{
+          backgroundImage:
+            "url('/assets/modern_state_top_stripe_1920x34.svg?v=20260709')",
+          backgroundRepeat: "no-repeat",
+          backgroundSize: "100% 100%"
+        }}
+      />
     </header>
   );
 }
@@ -87,7 +98,7 @@ function HeaderUtilityLink({ link }: { link: HeaderNavigationLink }) {
   const Icon = link.id === "account" ? UserRound : link.id === "wishlist" ? Heart : Search;
 
   return (
-    <Link aria-label={link.label} className="grid h-10 w-10 place-items-center rounded-full hover:bg-white/10 hover:text-yellow" data-header-nav-id={link.id} href={link.href}>
+    <Link aria-label={link.label} className="grid h-10 w-10 place-items-center rounded-full hover:bg-white/10 hover:text-red" data-header-nav-id={link.id} href={link.href}>
       <Icon aria-hidden="true" size={24} />
       <span className="sr-only">{link.label}</span>
     </Link>

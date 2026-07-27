@@ -204,7 +204,7 @@ async function upsertCatalogObjects(transaction: Prisma.TransactionClient, objec
       name: catalogObjectName(object),
       descriptionHtml: itemData?.descriptionHtml ?? null,
       descriptionPlaintext: itemData?.descriptionPlaintext ?? itemData?.description ?? null,
-      raw: JSON.stringify(toPrismaJson(object)),
+      raw: JSON.stringify(compactSquareCatalogObject(object)),
       deletedAt: object.isDeleted ? syncedAt : null
     };
   });
@@ -228,7 +228,19 @@ async function upsertCatalogObjects(transaction: Prisma.TransactionClient, objec
         "descriptionPlaintext" = EXCLUDED."descriptionPlaintext",
         "raw" = EXCLUDED."raw",
         "syncedAt" = EXCLUDED."syncedAt",
-        "deletedAt" = EXCLUDED."deletedAt"
+        "deletedAt" = CASE
+          WHEN EXCLUDED."deletedAt" IS NULL THEN NULL
+          ELSE COALESCE("SquareCatalogObject"."deletedAt", EXCLUDED."deletedAt")
+        END
+      WHERE "SquareCatalogObject"."type" IS DISTINCT FROM EXCLUDED."type"
+        OR "SquareCatalogObject"."version" IS DISTINCT FROM EXCLUDED."version"
+        OR "SquareCatalogObject"."reportingCategoryId" IS DISTINCT FROM EXCLUDED."reportingCategoryId"
+        OR "SquareCatalogObject"."categoryIds" IS DISTINCT FROM EXCLUDED."categoryIds"
+        OR "SquareCatalogObject"."name" IS DISTINCT FROM EXCLUDED."name"
+        OR "SquareCatalogObject"."descriptionHtml" IS DISTINCT FROM EXCLUDED."descriptionHtml"
+        OR "SquareCatalogObject"."descriptionPlaintext" IS DISTINCT FROM EXCLUDED."descriptionPlaintext"
+        OR "SquareCatalogObject"."raw" IS DISTINCT FROM EXCLUDED."raw"
+        OR ("SquareCatalogObject"."deletedAt" IS NULL) IS DISTINCT FROM (EXCLUDED."deletedAt" IS NULL)
     `);
   }
   const deletedItemIds = objects
@@ -236,7 +248,7 @@ async function upsertCatalogObjects(transaction: Prisma.TransactionClient, objec
     .map((object) => requireCatalogObjectId(object));
   if (deletedItemIds.length > 0) {
     await transaction.squareItemVariation.updateMany({
-      where: { itemId: { in: deletedItemIds } },
+      where: { itemId: { in: deletedItemIds }, deletedAt: null },
       data: { deletedAt: syncedAt, syncedAt }
     });
   }
@@ -265,7 +277,7 @@ async function upsertCatalogVariations(
       sku: variationData?.sku?.trim() || null,
       upc: variationData?.upc?.trim() || null,
       priceMoney: variationData?.priceMoney ? JSON.stringify(toPrismaJson(variationData.priceMoney)) : null,
-      raw: JSON.stringify(toPrismaJson(object)),
+      raw: JSON.stringify(compactSquareCatalogObject(object)),
       deletedAt: object.isDeleted ? syncedAt : null
     }];
   });
@@ -286,15 +298,66 @@ async function upsertCatalogVariations(
         "priceMoney" = EXCLUDED."priceMoney",
         "raw" = EXCLUDED."raw",
         "syncedAt" = EXCLUDED."syncedAt",
-        "deletedAt" = EXCLUDED."deletedAt"
+        "deletedAt" = CASE
+          WHEN EXCLUDED."deletedAt" IS NULL THEN NULL
+          ELSE COALESCE("SquareItemVariation"."deletedAt", EXCLUDED."deletedAt")
+        END
+      WHERE "SquareItemVariation"."itemId" IS DISTINCT FROM EXCLUDED."itemId"
+        OR "SquareItemVariation"."name" IS DISTINCT FROM EXCLUDED."name"
+        OR "SquareItemVariation"."sku" IS DISTINCT FROM EXCLUDED."sku"
+        OR "SquareItemVariation"."upc" IS DISTINCT FROM EXCLUDED."upc"
+        OR "SquareItemVariation"."priceMoney" IS DISTINCT FROM EXCLUDED."priceMoney"
+        OR "SquareItemVariation"."raw" IS DISTINCT FROM EXCLUDED."raw"
+        OR ("SquareItemVariation"."deletedAt" IS NULL) IS DISTINCT FROM (EXCLUDED."deletedAt" IS NULL)
     `);
   }
   if (tombstoneIds.length > 0) {
     await transaction.squareItemVariation.updateMany({
-      where: { id: { in: tombstoneIds } },
+      where: { id: { in: tombstoneIds }, deletedAt: null },
       data: { syncedAt, deletedAt: syncedAt }
     });
   }
+}
+
+export function compactSquareCatalogObject(object: CatalogObject): Prisma.InputJsonValue {
+  if (object.isDeleted) return {};
+
+  if (object.type === "ITEM") {
+    return toPrismaJson({
+      imageId: object.imageId,
+      itemData: {
+        imageIds: object.itemData?.imageIds
+      }
+    });
+  }
+
+  if (object.type === "ITEM_VARIATION") {
+    return toPrismaJson({
+      imageId: object.imageId,
+      itemVariationData: {
+        imageIds: object.itemVariationData?.imageIds,
+        trackInventory: object.itemVariationData?.trackInventory
+      }
+    });
+  }
+
+  if (object.type === "IMAGE") {
+    return toPrismaJson({
+      imageData: {
+        url: object.imageData?.url
+      }
+    });
+  }
+
+  if (object.type === "CATEGORY") {
+    return toPrismaJson({
+      categoryData: {
+        name: object.categoryData?.name
+      }
+    });
+  }
+
+  return {};
 }
 
 function collectVariations(objects: CatalogObject[]) {

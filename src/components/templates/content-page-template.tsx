@@ -7,7 +7,7 @@ ADMIN-EDITABLE: Partially
 WHAT THIS CONTROLS: Static informational pages such as About, Contact, Search, Products, and policies.
 SAFE TO EDIT: Informational page copy and token-based layout.
 DO NOT EDIT HERE: Checkout validation, payment handling, Square writes, or admin auth.
-RELATED FILES: src/config/storefront.config.ts, src/config/locations.config.ts
+RELATED FILES: src/config/locations.config.ts, src/config/storefront-pages.config.ts
 BUSINESS LOGIC FILES: none
 */
 

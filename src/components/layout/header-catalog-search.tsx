@@ -51,7 +51,7 @@ export function HeaderCatalogSearch({ label = "Search" }: { label?: string }) {
         aria-controls="compact-header-search"
         aria-expanded={compactSearchOpen}
         aria-label={compactSearchOpen ? "Close search" : label}
-        className="grid h-10 w-10 place-items-center rounded-full text-white transition-colors hover:bg-white/10 hover:text-yellow 2xl:hidden"
+        className="grid h-10 w-10 place-items-center rounded-full text-black transition-colors hover:bg-red/10 hover:text-red 2xl:hidden"
         onClick={() => setCompactSearchOpen((current) => !current)}
         type="button"
       >
@@ -85,7 +85,7 @@ export function HeaderCatalogSearch({ label = "Search" }: { label?: string }) {
       ) : null}
       <span className="hidden 2xl:inline-block">
         <ExpandableSearchBar
-          buttonClassName="border-transparent bg-transparent text-white hover:bg-white/10 hover:text-yellow"
+          buttonClassName="border-transparent bg-transparent text-black hover:bg-red/10 hover:text-red"
           expandDirection="left"
           formClassName="border-white/30"
           inputId="wide-header-catalog-search"

@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { BalloonCatalogGate } from "@/components/balloons/balloon-catalog-gate";
 import { earliestNewYorkDeliveryDate } from "@/features/fulfillment/utils/new-york-delivery-date";
@@ -36,7 +36,7 @@ describe("BalloonCatalogGate", () => {
 
     fireEvent.click(screen.getByRole("button", { name: /Store pickup/ }));
 
-    expect(screen.getByText("Shopping Latex")).toBeTruthy();
+    expect(screen.queryByText("Shopping Latex")).toBeNull();
     expect(screen.getByRole("heading", { name: "Choose your pickup store" })).toBeTruthy();
     expect(screen.getByRole("radio", { name: /3rd Avenue Store/ })).toBeTruthy();
     expect(screen.getByRole("radio", { name: /86th Street Store/ })).toBeTruthy();
@@ -49,15 +49,15 @@ describe("BalloonCatalogGate", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Change to local delivery" }));
 
-    expect(screen.getByText(/OrderPro will confirm whether you can continue/)).toBeTruthy();
+    expect(screen.queryByText(/OrderPro will confirm whether you can continue/)).toBeNull();
     expect(screen.getByRole("button", { name: "Change to pickup" })).toBeTruthy();
     expect(screen.getByLabelText("ZIP code")).toBeTruthy();
     expect(screen.queryByLabelText("Street address")).toBeNull();
     expect(screen.queryByRole("button", { name: /Delivery date/ })).toBeNull();
-    expect((screen.getByRole("button", { name: "Check ZIP code" }) as HTMLButtonElement).disabled).toBe(true);
+    expect((screen.getByRole("button", { name: "Check delivery" }) as HTMLButtonElement).disabled).toBe(true);
   });
 
-  it("continues to the balloon order only after OrderPro approves the ZIP code", async () => {
+  it("continues directly to the balloon order after OrderPro approves the ZIP code", async () => {
     vi.mocked(fetch).mockImplementation(async (input) => {
       if (String(input).includes("local-delivery-postal-eligibility")) {
         return {
@@ -80,13 +80,10 @@ describe("BalloonCatalogGate", () => {
     fireEvent.click(screen.getByRole("button", { name: "Shop latex balloons" }));
     fireEvent.click(screen.getByRole("button", { name: /Local delivery/ }));
     fireEvent.change(screen.getByLabelText("ZIP code"), { target: { value: "10075" } });
-    fireEvent.click(screen.getByRole("button", { name: "Check ZIP code" }));
+    fireEvent.click(screen.getByRole("button", { name: "Check delivery" }));
 
-    expect(await screen.findByText("Approved by OrderPro")).toBeTruthy();
-    expect(screen.getByText("Local delivery is available for ZIP 10075.")).toBeTruthy();
-    fireEvent.click(screen.getByRole("button", { name: "Continue to Latex order" }));
-
-    expect(pushMock).toHaveBeenCalledWith("/shop?collection=latex&fulfillment=delivery");
+    await waitFor(() => expect(pushMock).toHaveBeenCalledWith("/shop?collection=latex&fulfillment=delivery&postalCode=10075"));
+    expect(screen.queryByText("Approved by OrderPro")).toBeNull();
     const preference = JSON.parse(window.sessionStorage.getItem("modern-state-balloon-fulfillment") ?? "null") as { mode: string; postalCode: string; approvalId: string };
     expect(preference).toMatchObject({
       mode: "delivery",
@@ -95,12 +92,38 @@ describe("BalloonCatalogGate", () => {
     });
   });
 
+  it("offers a generic store contact and a mobile call action when delivery is unavailable", async () => {
+    vi.mocked(fetch).mockResolvedValue({
+      json: async () => ({
+        eligibility: {
+          eligible: false,
+          source: "ORDERPRO",
+          reasonCode: "OUTSIDE_DELIVERY_AREA",
+          message: "Outside delivery area."
+        }
+      })
+    } as Response);
+    render(<BalloonCatalogGate />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Shop latex balloons" }));
+    fireEvent.click(screen.getByRole("button", { name: /Local delivery/ }));
+    fireEvent.change(screen.getByLabelText("ZIP code"), { target: { value: "99999" } });
+    fireEvent.click(screen.getByRole("button", { name: "Check delivery" }));
+
+    expect(await screen.findByText("Sorry, we don't currently deliver to this area.")).toBeTruthy();
+    expect(screen.getByText("We may still be able to help. Contact our store:")).toBeTruthy();
+    expect(screen.queryByText(/86th Street store/i)).toBeNull();
+    expect(screen.getByRole("link", { name: "212-831-8010" }).getAttribute("href")).toBe("tel:2128318010");
+    expect(screen.getByRole("link", { name: "Call our store" }).getAttribute("href")).toBe("tel:2128318010");
+    expect(pushMock).not.toHaveBeenCalled();
+  });
+
   it("opens the same fulfillment flow from a linked balloon collection", () => {
     render(<BalloonCatalogGate initialCollection="mylar" />);
 
     expect(screen.getByRole("dialog", { name: "Choose fulfillment" })).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: /Store pickup/ }));
-    expect(screen.getByText("Shopping Mylar")).toBeTruthy();
+    expect(screen.queryByText("Shopping Mylar")).toBeNull();
     expect(screen.getByRole("button", { name: "Shop Mylar balloons" })).toBeTruthy();
   });
 

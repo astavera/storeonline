@@ -37,4 +37,38 @@ describe("checkout attempt repository", () => {
       errors: []
     })).rejects.toBeInstanceOf(CheckoutIdempotencyConflictError);
   });
+
+  it("persists one durable OrderPRO and Square correlation for a shipping checkout", async () => {
+    const repository = new InMemoryCheckoutAttemptRepository();
+    const quote = quoteCart({ items: [{ squareVariationId: "seed-toy-building-set", quantity: 1 }] });
+    const attempt = await repository.recordValidation({
+      idempotencyKey: "shipping-checkout-key-1",
+      requestHash: "shipping-hash-1",
+      quote,
+      errors: []
+    });
+    const orderproId = "00000000-0000-4000-8000-000000000101";
+
+    await repository.recordShippingReservation({
+      attemptId: attempt.attemptId,
+      orderproShippingOrderId: orderproId,
+      shippingContext: { rateId: "rate-1", destinationHash: "a".repeat(64) }
+    });
+    const bound = await repository.recordHostedCheckout({
+      attemptId: attempt.attemptId,
+      squareOrderId: "square-order-1",
+      squarePaymentLinkId: "square-link-1"
+    });
+
+    expect(bound).toMatchObject({
+      orderproShippingOrderId: orderproId,
+      squareOrderId: "square-order-1",
+      squarePaymentLinkId: "square-link-1"
+    });
+    await expect(repository.recordHostedCheckout({
+      attemptId: attempt.attemptId,
+      squareOrderId: "different-square-order",
+      squarePaymentLinkId: "square-link-1"
+    })).rejects.toBeInstanceOf(CheckoutIdempotencyConflictError);
+  });
 });

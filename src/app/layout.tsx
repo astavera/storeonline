@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { storefrontIsIndexable } from "@/lib/seo/storefront-seo";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -11,6 +12,10 @@ export const metadata: Metadata = {
   openGraph: {
     type: "website",
     siteName: "Modern State - State News NYC"
+  },
+  robots: {
+    index: storefrontIsIndexable(),
+    follow: storefrontIsIndexable()
   }
 };
 

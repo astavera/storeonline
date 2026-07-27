@@ -1,5 +1,5 @@
 import type { HomepageSectionConfig } from "@/config/homepage.config";
-import type { HomepageSeoConfig } from "@/features/admin/services/homepage-visual-editor-service";
+import type { HomepageSeoConfig } from "@/config/homepage-seo.config";
 import type { CmsKnownSectionType, CmsPageDocument, CmsSection } from "./cms-types";
 import { createCmsPageDocument } from "./page-templates";
 import { createCmsSection, normalizeSectionType } from "./section-registry";

@@ -20,8 +20,10 @@ All three GitHub checks documented in [engineering-workflow.md](engineering-work
 - `DATABASE_URL`
 - `DIRECT_URL`
 - `NEXT_PUBLIC_SITE_URL`
+- `NEXT_PUBLIC_SITE_INDEXABLE=false` until the final public launch approval
 - `SQUARE_ENVIRONMENT`
 - `SQUARE_ALLOW_PRODUCTION_READONLY_SYNC`
+- `SQUARE_CHECKOUT_ENABLED=true` only in the approved checkout environment
 - `SQUARE_ACCESS_TOKEN`
 - `SQUARE_APPLICATION_ID`
 - `NEXT_PUBLIC_SQUARE_APPLICATION_ID`
@@ -67,6 +69,10 @@ OrderPRO STAGING uses these server-only variables. Keep checkout disabled while 
 - Confirm `ORDERPRO_LOCAL_DELIVERY_CHECKOUT_ENABLED=false` until quote, slots and holds pass their separate release review.
 - Confirm `/api/checkout` returns `local_delivery_not_available` for Local Delivery throughout this handshake-only release.
 - Verify mobile navigation and checkout accessibility.
+- Confirm `/robots.txt` blocks all crawlers before launch. Set
+  `NEXT_PUBLIC_SITE_INDEXABLE=true` only after the production domain, canonical
+  URLs, published content, and launch approval are complete; then verify
+  `/robots.txt` and `/sitemap.xml` on the deployed domain.
 - Confirm `/admin` and `/api/admin/*` have a configured identity issuer; the
   current containment layer fails closed when no production identity is available.
 - Configure scheduled authenticated calls to `/api/internal/square/catalog-sync`

@@ -1,0 +1,13 @@
+.git
+.next
+node_modules
+coverage
+output
+playwright-report
+test-results
+.env
+.env.*
+!.env.example
+npm-debug.log*
+*.tsbuildinfo
+

@@ -109,7 +109,7 @@ export function getOrderProM2mConfiguration() {
   return parseOrderProM2mConfiguration(process.env);
 }
 
-const ORDERPRO_LOCAL_DELIVERY_CHECKOUT_CODE_RELEASED = false;
+const ORDERPRO_LOCAL_DELIVERY_CHECKOUT_CODE_RELEASED = true;
 
 export function isOrderProLocalDeliveryCheckoutRequested(environment: Record<string, string | undefined> = process.env) {
   return environment.ORDERPRO_LOCAL_DELIVERY_CHECKOUT_ENABLED?.trim() === "true";

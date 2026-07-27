@@ -99,6 +99,7 @@ export type HomepageSectionTemplate = {
 
 export const defaultHomepageImage = "https://images.unsplash.com/photo-1558060370-d644479cb6f7?auto=format&fit=crop&w=1800&q=80";
 export const backToSchoolHomepageImage = "/images/home-hero-back-to-school.svg";
+export const halloweenHomepageImage = "/images/seasonal/halloween-pumpkins-hero-hd.webp";
 
 export const homepageImagePresets: HomepageImagePreset[] = [
   {
@@ -125,6 +126,11 @@ export const homepageImagePresets: HomepageImagePreset[] = [
     id: "back-to-school",
     label: "Back to School",
     url: backToSchoolHomepageImage
+  },
+  {
+    id: "halloween",
+    label: "Halloween",
+    url: halloweenHomepageImage
   }
 ];
 
@@ -132,30 +138,30 @@ export const homepageSections: HomepageSectionConfig[] = [
   {
     sectionId: "home.hero",
     sectionType: "hero",
-    eyebrow: "Back to School 2026",
-    title: "First day, fully ready.",
-    body: "Notebooks, pencils, planners, art supplies, teacher gifts, and after-school rewards from your neighborhood State News store.",
-    ctaLabel: "Shop Back to School",
-    ctaHref: "/holidays/back-to-school",
-    secondaryCtaLabel: "Build a School Kit",
-    secondaryCtaHref: "/stationery",
-    variant: "back-to-school",
+    eyebrow: "Halloween 2026",
+    title: "Halloween starts here.",
+    body: "Costumes, decorations, balloons, party supplies, and last-minute Halloween finds from your neighborhood store.",
+    ctaLabel: "Shop Halloween",
+    ctaHref: "/holidays/halloween",
+    secondaryCtaLabel: "Browse party supplies",
+    secondaryCtaHref: "/party-supplies",
+    variant: "seasonal-card",
     sortOrder: 10,
     isVisible: true,
-    backgroundImage: backToSchoolHomepageImage,
-    imageAlt: "Back to school stationery, notebooks, and school supplies",
-    textPosition: "center",
+    backgroundImage: halloweenHomepageImage,
+    imageAlt: "Glowing carved pumpkins arranged for Halloween",
+    textPosition: "left",
     mediaPlacement: "background",
     placeholderLayout: "split",
     backgroundTone: "dark",
     contentWidth: "wide",
-    verticalPadding: "spacious",
-    heroSize: "large",
+    verticalPadding: "normal",
+    heroSize: "compact",
+    hiddenElements: ["secondaryCta"],
     items: [
-      { id: "stationery", label: "01 Category", title: "Stationery", body: "Notebooks, pens, planners, and desk essentials.", href: "/shop?department=Stationery", linkType: "category", linkValue: "stationery", tone: "yellow" },
-      { id: "arts", label: "02 Category", title: "Arts & Crafts", body: "Markers, paper, project supplies, and creative kits.", href: "/shop?department=Arts", linkType: "category", linkValue: "arts", tone: "cyan" },
-      { id: "toys", label: "03 Category", title: "Toys", body: "Small rewards, backpack surprises, games, and kid favorites.", href: "/shop?department=Toys", linkType: "category", linkValue: "toys", tone: "green" },
-      { id: "teacher-gifts", label: "04 Category", title: "Teacher Gifts", body: "Cards, wrap, thoughtful small gifts, and thank-you extras.", href: "/shop?department=Gifts", linkType: "category", linkValue: "gifts", tone: "red" }
+      { id: "halloween", title: "Halloween", href: "/holidays/halloween", linkType: "page", linkValue: "halloween", tone: "yellow" },
+      { id: "party", title: "Party supplies", href: "/party-supplies", linkType: "page", linkValue: "party-supplies", tone: "cyan" },
+      { id: "balloons", title: "Balloons", href: "/balloons", linkType: "page", linkValue: "balloons", tone: "green" }
     ]
   },
   {

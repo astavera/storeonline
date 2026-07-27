@@ -2,7 +2,7 @@ import { expect, test } from "@playwright/test";
 
 test.setTimeout(120_000);
 
-test("checkout validates a cart against the selected store without placing or charging an order", async ({ page }) => {
+test("checkout stays safely disabled when the Square payment switch is off", async ({ page }) => {
   await page.addInitScript(() => {
     window.localStorage.setItem("modern-state-cart", JSON.stringify([
       { squareVariationId: "seed-toy-building-set", quantity: 1 }
@@ -25,16 +25,8 @@ test("checkout validates a cart against the selected store without placing or ch
   await page.getByLabel("Email").fill("test@example.com");
   await page.getByLabel("Phone").fill("2125550100");
 
-  const responsePromise = page.waitForResponse((response) => response.url().endsWith("/api/checkout") && response.request().method() === "POST");
-  await page.getByRole("button", { name: "Check order details" }).click();
-  const response = await responsePromise;
-  const request = response.request();
-  const payload = request.postDataJSON() as { locationId: string };
-
-  expect(response.status()).toBe(200);
-  expect(payload.locationId).toBe("store-86th-street");
-  expect(request.headers()["idempotency-key"]).toHaveLength(36);
-  await expect(page.getByRole("status").filter({ hasText: "No order was placed and no payment was taken." })).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByText("Secure checkout is temporarily unavailable.")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Continue to Square" })).toBeDisabled();
 });
 
 test("checkout waits for OrderPro to return a local delivery slot", async ({ page }) => {
@@ -70,7 +62,7 @@ test("checkout waits for OrderPro to return a local delivery slot", async ({ pag
   await expect(page.getByText("3rd Avenue Store").last()).toBeVisible();
   await expect(page.getByText("$25.00").last()).toBeVisible();
   await expect(page.getByText("Available times from OrderPro will appear here for this date.")).toBeVisible();
-  await expect(page.getByRole("button", { name: "Check order details" })).toBeDisabled();
+  await expect(page.getByRole("button", { name: "Continue to Square" })).toBeDisabled();
 });
 
 test("balloon local delivery continues only after OrderPro approves the ZIP code", async ({ page }) => {
@@ -78,14 +70,12 @@ test("balloon local delivery continues only after OrderPro approves the ZIP code
 
   await page.getByRole("button", { name: "Local delivery" }).click();
   await expect(page.getByLabel("Street address")).toHaveCount(0);
-  await expect(page.getByRole("button", { name: "Check ZIP code" })).toBeDisabled();
+  await expect(page.getByRole("button", { name: "Check delivery" })).toBeDisabled();
   await page.getByLabel("ZIP code").fill("10028");
   const eligibilityResponsePromise = page.waitForResponse((response) => response.url().endsWith("/api/fulfillment/local-delivery-postal-eligibility") && response.request().method() === "POST");
-  await page.getByRole("button", { name: "Check ZIP code" }).click();
+  await page.getByRole("button", { name: "Check delivery" }).click();
   const eligibilityResponse = await eligibilityResponsePromise;
 
   expect(eligibilityResponse.status()).toBe(200);
-  await expect(page.getByText("Approved by OrderPro")).toBeVisible({ timeout: 15_000 });
-  await page.getByRole("button", { name: "Continue to Latex order" }).click();
-  await expect(page).toHaveURL(/\/shop\?collection=latex&fulfillment=delivery/);
+  await expect(page).toHaveURL(/\/shop\?collection=latex&fulfillment=delivery&postalCode=10028/, { timeout: 15_000 });
 });

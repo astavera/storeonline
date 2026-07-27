@@ -1,18 +1,29 @@
 import { describe, expect, it } from "vitest";
-import { primaryNavigation, secondaryDepartmentNavigation } from "@/config/navigation.config";
+import { defaultHeaderNavigation, normalizeHeaderNavigation } from "@/config/header-navigation.config";
 
 describe("navigation", () => {
-  it("keeps Candy & Snacks out of primary and secondary department navigation", () => {
-    const labels = [...primaryNavigation, ...secondaryDepartmentNavigation].map((item) => item.label.toLowerCase());
+  it("keeps the public header aligned with the routes rendered by SiteHeader", () => {
+    const visibleLinks = defaultHeaderNavigation.primary.filter((link) => link.visible);
 
-    expect(labels).not.toContain("candy & snacks");
-    expect(labels).not.toContain("candy and snacks");
+    expect(visibleLinks.map((link) => link.href)).toEqual([
+      "/shop",
+      "/balloons",
+      "/toys",
+      "/party-supplies",
+      "/holidays",
+      "/about"
+    ]);
   });
 
-  it("uses top-level department routes instead of collections routes", () => {
-    const hrefs = [...primaryNavigation, ...secondaryDepartmentNavigation].map((item) => item.href);
+  it("normalizes CMS navigation while preserving explicit visibility", () => {
+    const normalized = normalizeHeaderNavigation({
+      ...defaultHeaderNavigation,
+      primary: defaultHeaderNavigation.primary.map((link) =>
+        link.id === "about-us" ? { ...link, visible: false } : link
+      )
+    });
 
-    expect(hrefs.every((href) => !href.startsWith("/collections"))).toBe(true);
-    expect(hrefs).toEqual(expect.arrayContaining(["/toys", "/party-supplies", "/balloons", "/stationery", "/arts-and-crafts", "/greeting-cards", "/gifts"]));
+    expect(normalized.primary.find((link) => link.id === "about-us")?.visible).toBe(false);
+    expect(normalized.primary.every((link) => link.href.startsWith("/"))).toBe(true);
   });
 });

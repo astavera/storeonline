@@ -3,9 +3,11 @@ import Image from "next/image";
 import { notFound } from "next/navigation";
 import { AddToCartButton } from "@/components/commerce/add-to-cart-button";
 import { StorefrontCmsPage } from "@/components/cms/storefront-cms-page";
+import { StructuredData } from "@/components/seo/structured-data";
 import { SectionFrame } from "@/components/sections/section-frame";
 import { fulfillmentModeLabel, getProductBySlug } from "@/features/catalog/product-catalog";
 import { formatMoney } from "@/lib/utils";
+import { buildStorefrontMetadata, createProductStructuredData } from "@/lib/seo/storefront-seo";
 import { readLatestCmsDocument } from "@/server/admin/admin-cms-document-service";
 import { readResolvedSquareWebsiteCatalog } from "@/server/square/website-catalog-store";
 
@@ -17,20 +19,20 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
   const product = await readPublicProduct(slug);
 
   if (!product) {
-    return {
-      title: "Product not found"
-    };
+    return buildStorefrontMetadata({
+      canonicalPath: `/products/${slug}`,
+      description: "The requested Modern State product could not be found.",
+      indexable: false,
+      title: "Product not found | Modern State - State News NYC"
+    });
   }
 
-  return {
-    title: product.name,
+  return buildStorefrontMetadata({
+    canonicalPath: `/products/${product.slug}`,
     description: product.shortDescription,
-    openGraph: {
-      title: product.name,
-      description: product.shortDescription,
-      images: [{ url: product.imageUrl }]
-    }
-  };
+    image: product.imageUrl,
+    title: `${product.name} | Modern State - State News NYC`
+  });
 }
 
 export default async function ProductPage({ params }: { params: Promise<{ slug: string }> }) {
@@ -44,11 +46,11 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
   }
 
   if (publishedDocument) {
-    return <StorefrontCmsPage document={publishedDocument} product={product} />;
+    return <><StructuredData data={createProductStructuredData(product)} /><StorefrontCmsPage document={publishedDocument} product={product} /></>;
   }
 
   return (
-    <main>
+    <><StructuredData data={createProductStructuredData(product)} /><main>
       <SectionFrame area="Products" className="py-16" component="ProductDetailSection" sectionId="products.detail" variant="product-detail">
         <div className="container-shell grid gap-10 lg:grid-cols-[0.9fr_1fr] lg:items-start">
           <div className="overflow-hidden rounded-md border border-border bg-surface-muted">
@@ -76,7 +78,7 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
           </section>
         </div>
       </SectionFrame>
-    </main>
+    </main></>
   );
 }
 

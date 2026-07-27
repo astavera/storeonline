@@ -105,7 +105,7 @@ export function SquareCatalogTestPanel() {
         <div className="mt-5 overflow-hidden rounded-md border border-border bg-surface">
           <div className="border-b border-border p-4">
             <form className="flex flex-col gap-2 sm:flex-row" onSubmit={submitSearch}>
-              <label className="flex min-h-11 flex-1 items-center gap-3 rounded-md border border-border bg-surface px-3 focus-within:border-primary">
+              <label className="flex min-h-11 flex-1 items-center gap-3 rounded-md border border-border bg-surface px-3 focus-within:border-border">
                 <Search className="shrink-0 text-secondary" size={17} />
                 <input className="min-w-0 flex-1 bg-transparent py-3 text-sm outline-none" onChange={(event) => setQueryInput(event.target.value)} placeholder="Search product, variation, SKU or UPC" type="search" value={queryInput} />
               </label>

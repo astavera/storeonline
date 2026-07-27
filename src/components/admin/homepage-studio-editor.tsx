@@ -12,7 +12,7 @@ import {
   ExternalLink,
   GripVertical,
   History,
-  Image,
+  Image as ImageIcon,
   LayoutDashboard,
   Link2,
   ListChecks,
@@ -34,12 +34,14 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useRef, useState, useTransition, type ChangeEvent, type DragEvent, type MouseEvent as ReactMouseEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type ChangeEvent, type DragEvent, type MouseEvent as ReactMouseEvent } from "react";
+import { StorefrontPageSwitcher } from "@/components/admin/storefront-page-switcher";
 import { SiteFooter } from "@/components/layout/site-footer";
 import { SiteHeader } from "@/components/layout/site-header";
 import { HomePageTemplate } from "@/components/templates/home-page-template";
 import { Button } from "@/components/ui/button";
 import { defaultHeaderNavigation, type HeaderNavigationConfig, type HeaderNavigationLink } from "@/config/header-navigation.config";
+import { defaultHomepageSeo, type HomepageSeoConfig } from "@/config/homepage-seo.config";
 import { storefrontEditablePages, type StorefrontEditablePage } from "@/config/storefront-pages.config";
 import {
   defaultHomepageImage,
@@ -59,16 +61,6 @@ import {
 import { storefrontProducts, type StorefrontProduct } from "@/features/catalog/product-catalog";
 import { cn } from "@/lib/utils";
 import { commitEditingHistory, createEditingHistory, redoEditingHistory, undoEditingHistory } from "@/components/admin/builder/editing-history";
-
-type HomepageSeoConfig = {
-  title: string;
-  description: string;
-  ogTitle: string;
-  ogDescription: string;
-  ogImage: string;
-  canonicalUrl: string;
-  indexable: boolean;
-};
 
 type HomepageVersionSummary = {
   versionNumber: number;
@@ -150,22 +142,12 @@ type ValidationResult = {
 
 const maxBrowserImageUploadBytes = 5 * 1024 * 1024;
 
-const defaultSeo: HomepageSeoConfig = {
-  title: "Modern State - State News NYC",
-  description: "Toys, party supplies, balloons, stationery, arts and crafts, greeting cards, and gifts on the Upper East Side.",
-  ogTitle: "Modern State - State News NYC",
-  ogDescription: "Shop Modern State for toys, balloons, party supplies, stationery, gifts, and neighborhood essentials.",
-  ogImage: defaultHomepageImage,
-  canonicalUrl: "/",
-  indexable: true
-};
-
 const coreHomepageSectionIds = new Set(homepageSections.map((section) => section.sectionId));
 
 const panelTabs: Array<{ id: EditorPanel; label: string; icon: typeof PanelRight }> = [
   { id: "content", label: "Content", icon: PanelRight },
   { id: "design", label: "Design", icon: LayoutDashboard },
-  { id: "media", label: "Media", icon: Image },
+  { id: "media", label: "Media", icon: ImageIcon },
   { id: "navigation", label: "Navigation", icon: Link2 },
   { id: "seo", label: "SEO", icon: Search },
   { id: "checks", label: "Checks", icon: ListChecks },
@@ -177,7 +159,7 @@ export function HomepageStudioEditor({
   initialHeaderNavigation = defaultHeaderNavigation,
   initialPhotoPresets = homepageImagePresets,
   initialSections,
-  initialSeo = defaultSeo,
+  initialSeo = defaultHomepageSeo,
   initialVersions = [],
   itemLinkOptions = [],
   previewProducts = []
@@ -190,7 +172,7 @@ export function HomepageStudioEditor({
     headerNavigation: initialHeaderNavigation,
     sections: [...initialSections].sort((a, b) => a.sortOrder - b.sortOrder),
     photoPresets: initialPhotoPresets.length > 0 ? initialPhotoPresets : homepageImagePresets,
-    seo: { ...defaultSeo, ...initialSeo },
+    seo: { ...defaultHomepageSeo, ...initialSeo },
     changeSummary: "Homepage visual update"
   }));
   const editingHistoryRef = useRef(editingHistory);
@@ -548,7 +530,14 @@ export function HomepageStudioEditor({
     savedSnapshotRef.current = homepageSnapshotSignature(submittedSnapshot);
     setIsDirty(homepageSnapshotSignature(editingHistoryRef.current.present) !== savedSnapshotRef.current);
     setRequiresReauthentication(false);
-    setSaveState({ tone: "success", message: result.storage?.message ?? "Saved." });
+    setSaveState({
+      tone: "success",
+      message: operation === "publish"
+        ? "Published — these changes are live on the website."
+        : operation === "preview"
+          ? "Preview saved — these changes are not live."
+          : "Draft saved — select Publish when you are ready to make it live."
+    });
   }
 
   return (
@@ -583,7 +572,10 @@ export function HomepageStudioEditor({
           <div className="min-h-0 w-full max-w-full flex-1 overflow-x-hidden overflow-y-auto p-5">
             {sidebarMode === "sections" ? (
               <div className="grid gap-5">
-                <EditorPageSelector additionalPages={additionalPages} isDirty={isDirty} />
+                <StorefrontPageSwitcher
+                  additionalPages={additionalPages}
+                  onBeforeNavigate={() => !isDirty || window.confirm("You have unsaved homepage changes. Continue to another page?")}
+                />
                 <SectionsPanel
                   addSectionFromTemplate={addSectionFromTemplate}
                   duplicateSelectedSection={duplicateSelectedSection}
@@ -683,40 +675,6 @@ export function HomepageStudioEditor({
   );
 }
 
-function EditorPageSelector({ additionalPages, isDirty }: { additionalPages: StorefrontEditablePage[]; isDirty: boolean }) {
-  const router = useRouter();
-  const [isPending, startTransition] = useTransition();
-  const pages = [...storefrontEditablePages, ...additionalPages].filter((page, index, allPages) => allPages.findIndex((candidate) => candidate.scope === page.scope && candidate.entityId === page.entityId) === index);
-
-  function navigate(value: string) {
-    if (isDirty && !window.confirm("You have unsaved homepage changes. Continue to another page?")) {
-      return;
-    }
-
-    if (value === "homepage:home") {
-      startTransition(() => router.push("/admin/homepage"));
-      return;
-    }
-
-    const [scope, entityId] = value.split(":");
-    startTransition(() => router.push(`/admin/homepage?scope=${encodeURIComponent(scope)}&id=${encodeURIComponent(entityId)}`));
-  }
-
-  return (
-    <label className="block">
-      <span className="sr-only">{isPending ? "Loading page" : "Page"}</span>
-      <select aria-busy={isPending} className="min-h-12 w-full rounded-md border border-border bg-surface px-4 text-sm font-semibold outline-none focus:border-primary" disabled={isPending} onChange={(event) => navigate(event.target.value)} value="homepage:home">
-        <option value="homepage:home">Home</option>
-        {pages.map((page) => (
-          <option key={`${page.scope}:${page.entityId}`} value={`${page.scope}:${page.entityId}`}>
-            {page.title}
-          </option>
-        ))}
-      </select>
-    </label>
-  );
-}
-
 function EditorTopBar({
   canRedo,
   canUndo,
@@ -784,8 +742,9 @@ function EditorTopBar({
             Sign in again
           </Link>
         ) : null}
-        <Button className="h-11 w-11 rounded-full px-0" onClick={onSaveDraft} title="Save draft" type="button" variant="quiet">
+        <Button className="h-11 rounded-full px-4" onClick={onSaveDraft} title="Save draft without changing the live website" type="button" variant="quiet">
           <Save aria-hidden="true" size={17} />
+          <span className="ml-2">Save draft</span>
         </Button>
         <Button className="h-11 rounded-full px-5" onClick={onPreview} type="button" variant="secondary">
           {canvasExpanded ? "Exit preview" : "Preview"}
@@ -1118,130 +1077,6 @@ function normalizeInternalPath(href: string) {
 
   const path = href.split(/[?#]/)[0] || "/";
   return path.length > 1 ? path.replace(/\/+$/, "") : path;
-}
-
-function PreviewSection({ isSelected, onEditTarget, section }: { isSelected: boolean; onEditTarget: (target: PreviewEditTarget) => void; section: HomepageSectionConfig }) {
-  const selectableClass = cn("relative cursor-pointer outline-none transition", isSelected && "ring-2 ring-primary ring-offset-2 ring-offset-surface");
-  const sectionType = sectionTypeFromSection(section);
-  const edit = (panel: EditorPanel, focus: EditorFocus) => onEditTarget({ sectionId: section.sectionId, panel, focus });
-
-  if (sectionType === "hero" || sectionType === "image-banner") {
-    return (
-      <section
-        className={cn("min-h-[420px] bg-cover px-6 text-white", previewPaddingClass(section), selectableClass, previewBackgroundClass(section), previewTextClass(section))}
-        data-preview-section-id={section.sectionId}
-        onClick={() => edit("content", "section")}
-        style={{ backgroundImage: previewBackgroundImage(section) }}
-      >
-        <div className="absolute inset-0 bg-black/45" />
-        {isSelected ? <PreviewSectionToolbar onContent={() => edit("content", "title")} onDesign={() => edit("design", "textPosition")} onMedia={() => edit("media", "media")} /> : null}
-        <PreviewEditPill className="right-4 top-16" label="Image" onClick={() => edit("media", "media")} />
-        <div className={cn("relative max-w-2xl", previewTextWidthClass(section))}>
-          {isSectionElementVisible(section, "eyebrow") && section.eyebrow ? (
-            <p className="rounded-md text-xs font-semibold uppercase tracking-[0.14em] text-yellow outline-offset-4 hover:outline hover:outline-2 hover:outline-yellow" onClick={(event) => preventAndEdit(event, () => edit("content", "eyebrow"))}>
-              {section.eyebrow}
-            </p>
-          ) : null}
-          {isSectionElementVisible(section, "title") && section.title ? (
-            <h2 className="mt-3 rounded-md font-display text-4xl font-semibold leading-tight outline-offset-4 hover:outline hover:outline-2 hover:outline-white" onClick={(event) => preventAndEdit(event, () => edit("content", "title"))}>
-              {section.title}
-            </h2>
-          ) : null}
-          {isSectionElementVisible(section, "body") && section.body ? (
-            <p className="mt-4 rounded-md text-white/88 outline-offset-4 hover:outline hover:outline-2 hover:outline-white" onClick={(event) => preventAndEdit(event, () => edit("content", "body"))}>
-              {section.body}
-            </p>
-          ) : null}
-          {isSectionElementVisible(section, "primaryCta") && section.ctaLabel ? (
-            <span className="mt-6 inline-flex rounded-md bg-[var(--theme-action)] px-4 py-2 text-sm font-semibold text-[var(--theme-action-foreground)] outline-offset-4 hover:outline hover:outline-2 hover:outline-white" onClick={(event) => preventAndEdit(event, () => edit("content", "ctaLabel"))}>
-              {section.ctaLabel}
-            </span>
-          ) : null}
-          {isSectionElementVisible(section, "items") && section.items?.length ? <PreviewMiniItems items={section.items} onClick={() => edit("content", "items")} tone="dark" /> : null}
-        </div>
-      </section>
-    );
-  }
-
-  const hasSideImage = Boolean(section.backgroundImage) && (section.mediaPlacement === "left" || section.mediaPlacement === "right");
-  const sideImage = hasSideImage ? (
-    <button className="relative block w-full rounded-md text-left outline-offset-4 hover:outline hover:outline-2 hover:outline-primary" onClick={(event) => preventAndEdit(event, () => edit("media", "media"))} type="button">
-      <EditablePresetImage alt={section.imageAlt || `${sectionLabel(section.sectionId)} image`} className="aspect-[4/3] rounded-md border border-border" src={section.backgroundImage || defaultHomepageImage} />
-      <span className="absolute right-2 top-2 rounded-md bg-black/70 px-2 py-1 text-xs font-semibold text-white">Edit image</span>
-    </button>
-  ) : null;
-  const backgroundStyle = section.mediaPlacement === "background" && section.backgroundImage ? { backgroundImage: previewBackgroundImage(section) } : undefined;
-
-  return (
-    <section
-      className={cn(
-        "px-6",
-        previewPaddingClass(section),
-        previewToneClass(section),
-        section.mediaPlacement === "background" && "bg-cover text-white",
-        selectableClass
-      )}
-      data-preview-section-id={section.sectionId}
-      onClick={() => edit("content", "section")}
-      style={backgroundStyle}
-    >
-      {isSelected ? <PreviewSectionToolbar onContent={() => edit("content", "title")} onDesign={() => edit("design", "textPosition")} onMedia={() => edit("media", "media")} /> : null}
-      {section.mediaPlacement === "background" ? <PreviewEditPill className="right-4 top-16" label="Image" onClick={() => edit("media", "media")} /> : null}
-      <div className={cn(hasSideImage && "grid gap-6 md:grid-cols-2 md:items-center")}>
-        {section.mediaPlacement === "left" ? sideImage : null}
-        <div>
-          <div className={cn("mb-6 max-w-2xl", previewTextClass(section), previewTextWidthClass(section))}>
-            {isSectionElementVisible(section, "eyebrow") && section.eyebrow ? (
-              <p className={cn("rounded-md text-xs font-semibold uppercase tracking-[0.14em] outline-offset-4 hover:outline hover:outline-2 hover:outline-primary", section.mediaPlacement === "background" ? "text-white/80 hover:outline-white" : "text-secondary")} onClick={(event) => preventAndEdit(event, () => edit("content", "eyebrow"))}>
-                {section.eyebrow}
-              </p>
-            ) : null}
-            {isSectionElementVisible(section, "title") && section.title ? (
-              <h2 className="rounded-md font-display text-3xl font-semibold outline-offset-4 hover:outline hover:outline-2 hover:outline-primary" onClick={(event) => preventAndEdit(event, () => edit("content", "title"))}>
-                {section.title}
-              </h2>
-            ) : null}
-            {isSectionElementVisible(section, "body") && section.body ? (
-              <p className={cn("mt-3 rounded-md outline-offset-4 hover:outline hover:outline-2 hover:outline-primary", section.mediaPlacement === "background" ? "text-white/88 hover:outline-white" : "text-secondary")} onClick={(event) => preventAndEdit(event, () => edit("content", "body"))}>
-                {section.body}
-              </p>
-            ) : null}
-            {isSectionElementVisible(section, "primaryCta") && section.ctaLabel ? (
-              <span className="mt-5 inline-flex rounded-md border border-border bg-surface px-4 py-2 text-sm font-semibold text-primary outline-offset-4 hover:outline hover:outline-2 hover:outline-primary" onClick={(event) => preventAndEdit(event, () => edit("content", "ctaLabel"))}>
-                {section.ctaLabel}
-              </span>
-            ) : null}
-          </div>
-          {isSectionElementVisible(section, "items") ? <PlaceholderLayout layout={section.placeholderLayout ?? "grid"} onEditItems={() => edit("content", "items")} section={section} /> : null}
-        </div>
-        {section.mediaPlacement === "right" ? sideImage : null}
-      </div>
-    </section>
-  );
-}
-
-function PreviewSectionToolbar({ onContent, onDesign, onMedia }: { onContent: () => void; onDesign: () => void; onMedia: () => void }) {
-  return (
-    <div className="absolute right-3 top-3 z-20 flex gap-1 rounded-md border border-border bg-surface/95 p-1 text-primary shadow-sm" onClick={(event) => event.stopPropagation()}>
-      <button className="rounded px-2 py-1 text-xs font-semibold hover:bg-surface-muted" onClick={onContent} type="button">
-        Text
-      </button>
-      <button className="rounded px-2 py-1 text-xs font-semibold hover:bg-surface-muted" onClick={onMedia} type="button">
-        Image
-      </button>
-      <button className="rounded px-2 py-1 text-xs font-semibold hover:bg-surface-muted" onClick={onDesign} type="button">
-        Layout
-      </button>
-    </div>
-  );
-}
-
-function PreviewEditPill({ className, label, onClick }: { className?: string; label: string; onClick: () => void }) {
-  return (
-    <button className={cn("absolute z-20 rounded-md border border-white/30 bg-black/70 px-2 py-1 text-xs font-semibold text-white shadow-sm hover:bg-black", className)} onClick={(event) => preventAndEdit(event, onClick)} type="button">
-      Edit {label}
-    </button>
-  );
 }
 
 function InspectorPanel({
@@ -1637,7 +1472,7 @@ function ContentPanel({
         </div>
       ) : null}
       <Button className="gap-2" onClick={() => setActivePanel("media")} type="button" variant="secondary">
-        <Image aria-hidden="true" size={16} />
+        <ImageIcon aria-hidden="true" size={16} />
         Edit image
       </Button>
       <SectionItemsEditor focusRequest={focusRequest} itemLinkOptions={itemLinkOptions} section={section} updateSection={updateSection} />
@@ -1901,15 +1736,43 @@ function ButtonDestinationEditor({ fieldId, focusRequest, href, linkOptions, onC
 }
 
 function DesignPanel({ section, updateSection, focusRequest }: { section: HomepageSectionConfig; updateSection: (patch: Partial<HomepageSectionConfig>) => void; focusRequest: EditorFocusRequest | null }) {
+  const isHero = sectionTypeFromSection(section) === "hero";
+  const heroLayoutOptions = [
+    { value: "seasonal-card", label: "Seasonal card (editable)" },
+    { value: "back-to-school", label: "Full image with centered text" },
+    { value: "default", label: "Classic image hero" }
+  ];
+
+  if (isHero && !heroLayoutOptions.some((option) => option.value === section.variant)) {
+    heroLayoutOptions.push({ value: section.variant, label: `Current layout (${section.variant})` });
+  }
+
   return (
     <div className="grid gap-4">
+      {isHero ? (
+        <SelectField
+          label="Hero layout"
+          onChange={(variant) => updateSection(variant === "seasonal-card"
+            ? {
+                variant,
+                textPosition: "left",
+                mediaPlacement: "background",
+                backgroundTone: "dark",
+                heroSize: "compact",
+                hiddenElements: setSectionElementVisibility(section, "secondaryCta", false)
+              }
+            : { variant })}
+          options={heroLayoutOptions}
+          value={section.variant}
+        />
+      ) : null}
       <SelectField fieldId="textPosition" focusRequest={focusRequest} label="Text position" onChange={(textPosition) => updateSection({ textPosition: textPosition as HomepageSectionConfig["textPosition"] })} options={["left", "center", "right"]} value={section.textPosition ?? "left"} />
       <SelectField fieldId="mediaPlacement" focusRequest={focusRequest} label="Photo placement" onChange={(mediaPlacement) => updateSection({ mediaPlacement: mediaPlacement as HomepageSectionConfig["mediaPlacement"] })} options={["background", "left", "right", "none"]} value={section.mediaPlacement ?? "none"} />
       <SelectField label="Placeholder layout" onChange={(placeholderLayout) => updateSection({ placeholderLayout: placeholderLayout as HomepageSectionConfig["placeholderLayout"] })} options={["grid", "split", "rail", "stack"]} value={section.placeholderLayout ?? "grid"} />
       <SelectField fieldId="backgroundTone" focusRequest={focusRequest} label="Background" onChange={(backgroundTone) => updateSection({ backgroundTone: backgroundTone as HomepageSectionConfig["backgroundTone"] })} options={["default", "muted", "brand", "dark", "accent"]} value={section.backgroundTone ?? "default"} />
       <SelectField fieldId="contentWidth" focusRequest={focusRequest} label="Content width" onChange={(contentWidth) => updateSection({ contentWidth: contentWidth as HomepageSectionConfig["contentWidth"] })} options={["narrow", "normal", "wide"]} value={section.contentWidth ?? "wide"} />
       <SelectField fieldId="verticalPadding" focusRequest={focusRequest} label="Spacing" onChange={(verticalPadding) => updateSection({ verticalPadding: verticalPadding as HomepageSectionConfig["verticalPadding"] })} options={["compact", "normal", "spacious"]} value={section.verticalPadding ?? "normal"} />
-      {sectionTypeFromSection(section) === "hero" ? <SelectField fieldId="heroSize" focusRequest={focusRequest} label="Hero size" onChange={(heroSize) => updateSection({ heroSize: heroSize as HomepageHeroSize })} options={["compact", "standard", "large", "fullscreen"]} value={section.heroSize ?? "large"} /> : null}
+      {isHero ? <SelectField fieldId="heroSize" focusRequest={focusRequest} label="Hero size" onChange={(heroSize) => updateSection({ heroSize: heroSize as HomepageHeroSize })} options={["compact", "standard", "large", "fullscreen"]} value={section.heroSize ?? "large"} /> : null}
       <SelectField fieldId="columns" focusRequest={focusRequest} label="Columns" onChange={(columns) => updateSection({ columns: Number(columns) as HomepageSectionConfig["columns"] })} options={["2", "3", "4"]} value={String(section.columns ?? 3)} />
       <div className="rounded-md border border-border bg-surface-muted p-3">
         <p className="text-sm font-semibold">Production-safe styling</p>
@@ -2159,7 +2022,7 @@ function PhotoPresetEditor({
       </div>
 
       <Button className="mt-3 w-full gap-2" onClick={useFallback} type="button" variant="secondary">
-        <Image aria-hidden="true" size={16} />
+        <ImageIcon aria-hidden="true" size={16} />
         Use fallback photo
       </Button>
     </section>
@@ -2320,13 +2183,6 @@ function labelFromFileName(fileName: string) {
     .replace(/\b\w/g, (letter) => letter.toUpperCase());
 }
 
-function formatProductPrice(product: StorefrontProduct) {
-  return new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency: "USD"
-  }).format(product.priceCents / 100);
-}
-
 function safeDomId(value: string) {
   return value.replace(/[^a-zA-Z0-9_-]+/g, "-") || "image";
 }
@@ -2361,93 +2217,12 @@ function EditablePresetImage({ src, alt, className }: { src: string; alt: string
   if (failed) {
     return (
       <div className={cn("flex h-full w-full items-center justify-center bg-surface-muted text-secondary", className)}>
-        <Image aria-hidden="true" size={24} />
+        <ImageIcon aria-hidden="true" size={24} />
       </div>
     );
   }
 
   return <img alt={alt} className={cn("h-full w-full object-cover", className)} decoding="async" loading="lazy" onError={() => setFailed(true)} src={thumbnailImageUrl(src)} />;
-}
-
-function PlaceholderLayout({
-  layout,
-  section,
-  onEditItems
-}: {
-  layout: NonNullable<HomepageSectionConfig["placeholderLayout"]>;
-  section: HomepageSectionConfig;
-  onEditItems: () => void;
-}) {
-  const labelsBySection: Record<string, string[]> = {
-    "home.departments": ["Toys", "Party", "Balloons", "Gifts"],
-    "home.featured-products": ["Product", "Product", "Product", "Product"],
-    "home.balloon-promo": ["Latex", "Mylar", "Numbers", "Bouquets"],
-    "home.local-storefront": ["86th Street", "3rd Avenue"]
-  };
-  const items = section.items?.length ? section.items : defaultEditableItemsForSection(section);
-  const labels = items.length > 0 ? items.map((item) => item.title) : (labelsBySection[section.sectionId] ?? ["Block", "Block", "Block"]);
-  const gridClass =
-    layout === "rail"
-      ? "grid-flow-col auto-cols-[180px] overflow-hidden"
-      : layout === "split"
-        ? "grid-cols-1 sm:grid-cols-2"
-        : layout === "stack"
-          ? "grid-cols-1"
-          : section.columns === 2
-            ? "grid-cols-1 sm:grid-cols-2"
-            : section.columns === 3
-              ? "grid-cols-1 sm:grid-cols-3"
-              : "grid-cols-2 sm:grid-cols-4";
-
-  return (
-    <div className={cn("grid gap-3", gridClass)} onClick={(event) => preventAndEdit(event, onEditItems)}>
-      {labels.map((label, index) => {
-        const item = items[index];
-        const linkedProduct = item?.productSlug ? storefrontProducts.find((product) => product.slug === item.productSlug) : null;
-        const image = linkedProduct?.imageUrl ?? item?.image;
-        const title = linkedProduct?.name ?? label;
-        const body = linkedProduct?.shortDescription ?? item?.body;
-        const badge = linkedProduct?.badge ?? item?.badge;
-
-        return (
-        <div className="group rounded-md border border-border bg-surface p-4 outline-offset-4 hover:outline hover:outline-2 hover:outline-primary" key={`${label}-${index}`}>
-          {sectionTypeFromSection(section) !== "trust-bar" ? (
-            <div className="relative mb-3">
-              {image ? <EditablePresetImage alt={linkedProduct?.name || item?.imageAlt || item?.title || label} className="aspect-[4/3] rounded-md bg-surface-muted" src={image} /> : (
-                <div className="flex aspect-[4/3] items-center justify-center rounded-md bg-surface-muted text-secondary">
-                  <Image aria-hidden="true" size={22} />
-                </div>
-              )}
-              <span className="absolute right-2 top-2 rounded-md bg-black/70 px-2 py-1 text-[11px] font-semibold text-white opacity-0 transition group-hover:opacity-100">Edit image</span>
-            </div>
-          ) : null}
-          {badge ? <p className="mb-2 text-xs font-semibold uppercase tracking-[0.12em] text-secondary">{badge}</p> : null}
-          <p className="font-semibold">{title}</p>
-          <p className="mt-1 text-xs text-secondary">{body || (sectionTypeFromSection(section) === "faq" ? "Editable answer" : "Editable block")}</p>
-          {linkedProduct ? <p className="mt-2 text-xs font-semibold">{formatProductPrice(linkedProduct)}</p> : null}
-        </div>
-        );
-      })}
-    </div>
-  );
-}
-
-function PreviewMiniItems({ items, onClick, tone }: { items: HomepageSectionItem[]; onClick: () => void; tone: "dark" | "light" }) {
-  return (
-    <div className="mt-6 grid gap-2 sm:grid-cols-3" onClick={(event) => preventAndEdit(event, onClick)}>
-      {items.slice(0, 3).map((item) => {
-        const linkedProduct = item.productSlug ? storefrontProducts.find((product) => product.slug === item.productSlug) : null;
-
-        return (
-          <div className={cn("rounded-md border px-3 py-2 text-sm outline-offset-4 hover:outline hover:outline-2", tone === "dark" ? "border-white/25 bg-white/10 text-white hover:outline-white" : "border-border bg-surface-muted text-primary hover:outline-primary")} key={item.id}>
-            <p className="font-semibold">{linkedProduct?.name ?? item.title}</p>
-            {linkedProduct?.shortDescription || item.body ? <p className={cn("mt-1 text-xs", tone === "dark" ? "text-white/75" : "text-secondary")}>{linkedProduct?.shortDescription ?? item.body}</p> : null}
-            {linkedProduct ? <p className="mt-1 text-xs font-semibold">{formatProductPrice(linkedProduct)}</p> : null}
-          </div>
-        );
-      })}
-    </div>
-  );
 }
 
 function TextField({
@@ -2526,7 +2301,7 @@ function SelectField({
   focusRequest?: EditorFocusRequest | null;
   label: string;
   value: string;
-  options: string[];
+  options: Array<string | { value: string; label: string }>;
   onChange: (value: string) => void;
 }) {
   const selectRef = useRef<HTMLSelectElement>(null);
@@ -2543,8 +2318,8 @@ function SelectField({
       {label}
       <select className="mt-2 w-full min-w-0 max-w-full rounded-md border border-border bg-surface px-3 py-2 text-sm font-normal outline-none focus:border-primary" onChange={(event: ChangeEvent<HTMLSelectElement>) => onChange(event.target.value)} ref={selectRef} value={value}>
         {options.map((option) => (
-          <option key={option} value={option}>
-            {option}
+          <option key={typeof option === "string" ? option : option.value} value={typeof option === "string" ? option : option.value}>
+            {typeof option === "string" ? option : option.label}
           </option>
         ))}
       </select>
@@ -2713,12 +2488,6 @@ function inferHomepageItemLinkValue(item: HomepageSectionItem, linkType: Homepag
   }
 }
 
-function preventAndEdit(event: { preventDefault: () => void; stopPropagation: () => void }, callback: () => void) {
-  event.preventDefault();
-  event.stopPropagation();
-  callback();
-}
-
 function uniqueSectionId(prefix: string) {
   return `${prefix.replace(/[^a-zA-Z0-9.-]+/g, "-")}.${Date.now().toString(36)}`;
 }
@@ -2834,54 +2603,6 @@ function previewCanvasDesignWidth(previewMode: PreviewMode) {
   }
 
   return 1440;
-}
-
-function previewPaddingClass(section: HomepageSectionConfig) {
-  if (section.verticalPadding === "compact") {
-    return "py-8";
-  }
-
-  if (section.verticalPadding === "spacious") {
-    return "py-20";
-  }
-
-  return "py-12";
-}
-
-function previewToneClass(section: HomepageSectionConfig) {
-  if (section.backgroundTone === "muted") {
-    return "bg-surface-muted";
-  }
-
-  if (section.backgroundTone === "brand") {
-    return "bg-primary text-[var(--theme-surface)]";
-  }
-
-  if (section.backgroundTone === "dark") {
-    return "bg-primary text-white";
-  }
-
-  if (section.backgroundTone === "accent") {
-    return "bg-[rgba(255,221,87,0.18)]";
-  }
-
-  return "bg-surface";
-}
-
-function previewBackgroundImage(section: HomepageSectionConfig) {
-  return `linear-gradient(90deg, rgba(31, 41, 51, 0.72), rgba(31, 41, 51, 0.28)), url(${section.backgroundImage || defaultHomepageImage})`;
-}
-
-function previewBackgroundClass(section: HomepageSectionConfig) {
-  return section.mediaPlacement === "left" ? "bg-left" : section.mediaPlacement === "right" ? "bg-right" : "bg-center";
-}
-
-function previewTextClass(section: HomepageSectionConfig) {
-  return section.textPosition === "center" ? "mx-auto text-center" : section.textPosition === "right" ? "ml-auto text-right" : "text-left";
-}
-
-function previewTextWidthClass(section: HomepageSectionConfig) {
-  return section.textPosition === "center" ? "mx-auto" : section.textPosition === "right" ? "ml-auto" : "";
 }
 
 function formatDate(value: string) {

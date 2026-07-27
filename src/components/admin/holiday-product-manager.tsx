@@ -135,7 +135,7 @@ export function HolidayProductManager({
           <p className="text-xs text-secondary">{catalog?.assignedVariationCount.toLocaleString() ?? 0} assigned variations</p>
         </div>
         <form className="flex min-w-0 flex-1 gap-2 sm:max-w-xl" onSubmit={submitSearch}>
-          <label className="flex min-h-10 min-w-0 flex-1 items-center gap-2 rounded-md border border-border bg-surface px-3 focus-within:border-primary">
+          <label className="flex min-h-10 min-w-0 flex-1 items-center gap-2 rounded-md border border-border bg-surface px-3 focus-within:border-border">
             <Search aria-hidden="true" className="shrink-0 text-secondary" size={15} />
             <span className="sr-only">Search Square products</span>
             <input className="min-w-0 flex-1 bg-transparent py-2 text-sm outline-none" onChange={(event) => setQueryInput(event.target.value)} placeholder="Search products" type="search" value={queryInput} />

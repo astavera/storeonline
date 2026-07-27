@@ -11,15 +11,21 @@ export async function GET(request: NextRequest) {
   const catalog = await readSquareCatalogPreview();
 
   if (!catalog) {
-    return NextResponse.json({ ok: false, error: "The local Square catalog snapshot is unavailable." }, { status: 503 });
+    return NextResponse.json(
+      { ok: false, error: "The local Square catalog snapshot is unavailable." },
+      { status: 503, headers: { "Cache-Control": "private, no-store" } }
+    );
   }
 
-  return NextResponse.json({
-    ok: true,
-    config: await readWebsiteMerchandising(catalog.products),
-    productCount: catalog.products.length,
-    fetchedAt: catalog.fetchedAt
-  });
+  return NextResponse.json(
+    {
+      ok: true,
+      config: await readWebsiteMerchandising(catalog.products),
+      productCount: catalog.products.length,
+      fetchedAt: catalog.fetchedAt
+    },
+    { headers: { "Cache-Control": "private, no-store" } }
+  );
 }
 
 export async function PUT(request: NextRequest) {

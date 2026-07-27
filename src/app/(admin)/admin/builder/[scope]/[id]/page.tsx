@@ -1,4 +1,4 @@
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { BuilderShell } from "@/components/admin/builder/BuilderShell";
 import { createCmsPageDocumentForScope, normalizeCmsScope } from "@/lib/cms";
 import { readLatestCmsDocument } from "@/server/admin/admin-cms-document-service";
@@ -9,6 +9,10 @@ export default async function AdminGenericBuilderPage({ params }: { params: Prom
 
   if (!scope) {
     notFound();
+  }
+
+  if (scope === "homepage") {
+    redirect("/admin/homepage");
   }
 
   const fallbackDocument = createCmsPageDocumentForScope(scope, id);

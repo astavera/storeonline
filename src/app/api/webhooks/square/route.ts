@@ -5,8 +5,17 @@ import { PersistenceUnavailableError } from "@/server/db/persistence-policy";
 import { verifySquareWebhookSignature } from "@/server/square/webhook-signature";
 import { getWebhookInboxRepository, parseWebhookEnvelope } from "@/server/webhooks/webhook-inbox";
 
+const MAX_WEBHOOK_BYTES = 512 * 1024;
+
 export async function POST(request: Request) {
+  const announcedLength = Number(request.headers.get("content-length"));
+  if (Number.isFinite(announcedLength) && announcedLength > MAX_WEBHOOK_BYTES) {
+    return NextResponse.json({ received: false, error: "Webhook body is too large." }, { status: 413 });
+  }
   const body = await request.text();
+  if (new TextEncoder().encode(body).byteLength > MAX_WEBHOOK_BYTES) {
+    return NextResponse.json({ received: false, error: "Webhook body is too large." }, { status: 413 });
+  }
   const signature = request.headers.get("x-square-hmacsha256-signature");
   const notificationUrl = `${env.NEXT_PUBLIC_SITE_URL}/api/webhooks/square`;
   const valid = verifySquareWebhookSignature({

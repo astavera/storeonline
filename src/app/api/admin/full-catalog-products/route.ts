@@ -9,11 +9,11 @@ import {
   saveWebsiteProductPlacement
 } from "@/server/admin/website-merchandising-store";
 import {
-  readSquareStorefrontCatalogPage,
-  readSquareStorefrontProductsByVariationIds,
-  readSquareStorefrontVariationSelection,
-  type SquareCatalogImageFilter
-} from "@/server/square/catalog-test-cache-store";
+  readPostgresAdminCatalogPage,
+  readPostgresAdminProductsByVariationIds,
+  readPostgresAdminVariationSelection,
+  type PostgresCatalogImageFilter
+} from "@/server/square/postgres-admin-catalog-store";
 import { adminAuthorizationResponse, adminCapabilities, authorizeAdminRequest } from "@/server/admin/admin-security";
 
 export const dynamic = "force-dynamic";
@@ -69,6 +69,7 @@ export async function GET(request: NextRequest) {
   const pageSize = readPositiveInteger(request.nextUrl.searchParams.get("pageSize"));
   const query = request.nextUrl.searchParams.get("q") ?? "";
   const categoryId = request.nextUrl.searchParams.get("categoryId") ?? "";
+  const vendorId = request.nextUrl.searchParams.get("vendorId") ?? "";
   const websiteCategoryId = request.nextUrl.searchParams.get("websiteCategoryId") ?? "";
   const imageFilter = readImageFilter(request.nextUrl.searchParams.get("images"));
   const config = await readWebsiteMerchandisingSnapshot();
@@ -80,17 +81,17 @@ export async function GET(request: NextRequest) {
   const assignedVariationIds = websiteCategoryId
     ? config.placements.filter((placement) => placement.categoryIds.includes(websiteCategoryId)).map((placement) => placement.squareVariationId)
     : undefined;
-  const cacheQuery = { query, categoryId, imageFilter, variationIds: assignedVariationIds };
+  const cacheQuery = { query, categoryId, vendorId, imageFilter, variationIds: assignedVariationIds };
 
   if (request.nextUrl.searchParams.get("selection") === "matching") {
     return NextResponse.json({
       ok: true,
       websiteCategoryId,
-      ...readSquareStorefrontVariationSelection(cacheQuery, 5_000)
+      ...await readPostgresAdminVariationSelection(cacheQuery, 5_000)
     }, { headers: { "Cache-Control": "private, no-store" } });
   }
 
-  const catalogPage = readSquareStorefrontCatalogPage({
+  const catalogPage = await readPostgresAdminCatalogPage({
     ...cacheQuery,
     page,
     pageSize
@@ -120,7 +121,7 @@ export async function POST(request: NextRequest) {
     if (body && typeof body === "object" && "variationIds" in body) {
       const bulkRequest = bulkRequestSchema.parse(body);
       const variationIds = Array.from(new Set(bulkRequest.variationIds));
-      const matchedProducts = readSquareStorefrontProductsByVariationIds(variationIds);
+      const matchedProducts = await readPostgresAdminProductsByVariationIds(variationIds);
 
       if (matchedProducts.length !== variationIds.length) {
         return NextResponse.json({ ok: false, error: "One or more selected Square variations are no longer available. Refresh Products and select them again." }, { status: 409 });
@@ -133,7 +134,7 @@ export async function POST(request: NextRequest) {
     const candidate = body.placement as { squareVariationId?: unknown } | undefined;
     const variationId = typeof candidate?.squareVariationId === "string" ? candidate.squareVariationId : "";
 
-    if (!variationId || readSquareStorefrontProductsByVariationIds([variationId]).length === 0) {
+    if (!variationId || (await readPostgresAdminProductsByVariationIds([variationId])).length === 0) {
       return NextResponse.json({ ok: false, error: "This Square variation is not available in the full catalog cache." }, { status: 404 });
     }
 
@@ -160,7 +161,7 @@ function readPositiveInteger(value: string | null) {
   return Number.isInteger(parsed) && parsed > 0 ? parsed : undefined;
 }
 
-function readImageFilter(value: string | null): SquareCatalogImageFilter {
+function readImageFilter(value: string | null): PostgresCatalogImageFilter {
   return value === "with" || value === "without" ? value : "all";
 }
 

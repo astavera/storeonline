@@ -2,6 +2,7 @@
 
 import { useMemo, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import { SearchableSingleSelect } from "@/components/admin/searchable-select";
 import { storefrontEditablePages, type StorefrontEditablePage } from "@/config/storefront-pages.config";
 import type { CmsScope } from "@/lib/cms";
 import { cn } from "@/lib/utils";
@@ -30,11 +31,11 @@ export function StorefrontPageSwitcher({
 
     return Array.from(uniquePages.values());
   }, [additionalPages]);
-  const currentValue = currentScope === "homepage" || !currentScope ? "homepage:home" : `${currentScope}:${currentEntityId}`;
+  const currentValue = currentScope === "homepage" || !currentScope ? "" : `${currentScope}:${currentEntityId}`;
 
   function navigate(value: string) {
     const href =
-      value === "homepage:home"
+      value === ""
         ? "/admin/homepage"
         : (() => {
             const [scope, ...entityIdParts] = value.split(":");
@@ -49,23 +50,20 @@ export function StorefrontPageSwitcher({
   }
 
   return (
-    <label className={cn("block", className)}>
+    <div className={cn("block", className)}>
       <span className="mb-2 block text-xs font-semibold uppercase tracking-[0.12em] text-secondary">{isPending ? "Loading page..." : "Page"}</span>
-      <select
-        aria-label="Page"
-        aria-busy={isPending}
-        className="h-12 w-full rounded-md border border-border bg-surface px-3 text-sm font-semibold outline-none transition focus:border-primary"
+      <SearchableSingleSelect
+        allLabel="Home"
         disabled={isPending}
-        onChange={(event) => navigate(event.currentTarget.value)}
+        label="Page"
+        onChange={navigate}
+        options={pages.map((page) => ({
+          id: `${page.scope}:${page.entityId}`,
+          label: page.title
+        }))}
+        searchLabel="Search pages"
         value={currentValue}
-      >
-        <option value="homepage:home">Home</option>
-        {pages.map((page) => (
-          <option key={`${page.scope}:${page.entityId}`} value={`${page.scope}:${page.entityId}`}>
-            {page.title}
-          </option>
-        ))}
-      </select>
-    </label>
+      />
+    </div>
   );
 }

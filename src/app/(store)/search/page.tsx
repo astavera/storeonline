@@ -47,7 +47,7 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
             <label className="sr-only" htmlFor="catalog-search">
               Search products
             </label>
-            <div className="flex min-h-14 flex-1 items-center gap-3 rounded-md border border-border bg-surface-muted px-4 focus-within:border-blue">
+            <div className="flex min-h-14 flex-1 items-center gap-3 rounded-md border border-border bg-surface-muted px-4 focus-within:border-border">
               <Search aria-hidden="true" className="shrink-0 text-blue" size={22} />
               <input className="min-w-0 flex-1 bg-transparent py-3 text-base font-semibold outline-none placeholder:text-text-muted" defaultValue={query} id="catalog-search" name="q" placeholder="Search products" type="search" />
             </div>
@@ -71,7 +71,7 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
               </div>
 
               {products.length > 0 ? (
-                <div className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3">
+                <div className="storefront-product-grid grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3">
                   {products.map((product) => (
                     <ProductCard key={product.squareVariationId} product={product} variant="premium" />
                   ))}

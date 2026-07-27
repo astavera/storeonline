@@ -46,10 +46,15 @@ The Square connection in `.codex/config.toml` is configured with `DISALLOW_WRITE
 Production catalog and inventory synchronization requires both
 `SQUARE_ENVIRONMENT=production` and
 `SQUARE_ALLOW_PRODUCTION_READONLY_SYNC=true`. This second flag is a kill switch
-for reads only; it does not authorize Square catalog mutations, inventory
-changes, orders, or payments. Checkout remains `validation_only`. Payment-flow
-tests must use Square Sandbox test values because Production payment requests
-process real transactions and can incur fees.
+for reads only; it does not authorize Square catalog mutations or inventory
+changes.
+
+Hosted Square Checkout was explicitly requested on July 22, 2026. It has its
+own kill switch, `SQUARE_CHECKOUT_ENABLED`, and only creates a Square order and
+single-buyer payment link after the server revalidates the cart, selected
+location, current inventory, and fulfillment compatibility. Card data stays on
+Square. Catalog and inventory writes remain prohibited. Automated payment-flow
+tests use fakes and must not create Production orders or payments.
 
 ## Production read-only runbook
 
@@ -75,11 +80,13 @@ The initial Production sync completed on July 15, 2026 with 66,141 active
 items, 74,640 active variations, and 223,920 inventory rows. Both operational
 stores are mapped. Later syncs use Square timestamps and retrieve only changes.
 
-Checkout inventory is evaluated at the selected mapped store. Checkout remains
-`validation_only`: it records an idempotent validation attempt but never creates
-a Square order or captures a payment. The readiness audit may validate a DRAFT
-merchandising version against real prices and inventory, but the runtime accepts
-only a PUBLISHED version. Publishing remains an explicit content operation.
+Checkout inventory is evaluated at the selected mapped store. A successful
+validation records an idempotent checkout attempt and creates a Square-hosted
+payment link using Square catalog variation IDs. Square applies catalog pricing,
+taxes, and discounts and handles payment on its hosted page. The readiness audit
+may validate a DRAFT merchandising version against real prices and inventory,
+but the runtime accepts only a PUBLISHED version. Publishing remains an explicit
+content operation.
 
 Audit the exact candidate before publication:
 
@@ -120,4 +127,4 @@ npm run rollback:merchandising -- --apply --confirm <confirmation-from-rollback-
 2. Configure `WEBHOOK_WORKER_SECRET` and schedule the internal catalog and webhook workers.
 3. Complete delivery-zone, fee, slot, capacity, lead-time, and cutoff business data.
 4. Approve and map the warehouse before enabling shipping availability.
-5. Add Square order creation and Payments only under a separate approval and rollback procedure.
+5. Configure payment/order webhooks and the final website confirmation page before relying on the website as an order-status source; Square Dashboard remains the operational source meanwhile.

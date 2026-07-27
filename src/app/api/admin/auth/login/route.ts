@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { safeAdminReturnTo } from "@/lib/security/admin-return-to";
 import { getAdminRateLimiter } from "@/server/admin/admin-rate-limit";
 import { isAdminLoginConfigured, verifyAdminCredentials } from "@/server/admin/admin-login";
 import { adminSessionCookieName, createAdminSessionToken, isTrustedMutationOrigin } from "@/server/admin/admin-security";
@@ -52,7 +53,10 @@ export async function POST(request: Request) {
       );
     }
 
-    return loginError("Email or password is incorrect.", 401);
+    // The private preview is also protected by HTTP Basic authentication.
+    // Returning 401 here makes browsers discard those gateway credentials,
+    // so the next attempt receives Caddy's non-JSON authentication challenge.
+    return loginError("Email or password is incorrect.", 403);
   }
 
   const secret = process.env.ADMIN_SESSION_SECRET;
@@ -85,9 +89,4 @@ function clientAddress(request: Request) {
   return request.headers.get("x-forwarded-for")?.split(",")[0]?.trim()
     || request.headers.get("x-real-ip")?.trim()
     || "unknown";
-}
-
-function safeAdminReturnTo(value?: string) {
-  if (!value || !value.startsWith("/admin") || value.startsWith("/admin/login") || value.startsWith("//")) return "/admin";
-  return value;
 }

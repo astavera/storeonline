@@ -52,6 +52,18 @@ describe("admin login route", () => {
     await expect(response.json()).resolves.toMatchObject({ ok: false, error: expect.stringContaining("failed login attempts") });
     expect(mocks.consume).toHaveBeenCalledOnce();
   });
+
+  it("keeps the private preview authentication active after incorrect admin credentials", async () => {
+    mocks.isConfigured.mockReturnValue(true);
+    mocks.verifyCredentials.mockReturnValue(false);
+    mocks.consume.mockResolvedValue({ allowed: true, remaining: 4, retryAfterSeconds: 120 });
+
+    const response = await POST(loginRequest());
+
+    expect(response.status).toBe(403);
+    expect(response.headers.get("content-type")).toContain("application/json");
+    await expect(response.json()).resolves.toEqual({ ok: false, error: "Email or password is incorrect." });
+  });
 });
 
 function loginRequest() {

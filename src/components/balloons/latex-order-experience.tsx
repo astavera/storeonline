@@ -10,7 +10,6 @@ import {
   ShoppingBag,
   Store,
   Trash2,
-  Truck,
   X
 } from "lucide-react";
 import Image from "next/image";
@@ -22,6 +21,7 @@ import {
   type StoredCartItem
 } from "@/components/commerce/add-to-cart-button";
 import type { StorefrontProduct } from "@/features/catalog/product-catalog";
+import { formatMoney } from "@/lib/utils";
 
 type BalloonFulfillmentMode = "pickup" | "local-delivery";
 
@@ -41,6 +41,7 @@ type BalloonOrderExperienceProps = {
   collection: BalloonOrderCollection;
   fulfillment?: BalloonFulfillmentMode;
   location?: string;
+  postalCode?: string;
   requestedDate?: string;
   slotLabel?: string;
   products: StorefrontProduct[];
@@ -65,7 +66,7 @@ export function LatexOrderExperience(props: LatexOrderExperienceProps) {
   return <BalloonOrderExperience {...props} collection={latexCollection} />;
 }
 
-export function BalloonOrderExperience({ addOns = noAddOns, collection, fulfillment = "pickup", location, products, requestedDate, slotLabel }: BalloonOrderExperienceProps) {
+export function BalloonOrderExperience({ addOns = noAddOns, collection, fulfillment = "pickup", location, postalCode, products, requestedDate, slotLabel }: BalloonOrderExperienceProps) {
   const isLatex = collection.slug === "latex";
   const [selectedFinish, setSelectedFinish] = useState<FinishFilter>("All");
   const [selectedProduct, setSelectedProduct] = useState<StorefrontProduct | null>(null);
@@ -169,34 +170,36 @@ export function BalloonOrderExperience({ addOns = noAddOns, collection, fulfillm
     window.dispatchEvent(new CustomEvent("modern-state-cart-updated"));
   }
 
-  const fulfillmentLabel = fulfillment === "local-delivery" ? "Local delivery" : "Pickup";
-
   return (
     <div className="mx-auto w-[calc(100%_-_2rem)] max-w-[1480px] pb-24 lg:pb-8">
-      <header className="mb-4 rounded-md border border-border bg-surface-muted px-5 py-4">
-        <h1 className="font-display text-2xl font-black text-primary">{collection.title}</h1>
-      </header>
+      {fulfillment === "local-delivery" ? (
+        postalCode ? <p aria-label={`Delivering to: ${postalCode}`} className="mb-6 text-sm font-semibold text-primary">Delivering to: <strong>{postalCode}</strong></p> : null
+      ) : (
+        <>
+          <header className="mb-4 rounded-md border border-border bg-surface-muted px-5 py-4">
+            <h1 className="font-display text-2xl font-black text-primary">{collection.title}</h1>
+          </header>
 
-      <section aria-label="Current fulfillment" className="mb-7 flex flex-col gap-4 rounded-xl border border-border bg-surface px-4 py-4 shadow-sm sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex min-w-0 items-center gap-3">
-          <span className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-cyan text-blue">
-            {fulfillment === "local-delivery" ? <Truck aria-hidden="true" size={20} /> : <Store aria-hidden="true" size={20} />}
-          </span>
-          <div className="min-w-0">
-            <p className="text-xs font-black uppercase tracking-[0.12em] text-blue">{fulfillmentLabel}</p>
-            <p className="truncate font-black text-primary">{formatLocationName(location, fulfillment)}</p>
-            <p className="flex items-center gap-1 text-sm text-secondary"><Clock3 aria-hidden="true" size={14} /> {formatFulfillmentTiming(requestedDate, slotLabel)}</p>
-          </div>
-        </div>
-        <Link className="inline-flex min-h-11 items-center justify-center rounded-pill border border-border px-5 text-sm font-black text-primary hover:bg-surface-muted" href="/balloons">Change</Link>
-      </section>
+          <section aria-label="Current fulfillment" className="mb-7 flex flex-col gap-4 rounded-xl border border-border bg-surface px-4 py-4 shadow-sm sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex min-w-0 items-center gap-3">
+              <span className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-cyan text-blue">
+                <Store aria-hidden="true" size={20} />
+              </span>
+              <div className="min-w-0">
+                <p className="text-xs font-black uppercase tracking-[0.12em] text-blue">Pickup</p>
+                <p className="truncate font-black text-primary">{formatLocationName(location, fulfillment)}</p>
+                <p className="flex items-center gap-1 text-sm text-secondary"><Clock3 aria-hidden="true" size={14} /> {formatFulfillmentTiming(requestedDate, slotLabel)}</p>
+              </div>
+            </div>
+            <Link className="inline-flex min-h-11 items-center justify-center rounded-pill border border-border px-5 text-sm font-black text-primary hover:bg-surface-muted" href="/balloons">Change</Link>
+          </section>
+        </>
+      )}
 
       <div className="grid items-start gap-8 lg:grid-cols-[minmax(0,1fr)_350px]">
         <section aria-labelledby="balloon-products-title">
           <div className="mb-5">
-            <p className="text-sm font-black text-blue">Build your order</p>
-            <h2 className="mt-1 font-display text-3xl font-black text-primary" id="balloon-products-title">Choose your balloons</h2>
-            <p className="mt-2 max-w-2xl text-secondary">{isLatex ? "Select a color, choose the quantity, and add finishing touches." : collection.description} Prices are supplied by Square and confirmed again before payment.</p>
+            <h2 className="font-display text-3xl font-black text-primary" id="balloon-products-title">Build Your Own Order</h2>
           </div>
 
           {purchasableProducts.length > 0 ? (
@@ -212,20 +215,19 @@ export function BalloonOrderExperience({ addOns = noAddOns, collection, fulfillm
               ) : null}
 
               {filteredProducts.length > 0 ? (
-                <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+                <div className="grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-3">
                   {filteredProducts.map((product) => (
-                    <article className="group overflow-hidden rounded-xl border border-border bg-surface shadow-sm transition hover:-translate-y-0.5 hover:shadow-card" key={product.squareVariationId}>
+                    <article className="group overflow-hidden rounded-lg border border-border bg-surface shadow-sm transition hover:-translate-y-0.5 hover:shadow-card sm:rounded-xl" key={product.squareVariationId}>
                       <button className="block w-full text-left" onClick={() => openProduct(product)} type="button">
-                        <span className="block aspect-[4/3] bg-white p-5">
+                        <span className="block aspect-square bg-white p-3 sm:aspect-[4/3] sm:p-5">
                           <Image alt={product.name} className="h-full w-full object-contain transition duration-300 group-hover:scale-[1.03]" height={360} src={product.imageUrl || "/images/product-fallback.svg"} unoptimized width={480} />
                         </span>
-                        <span className="block p-4">
-                          <span className="text-xs font-black uppercase tracking-[0.12em] text-blue">{isLatex ? `${productFinish(product.name)} finish` : product.department}</span>
-                          <span className="mt-1 block min-h-12 font-display text-lg font-black leading-snug text-primary">{displayProductName(product.name, isLatex)}</span>
-                          <span className="mt-2 block line-clamp-2 min-h-10 text-sm text-secondary">{isLatex ? "11-inch Latex balloon" : product.shortDescription || collection.title}</span>
-                          <span className="mt-4 flex items-center justify-between gap-3">
-                            <strong className="text-lg text-primary">{formatMoney(product.priceCents)} each</strong>
-                            <span className="grid h-10 w-10 place-items-center rounded-full bg-primary text-white" aria-hidden="true"><Plus size={18} /></span>
+                        <span className="block p-3 sm:p-4">
+                          <span className="text-[10px] font-black uppercase tracking-[0.1em] text-blue sm:text-xs sm:tracking-[0.12em]">{isLatex ? `${productFinish(product.name)} finish` : product.department}</span>
+                          <span className="mt-1 block min-h-10 font-display text-sm font-black leading-snug text-primary sm:min-h-12 sm:text-lg">{displayProductName(product.name, isLatex)}</span>
+                          <span className="mt-3 flex items-center justify-between gap-2 sm:mt-4 sm:gap-3">
+                            <strong className="text-sm text-primary sm:text-lg">{formatMoney(product.priceCents)} each</strong>
+                            <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-primary text-white sm:h-10 sm:w-10" aria-hidden="true"><Plus size={17} /></span>
                           </span>
                         </span>
                       </button>
@@ -441,8 +443,4 @@ function formatFulfillmentTiming(requestedDate?: string, slotLabel?: string) {
   const date = new Intl.DateTimeFormat("en-US", { weekday: "short", month: "short", day: "numeric", timeZone: "UTC" })
     .format(new Date(Date.UTC(year, month - 1, day)));
   return `${date} · ${slotLabel}`;
-}
-
-function formatMoney(cents: number) {
-  return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(cents / 100);
 }

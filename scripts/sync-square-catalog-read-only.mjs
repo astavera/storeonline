@@ -218,6 +218,13 @@ function createSchema(database) {
       PRIMARY KEY (variation_id, image_id)
     );
 
+    CREATE TABLE IF NOT EXISTS catalog_variation_vendors (
+      variation_id TEXT NOT NULL,
+      vendor_id TEXT NOT NULL,
+      sort_order INTEGER NOT NULL,
+      PRIMARY KEY (variation_id, vendor_id)
+    );
+
     CREATE TABLE IF NOT EXISTS square_vendors (
       id TEXT PRIMARY KEY,
       name TEXT NOT NULL,
@@ -234,6 +241,7 @@ function createSchema(database) {
     CREATE INDEX IF NOT EXISTS catalog_variations_sku_idx ON catalog_variations(sku COLLATE NOCASE);
     CREATE INDEX IF NOT EXISTS catalog_variations_upc_idx ON catalog_variations(upc);
     CREATE INDEX IF NOT EXISTS catalog_item_categories_category_idx ON catalog_item_categories(category_id);
+    CREATE INDEX IF NOT EXISTS catalog_variation_vendors_vendor_idx ON catalog_variation_vendors(vendor_id);
   `);
 }
 
@@ -355,6 +363,7 @@ function persistItem(statements, item, runId, timestamp, counts) {
     counts.variations += 1;
     const variationData = variation.itemVariationData;
     const variationImageIds = uniqueStrings([...(variationData?.imageIds ?? []), variation.imageId]);
+    const variationVendorIds = uniqueStrings((variationData?.vendorInformation ?? []).map((vendor) => vendor.vendorId));
     const soldOutLocationIds = uniqueStrings((variationData?.locationOverrides ?? [])
       .filter((override) => override.soldOut === true)
       .map((override) => override.locationId));
@@ -383,6 +392,8 @@ function persistItem(statements, item, runId, timestamp, counts) {
 
     statements.deleteVariationImages.run(variation.id);
     variationImageIds.forEach((imageId, index) => statements.insertVariationImage.run(variation.id, imageId, index));
+    statements.deleteVariationVendors.run(variation.id);
+    variationVendorIds.forEach((vendorId, index) => statements.insertVariationVendor.run(variation.id, vendorId, index));
   }
 }
 
@@ -439,7 +450,9 @@ function prepareCatalogStatements(database) {
     deleteItemImages: database.prepare("DELETE FROM catalog_item_images WHERE item_id = ?"),
     insertItemImage: database.prepare("INSERT OR REPLACE INTO catalog_item_images (item_id, image_id, sort_order) VALUES (?, ?, ?)"),
     deleteVariationImages: database.prepare("DELETE FROM catalog_variation_images WHERE variation_id = ?"),
-    insertVariationImage: database.prepare("INSERT OR REPLACE INTO catalog_variation_images (variation_id, image_id, sort_order) VALUES (?, ?, ?)")
+    insertVariationImage: database.prepare("INSERT OR REPLACE INTO catalog_variation_images (variation_id, image_id, sort_order) VALUES (?, ?, ?)"),
+    deleteVariationVendors: database.prepare("DELETE FROM catalog_variation_vendors WHERE variation_id = ?"),
+    insertVariationVendor: database.prepare("INSERT OR REPLACE INTO catalog_variation_vendors (variation_id, vendor_id, sort_order) VALUES (?, ?, ?)")
   };
 }
 

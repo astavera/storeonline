@@ -12,6 +12,7 @@ BUSINESS LOGIC FILES: src/features/holidays/services/holiday-service.ts
 */
 
 import Link from "next/link";
+import Image from "next/image";
 import { notFound } from "next/navigation";
 import { StorefrontCmsPage } from "@/components/cms/storefront-cms-page";
 import { ProductGrid } from "@/components/commerce/product-grid";
@@ -52,7 +53,7 @@ export async function HolidaysIndexTemplate() {
               .map((holiday) => (
                 <Link className="surface-card overflow-hidden" href={`/holidays/${holiday.slug}`} key={holiday.slug}>
                   <div className="aspect-[4/3] bg-surface-muted">
-                    <img alt="" className="h-full w-full object-cover" src={holiday.hero_image_url} />
+                    <Image alt="" className="h-full w-full object-cover" height={480} sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 25vw" src={holiday.hero_image_url} unoptimized width={640} />
                   </div>
                   <div className="p-4">
                     <h2 className="font-display text-lg font-semibold">{holiday.title_en}</h2>

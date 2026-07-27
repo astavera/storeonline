@@ -8,11 +8,9 @@ import { StorefrontCmsPage } from "@/components/cms/storefront-cms-page";
 import { SectionFrame } from "@/components/sections/section-frame";
 import { getBalloonCatalogCollection, latexBalloonAddOnVariationIds, latexBalloonOrderVariationIds, type BalloonCatalogCollection } from "@/config/balloons.config";
 import { productAgeGroupIds, storefrontProducts, type FulfillmentMode, type ProductAgeGroup, type StorefrontProduct } from "@/features/catalog/product-catalog";
-import { filterWebsiteCatalogProducts, resolveWebsiteCatalog, slugifyWebsiteCategory } from "@/features/catalog/services/website-merchandising-service";
+import { filterWebsiteCatalogProducts, slugifyWebsiteCategory } from "@/features/catalog/services/website-merchandising-service";
 import { readLatestCmsDocument } from "@/server/admin/admin-cms-document-service";
-import { readWebsiteMerchandising, readWebsiteMerchandisingSnapshot } from "@/server/admin/website-merchandising-store";
-import { readSquareCatalogPreview } from "@/server/square/catalog-preview-store";
-import { readSquareCatalogCacheSummary, readSquareStorefrontProductsByVariationIds } from "@/server/square/catalog-test-cache-store";
+import { readResolvedSquareWebsiteCatalog } from "@/server/square/website-catalog-store";
 
 export const metadata = {
   title: "Shop",
@@ -28,27 +26,19 @@ type ShopPageProps = {
 
 export default async function ShopPage({ searchParams }: ShopPageProps) {
   const useE2eFixture = process.env.E2E_CATALOG_FIXTURE === "true";
-  const squarePreview = useE2eFixture ? null : await readSquareCatalogPreview();
-  const fullCatalogSummary = useE2eFixture
-    ? { available: false, categoryCount: 0, itemCount: 0, variationCount: 0, inventoryCount: 0, updatedAt: null }
-    : readSquareCatalogCacheSummary();
-  const hasSquareCatalog = fullCatalogSummary.available || Boolean(squarePreview);
+  const squareCatalogSource = useE2eFixture ? null : await readResolvedSquareWebsiteCatalog();
+  const resolvedCatalog = squareCatalogSource?.catalog ?? null;
   const publishedDocument = await readLatestCmsDocument({ entityType: "landing", entityId: "shop", statuses: ["PUBLISHED"] });
 
   const params = await searchParams;
-  const merchandisingSnapshot = fullCatalogSummary.available ? await readWebsiteMerchandisingSnapshot() : null;
-  const visibleVariationIds = merchandisingSnapshot?.placements.filter((placement) => placement.visible).map((placement) => placement.squareVariationId) ?? [];
-  const fullCatalogProducts = fullCatalogSummary.available ? readSquareStorefrontProductsByVariationIds(visibleVariationIds) : [];
-  const sourceProducts = fullCatalogSummary.available ? fullCatalogProducts : squarePreview?.products ?? [];
-  const websiteMerchandising = merchandisingSnapshot ?? (squarePreview ? await readWebsiteMerchandising(squarePreview.products) : null);
-  const resolvedCatalog = hasSquareCatalog && websiteMerchandising ? resolveWebsiteCatalog(sourceProducts, websiteMerchandising) : null;
-  const catalogProducts = resolvedCatalog?.products.length ? resolvedCatalog.products : hasSquareCatalog ? [] : storefrontProducts;
+  const catalogProducts = resolvedCatalog?.products ?? (useE2eFixture ? storefrontProducts : []);
   const selectedDepartment = paramValue(params?.department);
   const selectedCollection = getBalloonCatalogCollection(paramValue(params?.collection));
   const selectedBrandSlug = paramValue(params?.brand);
   const selectedAge = validAgeGroup(paramValue(params?.age));
   const selectedFulfillment = validFulfillmentMode(paramValue(params?.fulfillment));
   const selectedLocation = paramValue(params?.location);
+  const selectedPostalCode = paramValue(params?.postalCode)?.replace(/\D/g, "").slice(0, 5);
   const selectedPickupDate = paramValue(params?.pickupDate);
   const selectedPickupSlotLabel = paramValue(params?.pickupSlotLabel)?.slice(0, 80);
   const selectedSort = paramValue(params?.sort) || "featured";
@@ -79,7 +69,7 @@ export default async function ShopPage({ searchParams }: ShopPageProps) {
     const catalogProductByVariationId = new Map(
       catalogProducts.map((product) => [product.squareVariationId, product])
     );
-    const collectionProducts = isLatexCollection && fullCatalogSummary.available
+    const collectionProducts = isLatexCollection && squareCatalogSource?.source === "postgres"
       ? latexBalloonOrderVariationIds
           .map((variationId) => catalogProductByVariationId.get(variationId))
           .filter((product): product is StorefrontProduct => Boolean(product))
@@ -102,6 +92,7 @@ export default async function ShopPage({ searchParams }: ShopPageProps) {
             collection={selectedCollection}
             fulfillment={selectedFulfillment === "local-delivery" ? "local-delivery" : "pickup"}
             location={selectedLocation}
+            postalCode={selectedPostalCode}
             products={collectionProducts}
             requestedDate={selectedPickupDate}
             slotLabel={selectedPickupSlotLabel}
@@ -132,34 +123,17 @@ export default async function ShopPage({ searchParams }: ShopPageProps) {
 
             <section aria-label="Products">
               {selectedCategory ? (
-                <div className="mb-6 rounded-md border border-border bg-surface-muted p-5">
-                  <p className="text-xs font-black uppercase tracking-[0.12em] text-blue">Website category</p>
-                  <h2 className="mt-1 font-display text-2xl font-black">{selectedCategory.name}</h2>
-                  {selectedCategory.description ? <p className="mt-2 text-sm text-secondary">{selectedCategory.description}</p> : null}
-                </div>
+                <h2 className="mb-6 font-display text-2xl font-black text-primary">{selectedCategory.name}</h2>
               ) : null}
               {selectedBrand ? <div className="mb-6 flex items-center gap-4 rounded-md border border-border bg-surface-muted p-5">{selectedBrand.logoUrl ? <Image alt={selectedBrand.imageAlt || `${selectedBrand.name} logo`} className="h-16 w-24 rounded-md bg-white object-contain p-2" height={64} src={selectedBrand.logoUrl} unoptimized width={96} /> : null}<div><p className="text-xs font-black uppercase tracking-[0.12em] text-blue">Website brand</p><h2 className="mt-1 font-display text-2xl font-black">{selectedBrand.name}</h2>{selectedBrand.description ? <p className="mt-2 text-sm text-secondary">{selectedBrand.description}</p> : null}</div></div> : null}
               <div className="mb-6 flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
                 <p className="text-lg font-black">{products.length} {products.length === 1 ? "product" : "products"}</p>
                 <div className="flex flex-wrap items-center gap-3">
-                  {selectedDepartment ? (
-                    <Link className="rounded-pill border border-border px-4 py-2 text-sm font-black hover:bg-surface-muted" href={hrefWithParams({ age: selectedAge, brand: selectedBrandSlug, fulfillment: selectedFulfillment, sort: selectedSort })}>
-                      Clear category
-                    </Link>
-                  ) : null}
-                  {selectedBrandSlug ? <Link className="rounded-pill border border-border px-4 py-2 text-sm font-black hover:bg-surface-muted" href={hrefWithParams({ age: selectedAge, department: selectedDepartment, fulfillment: selectedFulfillment, sort: selectedSort })}>Clear brand</Link> : null}
-                  {selectedAge ? (
-                    <Link className="rounded-pill border border-border px-4 py-2 text-sm font-black hover:bg-surface-muted" href={hrefWithParams({ brand: selectedBrandSlug, department: selectedDepartment, fulfillment: selectedFulfillment, sort: selectedSort })}>
-                      Clear age
-                    </Link>
-                  ) : null}
-                  {selectedFulfillment ? <Link className="rounded-pill border border-border px-4 py-2 text-sm font-black hover:bg-surface-muted" href={hrefWithParams({ age: selectedAge, brand: selectedBrandSlug, department: selectedDepartment, sort: selectedSort })}>Clear fulfillment</Link> : null}
-                  {[selectedDepartment, selectedBrandSlug, selectedAge, selectedFulfillment].filter(Boolean).length > 1 ? <Link className="rounded-pill bg-primary px-4 py-2 text-sm font-black text-white hover:opacity-90" href="/shop">Clear all</Link> : null}
                   <SortMenu selectedAge={selectedAge} selectedBrand={selectedBrandSlug} selectedDepartment={selectedDepartment} selectedFulfillment={selectedFulfillment} selectedSort={selectedSort} />
                 </div>
               </div>
               {products.length ? (
-                <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
+                <div className="storefront-product-grid grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
                   {products.map((product) => (
                     <ProductCard key={product.squareVariationId} product={product} variant="premium" />
                   ))}
