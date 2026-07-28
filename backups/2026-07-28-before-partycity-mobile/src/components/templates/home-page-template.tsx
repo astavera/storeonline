@@ -179,7 +179,7 @@ function RetailPromoTiles() {
     cta: "Order now",
     href: "/balloons",
     backgroundColor: "bg-black",
-    image: "/images/homepage/halloween-balloon-clown.png"
+    image: "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRDkpW0SeFoCCxsB4U7CNUD3X2WY0OohTAiXiZ9RImg9A&s=10"
   };
   const tiles: RetailPromoTile[] = [
     {
@@ -201,10 +201,10 @@ function RetailPromoTiles() {
     {
       title: "",
       body: "",
-      cta: "Shop Accessories",
-      href: "/halloween-accessories",
+      cta: "Shop decorations",
+      href: "/decorations",
       backgroundColor: "bg-red",
-      image: "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcR7DVMaCS3oJhzJWlmd_56AaGAqi4aVsARb0AticvJxxA&s=10"
+      image: "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcSpbeIHaRTNVPyQxFt1K885FuFZi4l-emUA6Vzer0IzUQ&s=10"
     },
       
   ];
@@ -212,9 +212,9 @@ function RetailPromoTiles() {
 
   return (
     <SectionFrame area="Homepage" className="bg-surface py-4 sm:py-5" component="RetailPromoTiles" sectionId="home.retail-promos" variant="promo-tiles">
-      <div className="container-shell grid gap-3 sm:gap-5 lg:w-[calc(100%_-_4rem)] lg:max-w-none lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)] lg:items-stretch xl:w-[calc(100%_-_6rem)]">
-        <article className={cn("grid overflow-hidden rounded-[18px] sm:rounded-md md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] lg:grid-cols-1 lg:grid-rows-[auto_minmax(0,1fr)]", featuredTile.backgroundColor ?? "bg-primary", featuredUsesDarkText ? "text-primary" : "text-white")}>
-          <div className="relative flex min-h-0 min-w-0 max-w-2xl flex-col items-center justify-center p-5 pb-4 text-center md:min-h-[480px] md:p-10 lg:min-h-0 lg:p-8 lg:pb-4 xl:p-10 xl:pb-5">
+      <div className="container-shell grid gap-3 sm:gap-5">
+        <article className={cn("grid overflow-hidden rounded-[18px] sm:rounded-md md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]", featuredTile.backgroundColor ?? "bg-primary", featuredUsesDarkText ? "text-primary" : "text-white")}>
+          <div className="relative flex min-h-0 min-w-0 max-w-2xl flex-col items-center justify-center p-5 pb-4 text-center md:min-h-[480px] md:p-10 lg:p-12">
             <h2 className="homepage-featured-title mx-auto w-full max-w-[24ch] text-balance font-display text-[1.35rem] font-black capitalize leading-[1.08] tracking-[0.005em] sm:text-3xl md:text-[2rem]">{featuredTile.title}</h2>
             {featuredTile.body ? <p className={cn("mt-4 max-w-xl text-base font-semibold md:text-lg", featuredUsesDarkText ? "text-primary/80" : "text-white/90")}>{featuredTile.body}</p> : null}
             <ButtonLink className={cn("mt-5 min-h-11 w-full self-center justify-center rounded-pill px-7 py-3 font-black sm:mt-8 sm:w-fit sm:px-9", featuredUsesDarkText ? "bg-primary text-white hover:bg-blue" : "bg-white text-primary hover:bg-yellow")} href={featuredTile.href}>
@@ -222,32 +222,27 @@ function RetailPromoTiles() {
             </ButtonLink>
           </div>
           {featuredTile.image ? (
-            <div className="flex min-h-0 min-w-0 items-center justify-center p-4 pt-0 md:min-h-full md:p-8 lg:min-h-0 lg:p-6 lg:pt-0">
-              <div className="relative aspect-[3/4] w-[72%] max-w-[240px] overflow-hidden rounded-[32px] bg-black/70 shadow-[0_18px_45px_rgba(0,0,0,0.48)] md:aspect-[4/3] md:w-full md:max-w-full md:rounded-[36px] lg:max-w-[360px]">
-                <span aria-hidden="true" className="absolute inset-x-[8%] inset-y-[5%] rounded-[999px] bg-[radial-gradient(ellipse_at_50%_40%,rgba(239,49,80,0.34),rgba(40,15,22,0.9)_58%,rgba(0,0,0,0.96))] shadow-[0_0_38px_rgba(239,49,80,0.28)]" />
-                <div className="absolute inset-1.5 z-10 flex items-center justify-center overflow-hidden md:inset-4">
-                  <div className="relative aspect-[2/3] h-full max-h-full overflow-hidden">
-                    <Image alt={featuredTile.title} className="scale-x-[1.05] object-cover" fill priority sizes="(max-width: 768px) 220px, 320px" src={featuredTile.image} unoptimized />
-                  </div>
-                </div>
+            <div className="flex min-h-0 min-w-0 items-center justify-center p-4 pt-0 md:min-h-full md:p-8 lg:p-10">
+              <div className="relative aspect-[16/9] w-full max-w-full overflow-hidden rounded-xl border border-white/20 bg-transparent md:aspect-[4/3] md:rounded-md md:border-2">
+                <Image alt={featuredTile.title} className="object-contain p-2 sm:p-4" fill priority sizes="(max-width: 768px) calc(100vw - 3rem), 480px" src={featuredTile.image} unoptimized />
               </div>
             </div>
           ) : null}
         </article>
 
-        <div className="-mx-4 grid snap-x snap-mandatory grid-flow-col auto-cols-[82%] gap-3 overflow-x-auto px-4 pb-2 sm:mx-0 sm:grid-flow-row sm:auto-cols-auto sm:grid-cols-2 sm:gap-5 sm:overflow-visible sm:px-0 sm:pb-0 lg:h-full lg:grid-cols-3 lg:grid-rows-1">
+        <div className="grid gap-3 sm:grid-cols-2 sm:gap-5 lg:grid-cols-3">
           {tiles.map((tile) => {
             const tileBackground = tile.backgroundColor ?? "bg-blue";
             const usesDarkText = tileBackground === "bg-white" || tileBackground === "bg-yellow";
 
             return (
-              <article className={cn("relative min-h-[250px] snap-center overflow-hidden rounded-[18px] first:snap-start sm:min-h-[360px] sm:snap-align-none sm:rounded-md lg:h-full lg:min-h-[520px]", tileBackground, usesDarkText ? "text-primary" : "text-white")} key={tile.href}>
+              <article className={cn("relative min-h-[250px] overflow-hidden rounded-[18px] sm:min-h-[360px] sm:rounded-md", tileBackground, usesDarkText ? "text-primary" : "text-white")} key={tile.href}>
                 {tile.image ? <Image alt={tile.title} className="object-cover" fill sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 25vw" src={tile.image} unoptimized /> : null}
                 {tile.image ? <div className="absolute inset-0 bg-gradient-to-t from-black/55 via-transparent to-black/5 sm:bg-gradient-to-r sm:from-blue/90 sm:via-blue/50 sm:to-transparent" /> : null}
-                <div className="relative flex min-h-[250px] max-w-sm flex-col justify-center p-5 sm:min-h-[360px] sm:p-8 lg:h-full lg:min-h-[520px] lg:p-4 xl:p-6">
+                <div className="relative flex min-h-[250px] max-w-sm flex-col justify-center p-5 sm:min-h-[360px] sm:p-8">
                   <h2 className="font-display text-3xl font-black uppercase leading-none sm:text-4xl">{tile.title}</h2>
                   {tile.body ? <p className={cn("mt-3 text-sm font-semibold", usesDarkText ? "text-primary/80" : "text-white/90")}>{tile.body}</p> : null}
-                  <ButtonLink className={cn("absolute bottom-4 left-1/2 min-h-11 max-w-[calc(100%_-_2rem)] -translate-x-1/2 justify-center whitespace-nowrap rounded-pill px-6 py-3 text-sm font-black shadow-lg sm:bottom-6 sm:px-8 lg:px-3 lg:text-xs xl:px-5 xl:text-sm", usesDarkText ? "bg-primary text-white hover:bg-blue" : "bg-white text-primary hover:bg-yellow")} href={tile.href}>
+                  <ButtonLink className={cn("absolute bottom-4 left-1/2 min-h-11 max-w-[calc(100%_-_2rem)] -translate-x-1/2 justify-center whitespace-nowrap rounded-pill px-6 py-3 text-sm font-black shadow-lg sm:bottom-6 sm:px-8", usesDarkText ? "bg-primary text-white hover:bg-blue" : "bg-white text-primary hover:bg-yellow")} href={tile.href}>
                     {tile.cta}
                   </ButtonLink>
                 </div>
