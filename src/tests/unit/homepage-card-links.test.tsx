@@ -26,6 +26,7 @@ describe("homepage promotional cards", () => {
   it("renders editable primary and secondary hero button destinations", () => {
     const hero = {
       ...homepageSections[0],
+      variant: "default",
       ctaLabel: "Shop Crayola",
       ctaHref: "/shop?brand=crayola",
       secondaryCtaLabel: "Browse arts",
