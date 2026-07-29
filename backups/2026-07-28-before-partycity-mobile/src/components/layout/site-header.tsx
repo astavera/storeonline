@@ -19,8 +19,6 @@ import { CartLink } from "./cart-link";
 import { HeaderCatalogSearch } from "./header-catalog-search";
 import { MobileSiteNavigation } from "./mobile-site-navigation";
 
-const SHOW_MOBILE_FULFILLMENT_SELECTOR = false;
-
 export function SiteHeader({ navigation = defaultHeaderNavigation }: { navigation?: HeaderNavigationConfig }) {
   const primaryLinks = navigation.primary.filter((link) => link.visible);
   const utilityLinks = navigation.utility.filter((link) => link.visible);
@@ -40,9 +38,6 @@ export function SiteHeader({ navigation = defaultHeaderNavigation }: { navigatio
           backgroundSize: "100% 100%"
         }}
       />
-      <div className="bg-black px-4 py-2 text-center text-[11px] font-black uppercase tracking-[0.08em] text-white sm:hidden">
-        Free pickup · Same-day local delivery
-      </div>
       <div className="bg-[#FFFFFF] text-black">
         <div className="mx-auto flex min-h-[64px] w-full items-center justify-between gap-1 px-3 py-2 sm:min-h-[72px] sm:gap-6 sm:px-8 sm:py-3 lg:gap-8 xl:px-12 2xl:px-16">
           <MobileSiteNavigation mobileCta={navigation.mobileCta} primaryLinks={primaryLinks} utilityLinks={drawerUtilityLinks} />
@@ -73,34 +68,6 @@ export function SiteHeader({ navigation = defaultHeaderNavigation }: { navigatio
           </div>
         </div>
       </div>
-      <div className="border-t border-slate-200 bg-white px-4 py-3 text-black sm:hidden">
-        <form action="/search" className="flex min-h-11 items-center gap-3 rounded-lg border border-slate-400 bg-white px-3" method="get" role="search">
-          <Search aria-hidden="true" className="shrink-0 text-slate-700" size={19} strokeWidth={2} />
-          <label className="sr-only" htmlFor="mobile-header-search">
-            Search products
-          </label>
-          <input className="min-w-0 flex-1 bg-transparent py-2 text-base font-semibold outline-none placeholder:text-slate-500" id="mobile-header-search" name="q" placeholder="Search products" type="search" />
-          <button className="sr-only" type="submit">
-            Search
-          </button>
-        </form>
-      </div>
-      {SHOW_MOBILE_FULFILLMENT_SELECTOR ? (
-        <div className="border-t border-slate-200 bg-white px-4 py-3 text-black sm:hidden">
-          <p className="text-sm font-black">How would you like to get your order?</p>
-          <div className="mt-2 grid grid-cols-3 gap-2 text-center text-xs font-black">
-            <Link className="rounded-lg border border-slate-300 px-2 py-2.5 hover:border-blue hover:text-blue" href="/shipping-policy">
-              Shipping
-            </Link>
-            <Link className="rounded-lg border border-slate-300 px-2 py-2.5 hover:border-blue hover:text-blue" href="/local-delivery-policy">
-              Delivery
-            </Link>
-            <Link className="rounded-lg border border-slate-300 px-2 py-2.5 hover:border-blue hover:text-blue" href="/locations">
-              Pickup
-            </Link>
-          </div>
-        </div>
-      ) : null}
       <div
         aria-hidden="true"
         className="h-[4px] w-full"

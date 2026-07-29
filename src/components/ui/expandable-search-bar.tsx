@@ -87,7 +87,7 @@ export default function ExpandableSearchBar({
         aria-expanded={open}
         aria-label={open ? "Close search" : "Open search"}
         className={cn(
-          "absolute inset-0 z-20 grid place-items-center rounded-full border border-border bg-surface text-primary transition-colors hover:bg-surface-muted",
+          "absolute inset-0 z-20 flex items-center justify-center overflow-visible rounded-full border border-border bg-surface p-0 text-primary transition-colors hover:bg-surface-muted",
           buttonClassName,
           open && "border-border bg-surface text-primary shadow-card hover:bg-surface-muted"
         )}
@@ -99,7 +99,7 @@ export default function ExpandableSearchBar({
         }}
         type="button"
       >
-        {open ? <X aria-hidden="true" size={22} /> : <Search aria-hidden="true" size={22} />}
+        {open ? <X aria-hidden="true" className="h-[22px] w-[22px] shrink-0" strokeWidth={2} /> : <Search aria-hidden="true" className="h-[22px] w-[22px] shrink-0" strokeWidth={2} />}
       </button>
 
       <AnimatePresence>
