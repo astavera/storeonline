@@ -9,6 +9,7 @@ coverage/
 .codex-logs/
 .playwright-cli/
 output/
+backups/
 playwright-report/
 test-results/
 .playwright-results/
