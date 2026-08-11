@@ -1,3 +1,7 @@
+/**
+ * Handles HTTP requests for the API admin Square category bulk endpoint.
+ */
+
 import { NextRequest, NextResponse } from "next/server";
 import { readPostgresAdminCatalogCategories } from "@/server/square/postgres-admin-catalog-store";
 import { adminAuthorizationResponse, adminCapabilities, authorizeAdminRequest } from "@/server/admin/admin-security";

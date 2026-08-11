@@ -1,3 +1,7 @@
+/**
+ * Verifies the isolated behavior of admin media service.
+ */
+
 import { describe, expect, it } from "vitest";
 import {
   adminMediaUploadMaxBytes,

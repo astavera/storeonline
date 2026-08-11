@@ -1,3 +1,7 @@
+/**
+ * Defines the Square catalog live module used by the storefront application.
+ */
+
 import { existsSync } from "node:fs";
 import { loadEnvFile } from "node:process";
 import { beforeAll, describe, expect, it } from "vitest";

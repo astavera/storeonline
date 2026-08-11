@@ -1,3 +1,7 @@
+/**
+ * Handles HTTP requests for the API admin media endpoint.
+ */
+
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { NextRequest, NextResponse } from "next/server";

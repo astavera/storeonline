@@ -1,3 +1,7 @@
+/**
+ * Implements server-side OrderPro local delivery service behavior and persistence boundaries.
+ */
+
 import "server-only";
 
 import { createHash } from "node:crypto";

@@ -1,3 +1,7 @@
+/**
+ * Prepares a merchandising draft that disables shipping without changing pickup.
+ */
+
 import { existsSync } from "node:fs";
 import { resolve } from "node:path";
 

@@ -1,3 +1,7 @@
+/**
+ * Implements server-side postgres admin catalog store behavior and persistence boundaries.
+ */
+
 import "server-only";
 
 import { Prisma } from "@prisma/client";
@@ -5,7 +9,7 @@ import type {
   SquareCatalogCacheSummary,
   SquareCatalogCategorySummary
 } from "@/features/catalog/square-catalog-cache";
-import type { StorefrontProduct } from "@/features/catalog/product-catalog";
+import { storefrontProducts, type StorefrontProduct } from "@/features/catalog/product-catalog";
 import { getPrismaClient } from "@/server/db/prisma";
 import { PersistenceUnavailableError } from "@/server/db/persistence-policy";
 import {
@@ -58,6 +62,8 @@ type CategoryRow = {
 };
 
 export async function readPostgresAdminCatalogPage(options: CatalogQuery = {}): Promise<PostgresAdminCatalogPage> {
+  if (usesE2eCatalogFixture()) return readE2eAdminCatalogPage(options);
+
   const normalized = normalizeQuery(options);
   const prisma = getPrismaClient();
   const fromWhere = catalogFromWhere(normalized);
@@ -104,6 +110,8 @@ export async function readPostgresAdminVariationSelection(
   options: CatalogQuery = {},
   limit = 5_000
 ): Promise<PostgresAdminCatalogSelection> {
+  if (usesE2eCatalogFixture()) return readE2eAdminCatalogSelection(options, limit);
+
   const normalized = normalizeQuery(options);
   const safeLimit = clampInteger(limit, 5_000, 1, 5_000);
   const prisma = getPrismaClient();
@@ -137,6 +145,8 @@ export async function readPostgresAdminVariationSelection(
 }
 
 export async function readPostgresAdminCatalogCategories(): Promise<SquareCatalogCategorySummary[]> {
+  if (usesE2eCatalogFixture()) return readE2eAdminCatalogCategories();
+
   try {
     const rows = await getPrismaClient().$queryRaw<CategoryRow[]>(Prisma.sql`
       WITH item_categories AS (
@@ -179,6 +189,8 @@ export async function readPostgresAdminCatalogCategories(): Promise<SquareCatalo
 }
 
 export async function readPostgresAdminCatalogSummary(): Promise<SquareCatalogCacheSummary> {
+  if (usesE2eCatalogFixture()) return e2eAdminCatalogSummary();
+
   try {
     const [catalog, objectCounts] = await Promise.all([
       readPostgresCatalogSummary(),
@@ -210,7 +222,114 @@ export async function readPostgresAdminCatalogSummary(): Promise<SquareCatalogCa
 }
 
 export async function readPostgresAdminProductsByVariationIds(variationIds: string[]) {
+  if (usesE2eCatalogFixture()) {
+    const requestedIds = new Set(variationIds);
+    return storefrontProducts.filter((product) => requestedIds.has(product.squareVariationId));
+  }
+
   return readPostgresStorefrontProductsByVariationIds(variationIds);
+}
+
+function readE2eAdminCatalogPage(options: CatalogQuery = {}): PostgresAdminCatalogPage {
+  const normalized = normalizeQuery(options);
+  const matchingProducts = filterE2eAdminCatalog(normalized);
+  const total = matchingProducts.length;
+  const pageCount = Math.max(1, Math.ceil(total / normalized.pageSize));
+  const page = Math.min(normalized.page, pageCount);
+  const offset = (page - 1) * normalized.pageSize;
+
+  return {
+    products: matchingProducts.slice(offset, offset + normalized.pageSize),
+    summary: e2eAdminCatalogSummary(),
+    query: normalized.query,
+    categoryId: normalized.categoryId,
+    vendorId: normalized.vendorId,
+    imageFilter: normalized.imageFilter,
+    page,
+    pageSize: normalized.pageSize,
+    pageCount,
+    total
+  };
+}
+
+function readE2eAdminCatalogSelection(options: CatalogQuery = {}, limit = 5_000): PostgresAdminCatalogSelection {
+  const normalized = normalizeQuery(options);
+  const safeLimit = clampInteger(limit, 5_000, 1, 5_000);
+  const matchingProducts = filterE2eAdminCatalog(normalized);
+  const variationIds = matchingProducts.slice(0, safeLimit).map((product) => product.squareVariationId);
+
+  return {
+    variationIds,
+    total: matchingProducts.length,
+    truncated: matchingProducts.length > variationIds.length,
+    query: normalized.query,
+    categoryId: normalized.categoryId,
+    vendorId: normalized.vendorId,
+    imageFilter: normalized.imageFilter
+  };
+}
+
+function filterE2eAdminCatalog(query: ReturnType<typeof normalizeQuery>) {
+  const requestedIds = query.variationIds === undefined ? null : new Set(query.variationIds);
+  const normalizedSearch = query.query.toLowerCase();
+
+  return storefrontProducts.filter((product) => {
+    if (requestedIds && !requestedIds.has(product.squareVariationId)) return false;
+    if (query.categoryId && e2eCategoryId(product.department) !== query.categoryId) return false;
+    if (query.vendorId && !product.squareVendorIds?.includes(query.vendorId)) return false;
+    if (query.imageFilter === "with" && !product.imageUrl.trim()) return false;
+    if (query.imageFilter === "without" && product.imageUrl.trim()) return false;
+    if (!normalizedSearch) return true;
+
+    return [product.name, product.slug, product.squareVariationId, product.shortDescription]
+      .some((value) => value.toLowerCase().includes(normalizedSearch));
+  });
+}
+
+function readE2eAdminCatalogCategories(): SquareCatalogCategorySummary[] {
+  const categoryCounts = new Map<string, { name: string; count: number }>();
+
+  for (const product of storefrontProducts) {
+    const id = e2eCategoryId(product.department);
+    const current = categoryCounts.get(id);
+    categoryCounts.set(id, { name: product.department, count: (current?.count ?? 0) + 1 });
+  }
+
+  return Array.from(categoryCounts, ([id, category]) => ({
+    id,
+    name: category.name,
+    path: category.name,
+    parentCategoryId: null,
+    itemCount: category.count,
+    variationCount: category.count
+  })).sort((first, second) => first.name.localeCompare(second.name));
+}
+
+function e2eAdminCatalogSummary(): SquareCatalogCacheSummary {
+  const categories = new Set(storefrontProducts.map((product) => e2eCategoryId(product.department)));
+  const vendors = new Set(storefrontProducts.flatMap((product) => product.squareVendorIds ?? []));
+
+  return {
+    available: true,
+    environment: "sandbox",
+    status: "completed",
+    hasMore: false,
+    pagesCompleted: 1,
+    itemCount: storefrontProducts.length,
+    variationCount: storefrontProducts.length,
+    imageCount: storefrontProducts.filter((product) => product.imageUrl.trim()).length,
+    categoryCount: categories.size,
+    vendorCount: vendors.size,
+    updatedAt: "2026-01-01T00:00:00.000Z"
+  };
+}
+
+function e2eCategoryId(department: string) {
+  return `e2e-${department.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "")}`;
+}
+
+function usesE2eCatalogFixture() {
+  return process.env.E2E_CATALOG_FIXTURE === "true";
 }
 
 function catalogFromWhere(query: ReturnType<typeof normalizeQuery>) {

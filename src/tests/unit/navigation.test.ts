@@ -1,3 +1,7 @@
+/**
+ * Verifies the isolated behavior of navigation.
+ */
+
 import { describe, expect, it } from "vitest";
 import { defaultHeaderNavigation, normalizeHeaderNavigation } from "@/config/header-navigation.config";
 
@@ -15,15 +19,34 @@ describe("navigation", () => {
     ]);
   });
 
-  it("normalizes CMS navigation while preserving explicit visibility", () => {
+  it("restores one visible About Us link after Holidays in saved CMS navigation", () => {
     const normalized = normalizeHeaderNavigation({
       ...defaultHeaderNavigation,
-      primary: defaultHeaderNavigation.primary.map((link) =>
-        link.id === "about-us" ? { ...link, visible: false } : link
-      )
+      primary: [
+        ...defaultHeaderNavigation.primary,
+        {
+          id: "about-us",
+          label: "About Us",
+          href: "/about",
+          visible: true
+        }
+      ]
     });
 
-    expect(normalized.primary.find((link) => link.id === "about-us")?.visible).toBe(false);
+    const aboutLinks = normalized.primary.filter(
+      (link) => link.id === "about-us" || link.href === "/about"
+    );
+    const holidaysIndex = normalized.primary.findIndex((link) => link.href === "/holidays");
+
+    expect(aboutLinks).toEqual([
+      {
+        id: "about-us",
+        label: "About Us",
+        href: "/about",
+        visible: true
+      }
+    ]);
+    expect(normalized.primary[holidaysIndex + 1]).toEqual(aboutLinks[0]);
     expect(normalized.primary.every((link) => link.href.startsWith("/"))).toBe(true);
   });
 });

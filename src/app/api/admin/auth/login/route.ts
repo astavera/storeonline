@@ -1,3 +1,7 @@
+/**
+ * Handles HTTP requests for the API admin auth login endpoint.
+ */
+
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { safeAdminReturnTo } from "@/lib/security/admin-return-to";

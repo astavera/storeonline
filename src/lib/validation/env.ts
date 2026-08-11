@@ -1,3 +1,7 @@
+/**
+ * Provides shared env types and utilities for the application.
+ */
+
 import "server-only";
 import { z } from "zod";
 
@@ -16,7 +20,18 @@ const envSchema = z.object({
   SQUARE_WEBHOOK_SIGNATURE_KEY: z.string().optional(),
   WEBHOOK_WORKER_SECRET: z.preprocess((value) => value === "" ? undefined : value, z.string().min(32).optional()),
   SHIPPO_API_TOKEN: z.string().optional(),
+  SHIPPO_TEST_MODE: z.enum(["true", "false"]).default("true"),
   SHIPPO_ALLOWED_CARRIERS: z.string().optional(),
+  SHIPPO_ALLOWED_RETURN_CARRIERS: z.string().optional(),
+  SHIPPO_DEFAULT_RETURN_SERVICE: z.string().optional(),
+  SHIPPO_RETURN_ADDRESS_NAME: z.string().optional(),
+  SHIPPO_RETURN_ADDRESS_LINE1: z.string().optional(),
+  SHIPPO_RETURN_ADDRESS_LINE2: z.string().optional(),
+  SHIPPO_RETURN_ADDRESS_CITY: z.string().optional(),
+  SHIPPO_RETURN_ADDRESS_STATE: z.string().optional(),
+  SHIPPO_RETURN_ADDRESS_ZIP: z.string().optional(),
+  SHIPPO_RETURN_ADDRESS_COUNTRY: z.string().optional(),
+  SHIPPO_WEBHOOK_SECRET: z.preprocess((value) => value === "" ? undefined : value, z.string().min(32).optional()),
   SHIPPO_PILOT_VARIATION_IDS: z.string().optional(),
   SHIPPO_ORIGIN_NAME: z.string().optional(),
   SHIPPO_ORIGIN_COMPANY: z.string().optional(),
@@ -49,9 +64,18 @@ const envSchema = z.object({
   ORDERPRO_STOREFRONT_PREVIEW_BASE_URL: z.preprocess((value) => value === "" ? undefined : value, z.string().url().optional()),
   ORDERPRO_STOREFRONT_PREVIEW_SHARED_SECRET: z.preprocess((value) => value === "" ? undefined : value, z.string().min(32).optional()),
   ORDERPRO_STOREFRONT_SHIPPING_SHARED_SECRET: z.preprocess((value) => value === "" ? undefined : value, z.string().min(32).optional()),
+  ORDERPRO_STOREFRONT_RETURNS_SHARED_SECRET: z.preprocess((value) => value === "" ? undefined : value, z.string().min(32).optional()),
+  ORDERPRO_RETURNS_ENABLED: z.enum(["true", "false"]).default("false"),
+  RETURNS_SESSION_SECRET: z.preprocess((value) => value === "" ? undefined : value, z.string().min(32).optional()),
+  RETURNS_BUSINESS_TIME_ZONE: z.string().default("America/New_York"),
+  SQUARE_RETURNS_REFUNDS_ENABLED: z.enum(["true", "false"]).default("false"),
   ORDERPRO_LOCAL_DELIVERY_CHECKOUT_ENABLED: z.string().optional(),
   ORDERPRO_SHIPPING_CHECKOUT_ENABLED: z.string().optional(),
-  ALLOW_LOCAL_PERSISTENCE_FALLBACK: z.enum(["true", "false"]).default("false")
+  ALLOW_LOCAL_PERSISTENCE_FALLBACK: z.enum(["true", "false"]).default("false"),
+  CUSTOMER_SESSION_SECRET: z.preprocess((value) => value === "" ? undefined : value, z.string().min(32).optional()),
+  CUSTOMER_AUTH_DEV_PREVIEW: z.enum(["true", "false"]).default("true"),
+  RESEND_API_KEY: z.preprocess((value) => value === "" ? undefined : value, z.string().min(1).optional()),
+  CUSTOMER_AUTH_EMAIL_FROM: z.preprocess((value) => value === "" ? undefined : value, z.string().min(3).optional())
 });
 
 export const env = envSchema.parse(process.env);

@@ -1,16 +1,29 @@
-import { BuilderShell } from "@/components/admin/builder/BuilderShell";
-import { HomepageStudioEditor } from "@/components/admin/homepage-studio-editor";
+/**
+ * Renders the admin homepage page and prepares its route-level data.
+ */
+
+import { BuilderShell } from "@/components/admin/builder";
+import { HomepageStudioEditor } from "@/features/homepage/components/admin/homepage-studio-editor";
 import { storefrontEditablePages, websiteHolidayEditorPages } from "@/config/storefront-pages.config";
-import { getHomepageEditorState } from "@/features/admin/services/homepage-visual-editor-service";
-import { resolveHomepageStorefrontContent } from "@/features/catalog/services/homepage-storefront-content-service";
+import { storefrontProducts, type StorefrontProduct } from "@/features/catalog/product-catalog";
+import {
+  websiteCategoryPath,
+  websitePlacementReadinessIssues,
+  type WebsiteMerchandisingConfig
+} from "@/features/catalog/services/website-merchandising-service";
+import type { HomepageItemLinkOption } from "@/features/homepage";
+import { createHomepageItemLinkOptions } from "@/features/homepage/server";
+import { getHomepageEditorState } from "@/features/homepage/server";
 import { createStorefrontEditorFallbackDocument, normalizeCmsScope, shouldUseStorefrontEditorFallbackDocument } from "@/lib/cms";
 import { readLatestCmsDocument } from "@/server/admin/admin-cms-document-service";
 import { readWebsiteMerchandisingSnapshot } from "@/server/admin/website-merchandising-store";
+import { readSquareCatalogPreview } from "@/server/square/catalog-preview-store";
+import { readPostgresAdminCatalogPage } from "@/server/square/postgres-admin-catalog-store";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
-export default async function AdminHomepagePage({ searchParams }: { searchParams?: Promise<{ scope?: string; id?: string }> }) {
+export default async function AdminHomepagePage({ searchParams }: { searchParams?: Promise<{ scope?: string; id?: string; homepage?: string }> }) {
   const params = await searchParams;
   const scope = params?.scope ? normalizeCmsScope(params.scope) : null;
   const id = params?.id;
@@ -36,12 +49,101 @@ export default async function AdminHomepagePage({ searchParams }: { searchParams
     return <BuilderShell additionalPages={additionalPages} initialDocument={document} key={`${scope}:${document.entityId}`} publicPreviewRoute={editablePage?.route} scope={scope} />;
   }
 
-  const [merchandising, homepageState, storefrontContent] = await Promise.all([merchandisingPromise, getHomepageEditorState(), resolveHomepageStorefrontContent()]);
+  const [merchandising, homepageState, adminCatalogProducts] = await Promise.all([
+    merchandisingPromise,
+    getHomepageEditorState(params?.homepage),
+    readHomepageEditorCatalogProducts()
+  ]);
   const additionalPages = websiteHolidayEditorPages(merchandising.holidays);
-  const itemLinkOptions = Array.from(
+  const toysCategory = merchandising.categories.find(
+    (category) => category.slug === "toys"
+  );
+  const toyEditorCategories = toysCategory
+    ? merchandising.categories
+        .filter((category) => category.parentId === toysCategory.id)
+        .sort(
+          (first, second) =>
+            first.sortOrder - second.sortOrder ||
+            first.name.localeCompare(second.name)
+        )
+    : [];
+  const previewProducts = enrichHomepageEditorProducts(
+    Array.from(
+      new Map(
+        [...adminCatalogProducts, ...storefrontProducts].map((product) => [
+          product.squareVariationId,
+          product
+        ])
+      ).values()
+    ),
+    merchandising
+  );
+  const merchandisingLinkOptions = createHomepageItemLinkOptions({
+    brands: merchandising.brands,
+    categories: merchandising.categories,
+    products: previewProducts
+  }).map((option) => {
+    if (option.type === "category") {
+      const category = merchandising.categories.find(
+        (candidate) => candidate.slug === option.value
+      );
+      const productCount = category
+        ? merchandising.placements.filter(
+            (placement) =>
+              placement.visible && placement.categoryIds.includes(category.id)
+          ).length
+        : 0;
+      const visibilityLabel =
+        category && !category.visible ? " — hidden in Catalog Publishing" : "";
+      const imageLabel =
+        category && !category.imageUrl.trim() ? " — add image" : "";
+
+      return {
+        ...option,
+        label: `${option.label} (${productCount} products)${visibilityLabel}${imageLabel}`
+      };
+    }
+
+    if (option.type === "brand") {
+      const brand = merchandising.brands.find(
+        (candidate) => candidate.slug === option.value
+      );
+      const productCount = previewProducts.filter((product) =>
+        product.websiteBrandIds?.includes(brand?.id ?? "")
+      ).length;
+      const visibilityLabel =
+        brand && !brand.visible ? " — hidden in Catalog Publishing" : "";
+
+      return {
+        ...option,
+        label: `${option.label} (${productCount} products)${visibilityLabel}`
+      };
+    }
+
+    if (option.type === "product") {
+      const placement = merchandising.placements.find(
+        (candidate) => candidate.squareVariationId === option.squareVariationId
+      );
+      const needsSetup =
+        !placement ||
+        !placement.visible ||
+        websitePlacementReadinessIssues(
+          placement,
+          merchandising.categories,
+          merchandising.holidays
+        ).length > 0;
+
+      return needsSetup
+        ? { ...option, label: `${option.label} — needs setup` }
+        : option;
+    }
+
+    return option;
+  });
+  const itemLinkOptions: HomepageItemLinkOption[] = Array.from(
     new Map(
       [
-        ...storefrontContent.itemLinkOptions,
+        ...merchandisingLinkOptions,
         ...additionalPages.map((page) => ({
           type: "page" as const,
           value: page.route,
@@ -53,19 +155,137 @@ export default async function AdminHomepagePage({ searchParams }: { searchParams
       ].map((option) => [`${option.type}:${option.value}`, option])
     ).values()
   );
-  const linkedProductSlugs = new Set(homepageState.sections.flatMap((section) => section.items ?? []).map((item) => item.productSlug).filter((slug): slug is string => Boolean(slug)));
-  const previewProducts = storefrontContent.products.filter((product, index) => index < 4 || linkedProductSlugs.has(product.slug));
+  const itemLinkOptionByDestination = new Map(
+    itemLinkOptions.map((option) => [
+      `${option.type}:${option.value}`,
+      option
+    ])
+  );
+  const editorSections = homepageState.sections.map((section) => ({
+    ...section,
+    items: section.items?.map((item) => {
+      if (!item.linkType || !item.linkValue) {
+        return item;
+      }
+
+      const option = itemLinkOptionByDestination.get(
+        `${item.linkType}:${item.linkValue}`
+      );
+
+      return option
+        ? {
+            ...item,
+            body: option.body ?? item.body,
+            href: option.href,
+            image: option.image ?? item.image,
+            imageAlt: option.imageAlt ?? item.imageAlt,
+            productSlug: option.productSlug ?? item.productSlug,
+            squareVariationId:
+              option.squareVariationId ?? item.squareVariationId,
+            title: option.title
+          }
+        : item;
+    })
+  }));
 
   return (
     <HomepageStudioEditor
       additionalPages={additionalPages}
       initialHeaderNavigation={homepageState.headerNavigation}
       initialPhotoPresets={homepageState.photoPresets}
-      initialSections={homepageState.sections}
+      initialSections={editorSections}
       initialSeo={homepageState.seo}
       initialVersions={homepageState.versions}
+      initialWorkspace={homepageState.workspace}
+      initialWorkspaces={homepageState.workspaces}
       itemLinkOptions={itemLinkOptions}
+      key={homepageState.workspace.id}
+      previewCategories={toyEditorCategories}
       previewProducts={previewProducts}
     />
   );
+}
+
+async function readHomepageEditorCatalogProducts() {
+  const preferLocalCatalog =
+    process.env.NODE_ENV === "development" &&
+    process.env.ALLOW_LOCAL_PERSISTENCE_FALLBACK === "true" &&
+    process.env.PREFER_LOCAL_SQUARE_CATALOG === "true";
+
+  if (!preferLocalCatalog) {
+    try {
+      const catalogPage = await readPostgresAdminCatalogPage({
+        page: 1,
+        pageSize: 100
+      });
+
+      if (catalogPage.products.length > 0) {
+        return catalogPage.products;
+      }
+    } catch {
+      // Development can use the read-only Square preview when PostgreSQL is unavailable.
+    }
+  }
+
+  const preview = await readSquareCatalogPreview();
+  return preview?.products.slice(0, 100) ?? [];
+}
+
+function enrichHomepageEditorProducts(
+  products: StorefrontProduct[],
+  merchandising: WebsiteMerchandisingConfig
+) {
+  const placementByVariationId = new Map(
+    merchandising.placements.map((placement) => [
+      placement.squareVariationId,
+      placement
+    ])
+  );
+  const categoryById = new Map(
+    merchandising.categories.map((category) => [category.id, category])
+  );
+
+  return products.map((product) => {
+    const placement = placementByVariationId.get(product.squareVariationId);
+
+    if (!placement) {
+      return product;
+    }
+
+    const assignedCategories = placement.categoryIds
+      .map((categoryId) => categoryById.get(categoryId))
+      .filter((category): category is NonNullable<typeof category> =>
+        Boolean(category)
+      );
+    const websiteCategorySlugs = Array.from(
+      new Set(
+        assignedCategories.flatMap((category) =>
+          websiteCategoryPath(category, merchandising.categories).map(
+            (pathCategory) => pathCategory.slug
+          )
+        )
+      )
+    );
+    const primaryCategory = [...assignedCategories].sort(
+      (first, second) =>
+        websiteCategoryPath(second, merchandising.categories).length -
+        websiteCategoryPath(first, merchandising.categories).length
+    )[0];
+
+    return {
+      ...product,
+      ageGroups:
+        placement.ageGroups.length > 0
+          ? placement.ageGroups
+          : product.ageGroups,
+      department: primaryCategory?.name ?? product.department,
+      fulfillmentModes:
+        placement.fulfillmentModes.length > 0
+          ? placement.fulfillmentModes
+          : product.fulfillmentModes,
+      websiteBrandIds: placement.brandIds,
+      websiteCategorySlugs,
+      websiteSurfaces: placement.surfaceIds
+    };
+  });
 }

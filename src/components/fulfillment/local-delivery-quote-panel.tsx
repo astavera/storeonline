@@ -1,3 +1,7 @@
+/**
+ * Renders the local delivery quote panel interface and its user interactions.
+ */
+
 "use client";
 
 import { BadgeCheck, CalendarDays, Clock3, LoaderCircle, MapPin, Route, Store } from "lucide-react";

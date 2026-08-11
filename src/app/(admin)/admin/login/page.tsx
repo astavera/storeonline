@@ -1,3 +1,7 @@
+/**
+ * Renders the admin login page and prepares its route-level data.
+ */
+
 import { AdminLoginForm } from "@/components/admin/admin-login-form";
 import { safeAdminReturnTo } from "@/lib/security/admin-return-to";
 import { isAdminLoginConfigured } from "@/server/admin/admin-login";

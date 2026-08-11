@@ -1,3 +1,7 @@
+/**
+ * Verifies the isolated behavior of address evaluation repository.
+ */
+
 import { describe, expect, it, vi } from "vitest";
 import {
   hashAddressIdentity,

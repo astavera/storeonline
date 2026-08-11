@@ -1,3 +1,7 @@
+/**
+ * Downloads and stores a sanitized read-only Square catalog snapshot.
+ */
+
 import { existsSync, mkdirSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { DatabaseSync } from "node:sqlite";

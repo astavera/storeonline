@@ -1,3 +1,5 @@
+# Runs the storefront webhook worker through the production container helper.
+
 [Unit]
 Description=Process Square webhooks and expire safe Storefront shipping checkouts
 After=docker.service network-online.target
@@ -7,8 +9,8 @@ Requires=docker.service
 [Service]
 Type=oneshot
 User=root
-WorkingDirectory=/srv/storefront/app
-ExecStart=/srv/storefront/app/infrastructure/production/run-square-job.sh webhook-worker
+WorkingDirectory=/srv/storefront/current
+ExecStart=/srv/storefront/current/infrastructure/production/run-square-job.sh webhook-worker
 TimeoutStartSec=60
 Nice=5
 ProtectSystem=strict
@@ -16,4 +18,3 @@ ProtectHome=true
 PrivateTmp=true
 NoNewPrivileges=true
 ReadWritePaths=/var/run
-

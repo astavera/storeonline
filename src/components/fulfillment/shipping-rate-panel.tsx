@@ -1,3 +1,7 @@
+/**
+ * Renders the shipping rate panel interface and its user interactions.
+ */
+
 "use client";
 
 import { PackageSearch, Truck } from "lucide-react";

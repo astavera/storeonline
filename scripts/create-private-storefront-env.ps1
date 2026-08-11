@@ -1,3 +1,5 @@
+# Creates a private local storefront environment file from approved operator inputs.
+
 [CmdletBinding()]
 param(
     [Parameter(Mandatory = $true)]
@@ -7,7 +9,7 @@ param(
     [Parameter(Mandatory = $true)]
     [string]$TargetPath,
     [string]$StorefrontUrl = "https://shop.srv1849559.hstgr.cloud",
-    [string]$OrderProAdminUrl = "https://srv1849559.hstgr.cloud"
+    [string]$OrderProAdminUrl = "https://operations.modernstate.com"
 )
 
 $ErrorActionPreference = "Stop"
@@ -63,18 +65,25 @@ if ($password -notmatch '^[A-Za-z0-9_-]{40,}$') {
     throw "STOREFRONT_DATABASE_PASSWORD_FORMAT_INVALID"
 }
 
-$values["DATABASE_URL"] = "`"postgresql://storefront_app:$password@postgres:5432/storefront_prod?schema=public&connection_limit=20&pool_timeout=10`""
-$values["DIRECT_URL"] = "`"postgresql://storefront_app:$password@postgres:5432/storefront_prod?schema=public`""
+$values["DATABASE_URL"] = "`"postgresql://storefront_app:$password@storefront-postgres:5432/storefront_prod?schema=public&connection_limit=20&pool_timeout=10`""
+$values["DIRECT_URL"] = "`"postgresql://storefront_app:$password@storefront-postgres:5432/storefront_prod?schema=public`""
 $values["NEXT_PUBLIC_SITE_URL"] = "`"$StorefrontUrl`""
 $values["NEXT_PUBLIC_SITE_INDEXABLE"] = "false"
+$values["STOREFRONT_DATABASE_NETWORK"] = "storefront-production-database"
+$values["STOREFRONT_ORDERPRO_NETWORK"] = "storefront-orderpro-private"
+$values["STOREFRONT_GATEWAY_NETWORK"] = "storefront-public-gateway"
 $values["SQUARE_ENVIRONMENT"] = "production"
 $values["SQUARE_ALLOW_PRODUCTION_READONLY_SYNC"] = "true"
 $values["SQUARE_CHECKOUT_ENABLED"] = "false"
 $values["ORDERPRO_LOCAL_DELIVERY_CHECKOUT_ENABLED"] = "false"
+$values["ORDERPRO_SHIPPING_CHECKOUT_ENABLED"] = "false"
 $values["ORDERPRO_ADMIN_URL"] = "`"$OrderProAdminUrl`""
+$values["ORDERPRO_API_BASE_URL"] = "`"http://orderpro-api:3000`""
 $values["ADMIN_ALLOWED_ORIGINS"] = "`"$StorefrontUrl`""
 $values["ADMIN_DEV_BYPASS"] = "false"
 $values["ALLOW_LOCAL_PERSISTENCE_FALLBACK"] = "false"
+$values["CUSTOMER_AUTH_DEV_PREVIEW"] = "false"
+$values["SHIPPO_TEST_MODE"] = "true"
 
 if ($values.Contains("ADMIN_PASSWORD_HASH")) {
     $adminPasswordHash = $values["ADMIN_PASSWORD_HASH"].Trim().Trim('"').Trim("'").Replace('\$', '$')

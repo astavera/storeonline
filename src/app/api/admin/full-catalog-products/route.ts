@@ -1,6 +1,11 @@
+/**
+ * Handles HTTP requests for the API admin full catalog products endpoint.
+ */
+
 import { NextRequest, NextResponse } from "next/server";
 import { z, ZodError } from "zod";
 import { productAgeGroupIds } from "@/features/catalog/product-catalog";
+import { partyAssignmentIssues } from "@/features/catalog/services/party-merchandising-service";
 import type { WebsiteProductPlacement } from "@/features/catalog/services/website-merchandising-service";
 import { websitePlacementReadinessIssues, websiteSurfaceIds } from "@/features/catalog/services/website-merchandising-service";
 import {
@@ -71,6 +76,10 @@ export async function GET(request: NextRequest) {
   const categoryId = request.nextUrl.searchParams.get("categoryId") ?? "";
   const vendorId = request.nextUrl.searchParams.get("vendorId") ?? "";
   const websiteCategoryId = request.nextUrl.searchParams.get("websiteCategoryId") ?? "";
+  const requestedWebsiteSurfaceId = request.nextUrl.searchParams.get("websiteSurfaceId") ?? "";
+  const websiteSurfaceId = websiteSurfaceIds.find(
+    (surfaceId) => surfaceId === requestedWebsiteSurfaceId
+  );
   const imageFilter = readImageFilter(request.nextUrl.searchParams.get("images"));
   const config = await readWebsiteMerchandisingSnapshot();
 
@@ -78,8 +87,14 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ ok: false, error: "The selected website category no longer exists. Refresh Products and try again." }, { status: 400 });
   }
 
-  const assignedVariationIds = websiteCategoryId
-    ? config.placements.filter((placement) => placement.categoryIds.includes(websiteCategoryId)).map((placement) => placement.squareVariationId)
+  const assignedVariationIds = websiteCategoryId || websiteSurfaceId
+    ? config.placements
+        .filter(
+          (placement) =>
+            (!websiteCategoryId || placement.categoryIds.includes(websiteCategoryId)) &&
+            (!websiteSurfaceId || placement.surfaceIds.includes(websiteSurfaceId))
+        )
+        .map((placement) => placement.squareVariationId)
     : undefined;
   const cacheQuery = { query, categoryId, vendorId, imageFilter, variationIds: assignedVariationIds };
 
@@ -87,6 +102,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({
       ok: true,
       websiteCategoryId,
+      websiteSurfaceId,
       ...await readPostgresAdminVariationSelection(cacheQuery, 5_000)
     }, { headers: { "Cache-Control": "private, no-store" } });
   }
@@ -103,6 +119,7 @@ export async function GET(request: NextRequest) {
     ok: true,
     ...pageData,
     websiteCategoryId,
+    websiteSurfaceId,
     records: products.map((product, index) => ({
       product,
       placement: placementByVariationId.get(product.squareVariationId) ?? createPendingPlacement(product.squareVariationId, (catalogPage.page - 1) * catalogPage.pageSize + index),
@@ -127,15 +144,33 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ ok: false, error: "One or more selected Square variations are no longer available. Refresh Products and select them again." }, { status: 409 });
       }
 
+      if (bulkRequest.edit.categoryMode === "add" || bulkRequest.edit.categoryMode === "replace") {
+        const config = await readWebsiteMerchandisingSnapshot();
+        const issues = matchedProducts.flatMap((product) => partyAssignmentIssues(product, bulkRequest.edit.categoryIds, config.categories));
+        if (issues.length > 0) {
+          return NextResponse.json({ ok: false, error: issues[0], issues: issues.slice(0, 20).map((message) => ({ message })) }, { status: 400 });
+        }
+      }
+
       const result = await applyBulkWebsiteMerchandisingToVariationIds(variationIds, bulkRequest.edit);
       return NextResponse.json({ ok: true, mode: "bulk", matchedVariationCount: variationIds.length, ...result });
     }
 
-    const candidate = body.placement as { squareVariationId?: unknown } | undefined;
+    const candidate = body.placement as { squareVariationId?: unknown; categoryIds?: unknown } | undefined;
     const variationId = typeof candidate?.squareVariationId === "string" ? candidate.squareVariationId : "";
 
-    if (!variationId || (await readPostgresAdminProductsByVariationIds([variationId])).length === 0) {
+    const matchedProducts = variationId ? await readPostgresAdminProductsByVariationIds([variationId]) : [];
+    if (!variationId || matchedProducts.length === 0) {
       return NextResponse.json({ ok: false, error: "This Square variation is not available in the full catalog cache." }, { status: 404 });
+    }
+
+    const requestedCategoryIds = Array.isArray(candidate?.categoryIds)
+      ? candidate.categoryIds.filter((value): value is string => typeof value === "string")
+      : [];
+    const configBeforeSave = await readWebsiteMerchandisingSnapshot();
+    const assignmentIssues = partyAssignmentIssues(matchedProducts[0], requestedCategoryIds, configBeforeSave.categories);
+    if (assignmentIssues.length > 0) {
+      return NextResponse.json({ ok: false, error: assignmentIssues[0] }, { status: 400 });
     }
 
     const result = await saveWebsiteProductPlacement(body.placement);

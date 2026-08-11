@@ -1,3 +1,7 @@
+/**
+ * Verifies the isolated behavior of checkout attempt repository.
+ */
+
 import { describe, expect, it } from "vitest";
 import {
   CheckoutIdempotencyConflictError,

@@ -1,3 +1,7 @@
+/**
+ * Renders the local delivery policy page and prepares its route-level data.
+ */
+
 import { ContentPageTemplate } from "@/components/templates/content-page-template";
 
 export default function LocalDeliveryPolicyPage() {

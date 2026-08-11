@@ -1,3 +1,7 @@
+/**
+ * Implements server-side shipping payment confirmation behavior and persistence boundaries.
+ */
+
 import "server-only";
 
 import { SquareClient, SquareEnvironment } from "square";

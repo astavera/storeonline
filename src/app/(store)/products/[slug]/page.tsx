@@ -1,7 +1,13 @@
+/**
+ * Renders the products slug page and prepares its route-level data.
+ */
+
 import type { Metadata } from "next";
 import Image from "next/image";
 import { notFound } from "next/navigation";
 import { AddToCartButton } from "@/components/commerce/add-to-cart-button";
+import { PickupLocationInventory } from "@/components/commerce/pickup-location-inventory";
+import { WishlistButton } from "@/components/commerce/wishlist-button";
 import { StorefrontCmsPage } from "@/components/cms/storefront-cms-page";
 import { StructuredData } from "@/components/seo/structured-data";
 import { SectionFrame } from "@/components/sections/section-frame";
@@ -68,12 +74,12 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
                 </span>
               ))}
             </div>
-            <div className="mt-8 max-w-sm">
-              {product.previewOnly ? <div className="rounded-pill border border-blue/30 bg-cyan px-5 py-3 text-center font-black text-primary">Read-only Square preview</div> : <AddToCartButton disabled={product.inventoryStatus === "out-of-stock" || product.priceAvailable === false} disabledReason={product.priceAvailable === false ? "Price unavailable" : "Out of stock"} squareVariationId={product.squareVariationId} />}
-            </div>
-            <div className="mt-8 grid gap-3 rounded-md border border-border bg-surface-muted p-4 text-sm text-secondary">
-              <p><span className="font-semibold text-primary">Availability:</span> {inventoryLabel(product.inventoryStatus)}</p>
-              <p><span className="font-semibold text-primary">Good to know:</span> Final availability and your order total are confirmed before purchase.</p>
+            <PickupLocationInventory product={product} />
+            <div className="mt-8 flex max-w-sm items-stretch gap-2">
+              <div className="min-w-0 flex-1">
+                {product.previewOnly ? <div className="rounded-pill border border-blue/30 bg-cyan px-5 py-3 text-center font-black text-primary">Read-only Square preview</div> : <AddToCartButton disabled={product.inventoryStatus === "out-of-stock" || product.priceAvailable === false} disabledReason={product.priceAvailable === false ? "Price unavailable" : "Out of stock"} showQuantitySelector squareVariationId={product.squareVariationId} />}
+              </div>
+              <WishlistButton productName={product.name} squareVariationId={product.squareVariationId} />
             </div>
           </section>
         </div>
@@ -85,20 +91,4 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
 async function readPublicProduct(slug: string) {
   const squareCatalog = await readResolvedSquareWebsiteCatalog();
   return squareCatalog ? squareCatalog.catalog.products.find((product) => product.slug === slug) : getProductBySlug(slug);
-}
-
-function inventoryLabel(status: "in-stock" | "limited" | "special-order" | "out-of-stock") {
-  if (status === "out-of-stock") {
-    return "Out of stock";
-  }
-
-  if (status === "limited") {
-    return "Limited quantities available";
-  }
-
-  if (status === "special-order") {
-    return "Special order";
-  }
-
-  return "In stock";
 }

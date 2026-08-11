@@ -1,3 +1,7 @@
+/**
+ * Provides shared section schemas types and utilities for the application.
+ */
+
 import type { SectionSettingsSchema } from "./cms-types";
 
 export const contentSettings: SectionSettingsSchema["content"] = [

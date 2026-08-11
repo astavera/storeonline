@@ -1,3 +1,7 @@
+/**
+ * Runs the explicitly enabled OrderPro live integration check.
+ */
+
 import { spawnSync } from "node:child_process";
 import { resolve } from "node:path";
 

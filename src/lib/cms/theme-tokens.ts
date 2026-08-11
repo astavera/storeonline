@@ -1,3 +1,7 @@
+/**
+ * Provides shared theme tokens types and utilities for the application.
+ */
+
 import type { ThemeTokenOverrides, ThemeTokens } from "./cms-types";
 
 export const defaultThemeTokens: ThemeTokens = {

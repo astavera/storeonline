@@ -1,3 +1,7 @@
+/**
+ * Renders the latex order experience interface and its user interactions.
+ */
+
 "use client";
 
 import {
@@ -66,7 +70,7 @@ export function LatexOrderExperience(props: LatexOrderExperienceProps) {
   return <BalloonOrderExperience {...props} collection={latexCollection} />;
 }
 
-export function BalloonOrderExperience({ addOns = noAddOns, collection, fulfillment = "pickup", location, postalCode, products, requestedDate, slotLabel }: BalloonOrderExperienceProps) {
+export function BalloonOrderExperience({ addOns = noAddOns, collection, fulfillment = "local-delivery", location, postalCode, products, requestedDate, slotLabel }: BalloonOrderExperienceProps) {
   const isLatex = collection.slug === "latex";
   const [selectedFinish, setSelectedFinish] = useState<FinishFilter>("All");
   const [selectedProduct, setSelectedProduct] = useState<StorefrontProduct | null>(null);
@@ -173,27 +177,21 @@ export function BalloonOrderExperience({ addOns = noAddOns, collection, fulfillm
   return (
     <div className="mx-auto w-[calc(100%_-_2rem)] max-w-[1480px] pb-24 lg:pb-8">
       {fulfillment === "local-delivery" ? (
-        postalCode ? <p aria-label={`Delivering to: ${postalCode}`} className="mb-6 text-sm font-semibold text-primary">Delivering to: <strong>{postalCode}</strong></p> : null
+        <p aria-label={postalCode ? `Delivering to: ${postalCode}` : "Local delivery"} className="mb-6 text-sm font-semibold text-primary">
+          Local delivery{postalCode ? <> &middot; Delivering to <strong>{postalCode}</strong></> : null}
+        </p>
       ) : (
-        <>
-          <header className="mb-4 rounded-md border border-border bg-surface-muted px-5 py-4">
-            <h1 className="font-display text-2xl font-black text-primary">{collection.title}</h1>
-          </header>
-
-          <section aria-label="Current fulfillment" className="mb-7 flex flex-col gap-4 rounded-xl border border-border bg-surface px-4 py-4 shadow-sm sm:flex-row sm:items-center sm:justify-between">
-            <div className="flex min-w-0 items-center gap-3">
-              <span className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-cyan text-blue">
-                <Store aria-hidden="true" size={20} />
-              </span>
-              <div className="min-w-0">
-                <p className="text-xs font-black uppercase tracking-[0.12em] text-blue">Pickup</p>
-                <p className="truncate font-black text-primary">{formatLocationName(location, fulfillment)}</p>
-                <p className="flex items-center gap-1 text-sm text-secondary"><Clock3 aria-hidden="true" size={14} /> {formatFulfillmentTiming(requestedDate, slotLabel)}</p>
-              </div>
+        <section aria-label="Current fulfillment" className="mb-7 flex flex-col gap-4 rounded-xl border border-border bg-surface px-4 py-4 shadow-sm sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex min-w-0 items-center gap-3">
+            <span className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-cyan text-blue"><Store aria-hidden="true" size={20} /></span>
+            <div className="min-w-0">
+              <p className="text-xs font-black uppercase tracking-[0.12em] text-blue">Store pickup</p>
+              <p className="truncate font-black text-primary">{formatLocationName(location)}</p>
+              <p className="flex items-center gap-1 text-sm text-secondary"><Clock3 aria-hidden="true" size={14} /> {formatFulfillmentTiming(requestedDate, slotLabel)}</p>
             </div>
-            <Link className="inline-flex min-h-11 items-center justify-center rounded-pill border border-border px-5 text-sm font-black text-primary hover:bg-surface-muted" href="/balloons">Change</Link>
-          </section>
-        </>
+          </div>
+          <Link className="inline-flex min-h-11 items-center justify-center rounded-pill border border-border px-5 text-sm font-black text-primary hover:bg-surface-muted" href="/balloons">Change</Link>
+        </section>
       )}
 
       <div className="grid items-start gap-8 lg:grid-cols-[minmax(0,1fr)_350px]">
@@ -344,7 +342,7 @@ function CatalogUnavailable({ collectionTitle }: { collectionTitle: string }) {
     <div className="rounded-xl border border-border bg-surface p-8 text-center shadow-sm">
       <PackageOpen aria-hidden="true" className="mx-auto text-secondary" size={42} />
       <h3 className="mt-4 font-display text-2xl font-black text-primary">{collectionTitle} ordering is temporarily unavailable</h3>
-      <p className="mx-auto mt-2 max-w-lg text-secondary">We are refreshing product availability for this location. Choose another fulfillment location or try again shortly.</p>
+      <p className="mx-auto mt-2 max-w-lg text-secondary">We are refreshing product availability for this fulfillment option. Try again shortly or choose another balloon type.</p>
       <Link className="mt-5 inline-flex min-h-11 items-center justify-center rounded-pill border border-border px-5 text-sm font-black text-primary" href="/balloons">Change fulfillment</Link>
     </div>
   );
@@ -429,15 +427,15 @@ function displayOrderLineName(name: string, isLatex: boolean) {
   return displayProductName(name, isLatex);
 }
 
-function formatLocationName(location: string | undefined, fulfillment: BalloonFulfillmentMode) {
-  if (!location) return fulfillment === "local-delivery" ? "Store assigned at checkout" : "Store selection saved";
+function formatLocationName(location?: string) {
+  if (!location) return "Store selection saved";
   if (["3rd-avenue", "third-avenue", "location-third-avenue"].includes(location)) return "3rd Avenue Store";
   if (["86th-street", "location-86th-street"].includes(location)) return "86th Street Store";
   return location.replace(/-/g, " ").replace(/\b\w/g, (character) => character.toUpperCase());
 }
 
 function formatFulfillmentTiming(requestedDate?: string, slotLabel?: string) {
-  if (!requestedDate || !slotLabel) return "Choose your time during checkout";
+  if (!requestedDate || !slotLabel) return "Pickup time saved";
   const [year, month, day] = requestedDate.split("-").map(Number);
   if (![year, month, day].every(Number.isFinite)) return slotLabel;
   const date = new Intl.DateTimeFormat("en-US", { weekday: "short", month: "short", day: "numeric", timeZone: "UTC" })

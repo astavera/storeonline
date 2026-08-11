@@ -1,3 +1,7 @@
+/**
+ * Creates and applies a confirmed rollback for published website merchandising.
+ */
+
 import { existsSync } from "node:fs";
 import { resolve } from "node:path";
 

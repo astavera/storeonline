@@ -1,3 +1,7 @@
+/**
+ * Renders the searchable select interface and its user interactions.
+ */
+
 "use client";
 
 import { Check, ChevronDown, Search, X } from "lucide-react";

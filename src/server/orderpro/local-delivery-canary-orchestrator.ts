@@ -1,3 +1,7 @@
+/**
+ * Implements server-side local delivery canary orchestrator behavior and persistence boundaries.
+ */
+
 import "server-only";
 
 import type {

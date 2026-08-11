@@ -1,4 +1,5 @@
 # syntax=docker/dockerfile:1.7
+# Builds the production storefront image and its dependency, build, and runtime stages.
 
 ARG NODE_IMAGE=node:24.18.0-bookworm-slim
 

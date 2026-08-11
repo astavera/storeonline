@@ -1,3 +1,7 @@
+/**
+ * Handles HTTP requests for the API cart endpoint.
+ */
+
 import { NextRequest, NextResponse } from "next/server";
 import { quoteCart, quoteCartFromOperationalCatalog } from "@/server/checkout/cart-service";
 import { PersistenceUnavailableError } from "@/server/db/persistence-policy";

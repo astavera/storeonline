@@ -1,3 +1,7 @@
+/**
+ * Provides shared storefront SEO types and utilities for the application.
+ */
+
 import type { Metadata } from "next";
 import { storeLocations } from "@/config/locations.config";
 import type { StorefrontProduct } from "@/features/catalog/product-catalog";
@@ -137,5 +141,18 @@ export function createProductStructuredData(product: StorefrontProduct) {
           itemCondition: "https://schema.org/NewCondition",
           seller: { "@id": `${absoluteStorefrontUrl("/")}#organization` }
         }
+  };
+}
+
+export function createBreadcrumbStructuredData(items: Array<{ name: string; path: string }>) {
+  return {
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    itemListElement: items.map((item, index) => ({
+      "@type": "ListItem",
+      item: absoluteStorefrontUrl(item.path),
+      name: item.name,
+      position: index + 1
+    }))
   };
 }

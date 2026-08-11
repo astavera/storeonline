@@ -1,3 +1,7 @@
+/**
+ * Provides shared data sources types and utilities for the application.
+ */
+
 import { cmsDataSourceTypes, type CmsDataSourceType, type SectionDataSource } from "./cms-types";
 
 export { cmsDataSourceTypes, type CmsDataSourceType };

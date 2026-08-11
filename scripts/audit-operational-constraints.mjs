@@ -1,3 +1,7 @@
+/**
+ * Audits required database constraints and reports unsafe operational drift.
+ */
+
 import { existsSync } from "node:fs";
 import { resolve } from "node:path";
 import { PrismaClient } from "@prisma/client";

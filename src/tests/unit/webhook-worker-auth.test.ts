@@ -1,3 +1,7 @@
+/**
+ * Verifies the isolated behavior of webhook worker auth.
+ */
+
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { authorizeWebhookWorker } from "@/server/webhooks/webhook-worker-auth";
 

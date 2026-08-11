@@ -1,3 +1,7 @@
+/**
+ * Verifies the isolated behavior of shipping service.
+ */
+
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/lib/validation/env", () => ({

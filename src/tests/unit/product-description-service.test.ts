@@ -1,3 +1,7 @@
+/**
+ * Verifies the isolated behavior of product description service.
+ */
+
 import { describe, expect, it } from "vitest";
 import { detectSquareDescriptionChange, resolveProductDescription, sanitizeSquareDescriptionHtml } from "@/features/catalog/services/product-description-service";
 

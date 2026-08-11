@@ -1,3 +1,7 @@
+/**
+ * Generates the public storefront sitemap for search engines.
+ */
+
 import type { MetadataRoute } from "next";
 import { departments } from "@/config/departments.config";
 import { holidays } from "@/config/holidays.config";

@@ -1,4 +1,14 @@
+/**
+ * Implements product catalog behavior for the catalog feature.
+ */
+
 export type FulfillmentMode = "pickup" | "local-delivery" | "shipping";
+
+export type PickupLocationInventory = {
+  locationId: string;
+  locationName: string;
+  quantity: number;
+};
 
 export const productAgeGroupIds = ["0-2", "3-4", "5-7", "8-10", "11-12", "13+"] as const;
 export type ProductAgeGroup = (typeof productAgeGroupIds)[number];
@@ -26,10 +36,12 @@ export type StorefrontProduct = {
   inventoryStatus: "in-stock" | "limited" | "special-order" | "out-of-stock";
   inventoryTracked?: boolean;
   availableQuantity?: number | null;
+  pickupInventory?: PickupLocationInventory[];
   priceAvailable?: boolean;
   ageGroups?: ProductAgeGroup[];
   websiteSurfaces?: string[];
   websiteBrandIds?: string[];
+  websiteCategorySlugs?: string[];
   squareVendorIds?: string[];
   squareVendorNames?: string[];
   previewOnly?: boolean;
@@ -72,11 +84,11 @@ export const storefrontProducts: StorefrontProduct[] = [
     slug: "mylar-balloon-pick",
     name: "Mylar Balloon Pick",
     department: "Balloons",
-    shortDescription: "A single inflated mylar balloon for pickup or local delivery.",
-    description: "Choose a cheerful mylar balloon for birthdays, congratulations, get-well gifts, and everyday surprises. Inflated balloon orders are routed to pickup or local delivery.",
+    shortDescription: "A single inflated mylar balloon available for store pickup or local delivery.",
+    description: "Choose a cheerful mylar balloon for birthdays, congratulations, get-well gifts, and everyday surprises. Inflated balloon orders are available for store pickup or local delivery.",
     imageUrl: "https://images.unsplash.com/photo-1527529482837-4698179dc6ce?auto=format&fit=crop&w=900&q=80",
     priceCents: 799,
-    badge: "Pickup",
+    badge: "Pickup or delivery",
     ageGroups: ["3-4", "5-7", "8-10", "11-12", "13+"],
     fulfillmentModes: ["pickup", "local-delivery"],
     inventoryStatus: "limited"

@@ -1,3 +1,7 @@
+/**
+ * Implements server-side catalog test cache store behavior and persistence boundaries.
+ */
+
 import "server-only";
 
 import { existsSync } from "node:fs";
@@ -535,7 +539,19 @@ export function readSquareStorefrontProductsByVariationIds(variationIds: string[
             JOIN catalog_categories category ON category.id = item_category.category_id AND category.deleted_at IS NULL
             WHERE item_category.item_id = item.id
             ORDER BY item_category.sort_order LIMIT 1
-          ) AS category_name
+          ) AS category_name,
+          (
+            SELECT GROUP_CONCAT(vendor.id, char(31))
+            FROM catalog_variation_vendors variation_vendor
+            JOIN square_vendors vendor ON vendor.id = variation_vendor.vendor_id AND vendor.deleted_at IS NULL
+            WHERE variation_vendor.variation_id = variation.id
+          ) AS vendor_ids,
+          (
+            SELECT GROUP_CONCAT(vendor.name, char(31))
+            FROM catalog_variation_vendors variation_vendor
+            JOIN square_vendors vendor ON vendor.id = variation_vendor.vendor_id AND vendor.deleted_at IS NULL
+            WHERE variation_vendor.variation_id = variation.id
+          ) AS vendor_names
         FROM catalog_variations variation
         JOIN catalog_items item ON item.id = variation.item_id
         WHERE variation.id IN (${placeholders})
@@ -568,6 +584,8 @@ export function readSquareStorefrontProductsByVariationIds(variationIds: string[
           priceCents: Number.isFinite(priceAmount) && priceAmount >= 0 ? Math.trunc(priceAmount) : 0,
           fulfillmentModes: [],
           inventoryStatus: Number(row.track_inventory ?? 0) === 1 ? "limited" : "in-stock",
+          squareVendorIds: (text(row.vendor_ids) ?? "").split("\u001f").filter(Boolean),
+          squareVendorNames: (text(row.vendor_names) ?? "").split("\u001f").filter(Boolean),
           previewOnly: true
         });
       }

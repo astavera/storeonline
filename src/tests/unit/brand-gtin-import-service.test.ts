@@ -1,3 +1,7 @@
+/**
+ * Verifies the isolated behavior of brand GTIN import service.
+ */
+
 import { describe, expect, it } from "vitest";
 import { canonicalizeGtin, prepareBrandGtinImport } from "@/features/catalog/services/brand-gtin-import-service";
 

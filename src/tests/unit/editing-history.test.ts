@@ -1,3 +1,7 @@
+/**
+ * Verifies the isolated behavior of editing history.
+ */
+
 import { describe, expect, it } from "vitest";
 import { commitEditingHistory, createEditingHistory, redoEditingHistory, undoEditingHistory } from "@/components/admin/builder/editing-history";
 

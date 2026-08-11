@@ -1,3 +1,7 @@
+/**
+ * Renders the admin dashboard interface and its user interactions.
+ */
+
 import { ArrowRight, EyeOff, ShieldCheck, SlidersHorizontal } from "lucide-react";
 import type { ReactNode } from "react";
 import { ButtonLink } from "@/components/ui/button";

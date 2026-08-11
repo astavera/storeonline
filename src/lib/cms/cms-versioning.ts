@@ -1,3 +1,7 @@
+/**
+ * Provides shared CMS versioning types and utilities for the application.
+ */
+
 import type { CmsPageDocument, CmsVersionStatus } from "./cms-types";
 
 export type CmsDocumentVersionSummary = {

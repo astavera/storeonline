@@ -1,3 +1,7 @@
+/**
+ * Renders the checkout page and prepares its route-level data.
+ */
+
 import { CheckoutPageTemplate } from "@/components/checkout/checkout-page-template";
 import { isOrderProLocalDeliveryCheckoutEnabled } from "@/server/orderpro/config";
 import { isOrderProDeliveryTestMode } from "@/server/orderpro/orderpro-local-delivery-service";

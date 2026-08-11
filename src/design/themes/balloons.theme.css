@@ -1,3 +1,7 @@
+/*
+ * Defines the balloons theme theme values used by the storefront design system.
+ */
+
 :root {
   --theme-balloons-action: var(--color-legacy-navy);
   --theme-balloons-accent: var(--color-legacy-yellow);

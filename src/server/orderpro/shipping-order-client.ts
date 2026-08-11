@@ -1,3 +1,7 @@
+/**
+ * Implements server-side shipping order client behavior and persistence boundaries.
+ */
+
 import "server-only";
 
 import { z } from "zod";

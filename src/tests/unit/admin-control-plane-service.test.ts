@@ -1,3 +1,7 @@
+/**
+ * Verifies the isolated behavior of admin control plane service.
+ */
+
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { adminModules } from "@/config/admin-control-plane";
 import { buildAdminControlOperation, persistAdminControlOperation, sanitizeAdminValues } from "@/server/admin/admin-control-plane-service";
@@ -47,6 +51,30 @@ describe("admin control plane", () => {
     expect(result.version?.payload.headerNavigation).toContain('"href":"/shop"');
     expect(result.version?.payload.changeSummary).toBe("Updated homepage copy and SEO.");
     expect(result.auditEvent?.action).toBe("admin.publish");
+  });
+
+  it("isolates named homepages in separate CMS entities", () => {
+    const result = buildAdminControlOperation({
+      moduleId: "homepage",
+      operation: "save_draft",
+      entityId: "homepage:christmas-homepage",
+      values: {
+        homepageId: "christmas-homepage",
+        homepageName: "Christmas Homepage",
+        title: "Christmas starts here",
+        summary: "Holiday homepage content.",
+        status: "Visible"
+      }
+    });
+
+    expect(result.ok).toBe(true);
+    expect(result.version).toMatchObject({
+      entityId: "homepage:christmas-homepage"
+    });
+    expect(result.version?.payload).toMatchObject({
+      homepageId: "christmas-homepage",
+      homepageName: "Christmas Homepage"
+    });
   });
 
   it("rejects fields that are not explicitly editable", () => {

@@ -1,3 +1,7 @@
+/**
+ * Implements the product placement service workflow for the catalog feature.
+ */
+
 export type WebsitePlacementType =
   | "DEPARTMENT"
   | "HOLIDAY"

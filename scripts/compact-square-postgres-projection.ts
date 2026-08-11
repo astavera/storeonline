@@ -1,3 +1,7 @@
+/**
+ * Compacts retained Square catalog projections and records the maintenance result.
+ */
+
 import { Prisma, PrismaClient } from "@prisma/client";
 
 const apply = process.argv.includes("--apply");

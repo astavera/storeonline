@@ -9,6 +9,8 @@ const requiredSectionIds = [
   "home.departments",
   "home.featured-products",
   "home.balloon-promo",
+  "home.party-supplies-callout",
+  "home.featured-brands-carousel",
   "home.local-storefront",
   "toys.hero",
   "toys.product-grid",

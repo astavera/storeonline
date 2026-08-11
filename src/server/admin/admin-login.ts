@@ -1,3 +1,7 @@
+/**
+ * Implements server-side admin login behavior and persistence boundaries.
+ */
+
 import { createHash, randomBytes, scryptSync, timingSafeEqual } from "node:crypto";
 
 const passwordHashPrefix = "scrypt-v1";

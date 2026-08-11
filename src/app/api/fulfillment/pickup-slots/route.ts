@@ -1,3 +1,7 @@
+/**
+ * Handles HTTP requests for the API fulfillment pickup slots endpoint.
+ */
+
 import { NextRequest, NextResponse } from "next/server";
 import { getOrderProPickupAvailability } from "@/server/orderpro/orderpro-pickup-slot-service";
 

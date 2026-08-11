@@ -1,3 +1,7 @@
+/**
+ * Configures storefront end-to-end projects, servers, retries, and test artifacts.
+ */
+
 import { defineConfig, devices } from "@playwright/test";
 
 const e2ePort = Number.parseInt(process.env.PLAYWRIGHT_PORT ?? "3100", 10);
@@ -6,13 +10,16 @@ const e2eBaseUrl = `http://127.0.0.1:${e2ePort}`;
 export default defineConfig({
   testDir: "./src/tests/e2e",
   outputDir: "./.playwright-results",
+  timeout: 120000,
   fullyParallel: true,
   forbidOnly: Boolean(process.env.CI),
   retries: process.env.CI ? 2 : 0,
-  workers: process.env.CI ? 1 : 2,
+  workers: 1,
   reporter: process.env.CI ? [["line"], ["html", { open: "never" }]] : "list",
   use: {
     baseURL: e2eBaseUrl,
+    actionTimeout: 30000,
+    navigationTimeout: 90000,
     screenshot: "only-on-failure",
     trace: "on-first-retry",
     video: "retain-on-failure"

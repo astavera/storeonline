@@ -1,3 +1,7 @@
+/**
+ * Handles HTTP requests for the API internal webhooks process endpoint.
+ */
+
 import * as Sentry from "@sentry/nextjs";
 import { NextResponse } from "next/server";
 import { PersistenceUnavailableError } from "@/server/db/persistence-policy";
@@ -6,6 +10,7 @@ import { getWebhookInboxRepository } from "@/server/webhooks/webhook-inbox";
 import { processWebhookBatch } from "@/server/webhooks/webhook-processor";
 import { authorizeWebhookWorker } from "@/server/webhooks/webhook-worker-auth";
 import { handleSquareWebhookEvent } from "@/server/webhooks/square-webhook-handler";
+import { handleShippoWebhookEvent } from "@/server/webhooks/shippo-webhook-handler";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -29,9 +34,21 @@ export async function POST(request: Request) {
         });
       }
     });
+    const shippo = await processWebhookBatch({
+      repository: getWebhookInboxRepository(),
+      handler: handleShippoWebhookEvent,
+      provider: "shippo",
+      limit: requestedLimit,
+      onError(error, record) {
+        Sentry.captureException(error, {
+          tags: { subsystem: "shippo-webhook-worker", eventType: record.eventType },
+          extra: { inboxId: record.id, eventId: record.eventId, attempt: record.attempts }
+        });
+      }
+    });
     const shippingCleanup = await cleanupExpiredShippingCheckouts(10);
     return NextResponse.json(
-      { ok: true, ...result, shippingCleanup },
+      { ok: true, ...result, shippo, shippingCleanup },
       { headers: { "Cache-Control": "no-store" } }
     );
   } catch (error) {

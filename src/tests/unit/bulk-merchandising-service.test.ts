@@ -1,3 +1,7 @@
+/**
+ * Verifies the isolated behavior of bulk merchandising service.
+ */
+
 import { describe, expect, it } from "vitest";
 import { applyWebsiteBulkEdit, applyWebsiteBulkEditToVariationIds, type WebsiteBulkEdit } from "@/features/catalog/services/bulk-merchandising-service";
 import type { WebsiteCategory, WebsiteHoliday, WebsiteProductPlacement } from "@/features/catalog/services/website-merchandising-service";
@@ -7,6 +11,8 @@ const category: WebsiteCategory = {
   name: "Toys",
   slug: "toys",
   description: "Website toys.",
+  imageUrl: "",
+  imageAlt: "",
   parentId: null,
   visible: true,
   sortOrder: 0

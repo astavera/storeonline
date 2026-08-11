@@ -1,3 +1,7 @@
+/**
+ * Verifies the isolated behavior of Square hosted checkout.
+ */
+
 import { describe, expect, it } from "vitest";
 import type { CartQuote } from "@/server/checkout/cart-service";
 import {

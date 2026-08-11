@@ -1,3 +1,7 @@
+/**
+ * Implements the department service workflow for the departments feature.
+ */
+
 import { departments, getDepartmentBySlug } from "@/config/departments.config";
 
 export function listVisibleDepartments() {

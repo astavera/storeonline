@@ -1,3 +1,7 @@
+/**
+ * Seeds the canonical storefront locations required by operational services.
+ */
+
 import { existsSync } from "node:fs";
 import { resolve } from "node:path";
 import { Prisma, PrismaClient } from "@prisma/client";

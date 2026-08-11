@@ -1,3 +1,7 @@
+/**
+ * Implements server-side checkout service behavior and persistence boundaries.
+ */
+
 import "server-only";
 import { z } from "zod";
 

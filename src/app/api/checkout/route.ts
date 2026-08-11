@@ -1,3 +1,7 @@
+/**
+ * Handles HTTP requests for the API checkout endpoint.
+ */
+
 import { NextRequest, NextResponse } from "next/server";
 import { createHash } from "node:crypto";
 import { z } from "zod";

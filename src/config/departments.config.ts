@@ -1,3 +1,7 @@
+/**
+ * Defines the departments configuration used by the application.
+ */
+
 import type { ProductCardVariant } from "@/design/presets/card-presets";
 import type { ProductGridPresetId } from "@/design/presets/product-grid-presets";
 
@@ -36,8 +40,8 @@ export const departments: DepartmentConfig[] = [
     hero_subtitle_en: "A modern home for the State News toy selection: useful, joyful, and easy to shop online or in store.",
     seo_title_en: "Upper East Side Toy Store | Modern State - State News NYC",
     seo_description_en: "Shop toys, games, building sets, dolls, plush, and creative play favorites from Modern State on NYC's Upper East Side.",
-    hero_image_url: "https://images.unsplash.com/photo-1558060370-d644479cb6f7?auto=format&fit=crop&w=1800&q=80",
-    mobile_hero_image_url: "https://images.unsplash.com/photo-1558060370-d644479cb6f7?auto=format&fit=crop&w=900&q=80",
+    hero_image_url: "/images/homepage/toys-age-interest-banner-edge-to-edge-v2.webp",
+    mobile_hero_image_url: "/images/homepage/toys-age-interest-banner-edge-to-edge-v2.webp",
     accent_color_token: "--color-legacy-blue",
     sort_order: 10,
     navigation_priority: "primary",
@@ -58,8 +62,8 @@ export const departments: DepartmentConfig[] = [
     hero_subtitle_en: "Build the table, wrap the gift, finish the theme, and keep the day moving.",
     seo_title_en: "Upper East Side Party Supplies | Modern State - State News NYC",
     seo_description_en: "Shop party supplies, tableware, decorations, invitations, gift wrap, and event essentials from Modern State in NYC.",
-    hero_image_url: "https://images.unsplash.com/photo-1519671482749-fd09be7ccebf?auto=format&fit=crop&w=1800&q=80",
-    mobile_hero_image_url: "https://images.unsplash.com/photo-1519671482749-fd09be7ccebf?auto=format&fit=crop&w=900&q=80",
+    hero_image_url: "/images/homepage/party-supplies-callout.jpg",
+    mobile_hero_image_url: "/images/homepage/party-supplies-callout.jpg",
     accent_color_token: "--color-legacy-red",
     sort_order: 20,
     navigation_priority: "primary",
@@ -75,11 +79,11 @@ export const departments: DepartmentConfig[] = [
     slug: "balloons",
     title_en: "Balloons",
     short_title_en: "Balloons",
-    description_en: "Latex, mylar, numbers, letters, bouquets, custom notes, pickup, and local delivery guided by event timing.",
+    description_en: "Latex, mylar, numbers, letters, bouquets, custom notes, store pickup, and local delivery guided by event timing.",
     hero_title_en: "Balloons planned around your moment.",
-    hero_subtitle_en: "Choose the type, colors, add-ons, store, slot, and fulfillment path with a guided shopping flow.",
+    hero_subtitle_en: "Choose the type, colors, add-ons, and either store pickup or local delivery with a guided shopping flow.",
     seo_title_en: "Upper East Side Balloons and NYC Balloon Delivery | Modern State",
-    seo_description_en: "Order balloons for pickup or local delivery from Modern State on the Upper East Side.",
+    seo_description_en: "Order balloons for store pickup or local delivery from Modern State on the Upper East Side.",
     hero_image_url: "https://images.unsplash.com/photo-1530103862676-de8c9debad1d?auto=format&fit=crop&w=1800&q=80",
     mobile_hero_image_url: "https://images.unsplash.com/photo-1530103862676-de8c9debad1d?auto=format&fit=crop&w=900&q=80",
     accent_color_token: "--color-legacy-yellow",

@@ -1,3 +1,7 @@
+/**
+ * Provides shared utils types and utilities for the application.
+ */
+
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
 

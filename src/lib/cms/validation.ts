@@ -1,3 +1,7 @@
+/**
+ * Provides shared validation types and utilities for the application.
+ */
+
 import { z } from "zod";
 import { cmsDataSourceTypes, cmsEntityTypes, cmsVersionStatuses, type CmsPageDocument, type CmsSection } from "./cms-types";
 

@@ -1,3 +1,7 @@
+/**
+ * Verifies the isolated behavior of storefront CMS commerce.
+ */
+
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { StorefrontCmsPage } from "@/components/cms/storefront-cms-page";

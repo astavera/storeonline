@@ -1,3 +1,7 @@
+/**
+ * Verifies the isolated behavior of product placement service.
+ */
+
 import { describe, expect, it } from "vitest";
 import { normalizePlacement, productNeedsPlacement, productNeedsReview, suggestPlacements } from "@/features/catalog/services/product-placement-service";
 

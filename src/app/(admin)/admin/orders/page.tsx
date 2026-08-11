@@ -1,3 +1,7 @@
+/**
+ * Renders the admin orders page and prepares its route-level data.
+ */
+
 import { OrderProManagedPanel } from "@/components/admin/orderpro-managed-panel";
 
 export default function AdminOrdersPage() {

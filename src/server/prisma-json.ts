@@ -1,3 +1,7 @@
+/**
+ * Implements server-side prisma JSON behavior and persistence boundaries.
+ */
+
 import type { Prisma } from "@prisma/client";
 
 export function toPrismaJson(value: unknown): Prisma.InputJsonValue {

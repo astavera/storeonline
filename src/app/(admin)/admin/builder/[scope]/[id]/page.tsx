@@ -1,5 +1,9 @@
+/**
+ * Renders the admin builder scope id page and prepares its route-level data.
+ */
+
 import { notFound, redirect } from "next/navigation";
-import { BuilderShell } from "@/components/admin/builder/BuilderShell";
+import { BuilderShell } from "@/components/admin/builder";
 import { createCmsPageDocumentForScope, normalizeCmsScope } from "@/lib/cms";
 import { readLatestCmsDocument } from "@/server/admin/admin-cms-document-service";
 

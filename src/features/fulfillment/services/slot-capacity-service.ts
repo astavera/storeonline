@@ -1,3 +1,7 @@
+/**
+ * Implements the slot capacity service workflow for the fulfillment feature.
+ */
+
 export type SlotCapacityState = {
   maxCapacityPoints: number;
   confirmedCapacityPoints: number;

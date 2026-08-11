@@ -1,3 +1,7 @@
+/**
+ * Handles HTTP requests for the API admin Square catalog cache endpoint.
+ */
+
 import { NextRequest, NextResponse } from "next/server";
 import { readSquareCatalogCachePage } from "@/server/square/catalog-test-cache-store";
 import { adminAuthorizationResponse, adminCapabilities, authorizeAdminRequest } from "@/server/admin/admin-security";

@@ -1,3 +1,7 @@
+/**
+ * Applies administrative authorization checks through the root Next.js proxy entry point.
+ */
+
 import { NextRequest, NextResponse } from "next/server";
 import { adminAuthorizationResponse, authorizeAdminRequest } from "@/server/admin/admin-security";
 

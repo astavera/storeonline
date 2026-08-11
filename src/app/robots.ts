@@ -1,3 +1,7 @@
+/**
+ * Generates crawler directives for the public storefront.
+ */
+
 import type { MetadataRoute } from "next";
 import { absoluteStorefrontUrl, storefrontIsIndexable } from "@/lib/seo/storefront-seo";
 

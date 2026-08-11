@@ -1,3 +1,7 @@
+/**
+ * Verifies the isolated behavior of Square webhook handler.
+ */
+
 import { describe, expect, it, vi } from "vitest";
 import { createSquareWebhookHandler } from "@/server/webhooks/square-webhook-handler";
 

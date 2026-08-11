@@ -1,3 +1,7 @@
+/**
+ * Renders the structured data interface and its user interactions.
+ */
+
 export function StructuredData({ data }: { data: unknown }) {
   const json = JSON.stringify(data).replace(/</g, "\\u003c");
 

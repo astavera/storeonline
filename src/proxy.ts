@@ -1,3 +1,7 @@
+/**
+ * Defines the proxy module used by the storefront application.
+ */
+
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 import { adminCapabilities, authorizeAdminRequest } from "@/server/admin/admin-security";

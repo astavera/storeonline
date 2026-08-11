@@ -1,3 +1,7 @@
+/**
+ * Handles HTTP requests for the API admin auth logout endpoint.
+ */
+
 import { NextResponse } from "next/server";
 import { adminSessionCookieName, isTrustedMutationOrigin } from "@/server/admin/admin-security";
 

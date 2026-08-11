@@ -1,3 +1,7 @@
+/**
+ * Implements the brand GTIN import service workflow for the catalog feature.
+ */
+
 export type PreparedBrandGtinImport = {
   canonicalGtins: string[];
   duplicateCount: number;

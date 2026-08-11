@@ -9,6 +9,11 @@ Modern State ecommerce is a modular Next.js App Router application with server-o
 - Square owns catalog items, variations, prices, inventory, orders, payments, taxes, business reporting, and existing reporting categories.
 - The website database owns website departments, holidays, SEO, display overrides, image preferences, balloon builder configuration, checkout-attempt state, shipping rules, customer-visible fulfillment mirrors, and audit logs.
 - OrderPRO owns published walking-delivery zones and fee policies, store selection, walking routes, operational slot capacity, inventory reservations, holds, and fulfillment execution. The website consumes those decisions only through versioned APIs.
+- For online returns, OrderPRO also owns verification evidence, RMA authority,
+  physical receipt, inspection, and inventory disposition. The website owns the
+  customer portal and an auditable mirror; Shippo owns the carrier label and
+  tracking; Square owns the linked refund to the original payment. See
+  `docs/returns.md`.
 - Frontend components render trusted server state and never validate final pricing, delivery fees, shipping rates, slot capacity, or inventory alone.
 
 The current `DeliveryZone`, `SlotTemplate`, and `SlotHold` Prisma models predate the OrderPRO boundary. They are non-authoritative legacy scaffolding and must not be used to approve a walking-delivery checkout.

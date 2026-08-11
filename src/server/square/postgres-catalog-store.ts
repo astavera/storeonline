@@ -1,3 +1,7 @@
+/**
+ * Implements server-side postgres catalog store behavior and persistence boundaries.
+ */
+
 import "server-only";
 
 import type { Prisma } from "@prisma/client";
@@ -128,7 +132,10 @@ export async function readPostgresStorefrontProductsByVariationIds(
   if (normalizedIds.length === 0) return [];
 
   try {
-    const squareLocationIds = options.squareLocationIds ?? (await readMappedOperationalStoreLocations()).map((location) => location.squareLocationId);
+    const mappedLocations = await readMappedOperationalStoreLocations();
+    const squareLocationIds = options.squareLocationIds ?? mappedLocations.map((location) => location.squareLocationId);
+    const requestedLocationIds = new Set(squareLocationIds);
+    const pickupLocations = mappedLocations.filter((location) => location.pickupEnabled && requestedLocationIds.has(location.squareLocationId));
     const variations = await getPrismaClient().squareItemVariation.findMany({
       where: { id: { in: normalizedIds }, deletedAt: null, item: { deletedAt: null } },
       include: {
@@ -158,6 +165,18 @@ export async function readPostgresStorefrontProductsByVariationIds(
       const inventoryQuantity = variation.inventoryCounts
         .filter((count) => count.state === "IN_STOCK")
         .reduce((sum, count) => sum + count.quantity.toNumber(), 0);
+      const pickupInventory = trackInventory
+        ? pickupLocations.flatMap((location) => {
+            const locationCounts = variation.inventoryCounts.filter((count) => count.squareLocationId === location.squareLocationId && count.state === "IN_STOCK");
+            if (locationCounts.length === 0) return [];
+
+            return [{
+              locationId: location.id,
+              locationName: location.name,
+              quantity: Math.max(0, Math.trunc(locationCounts.reduce((sum, count) => sum + count.quantity.toNumber(), 0)))
+            }];
+          })
+        : [];
       const imageUrl = imageIdsForVariation(variation.raw, variation.item.raw)
         .map((id) => imageUrlFromRaw(relatedById.get(id)?.raw))
         .find(Boolean) ?? "/images/product-fallback.svg";
@@ -179,6 +198,7 @@ export async function readPostgresStorefrontProductsByVariationIds(
         fulfillmentModes: [],
         inventoryTracked: trackInventory,
         availableQuantity: trackInventory ? inventoryQuantity : null,
+        ...(pickupInventory.length > 0 ? { pickupInventory } : {}),
         inventoryStatus: trackInventory
           ? inventoryQuantity <= 0
             ? "out-of-stock"

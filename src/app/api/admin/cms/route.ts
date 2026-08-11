@@ -1,8 +1,40 @@
+/**
+ * Handles HTTP requests for the API admin CMS endpoint.
+ */
+
 import { NextRequest, NextResponse } from "next/server";
-import { persistCmsDocument, type CmsDocumentOperation } from "@/server/admin/admin-cms-document-service";
+import { cmsEntityTypes, type CmsEntityType } from "@/lib/cms";
+import {
+  listCmsDocumentVersions,
+  persistCmsDocument,
+  readCmsDocumentVersion,
+  type CmsDocumentOperation
+} from "@/server/admin/admin-cms-document-service";
+import { getAdminRateLimiter } from "@/server/admin/admin-rate-limit";
 import { adminAuthorizationResponse, adminCapabilities, authorizeAdminRequest } from "@/server/admin/admin-security";
 
 const allowedOperations = new Set<CmsDocumentOperation>(["save_draft", "preview", "publish"]);
+
+export async function GET(request: NextRequest) {
+  const authorization = await authorizeAdminRequest(request, adminCapabilities.read);
+  if (!authorization.ok) return adminAuthorizationResponse(authorization);
+
+  try {
+    const entityType = request.nextUrl.searchParams.get("entityType") ?? "";
+    const entityId = request.nextUrl.searchParams.get("entityId") ?? "";
+    if (!isCmsEntityType(entityType) || !entityId) {
+      return NextResponse.json({ ok: false, errors: ["A valid CMS entity type and entity ID are required."] }, { status: 400 });
+    }
+
+    const versions = await listCmsDocumentVersions({ entityType, entityId });
+    return NextResponse.json({ ok: true, versions }, { headers: { "Cache-Control": "private, no-store" } });
+  } catch (error) {
+    return NextResponse.json(
+      { ok: false, errors: [error instanceof Error ? error.message : "Could not read CMS history."] },
+      { status: 503 }
+    );
+  }
+}
 
 export async function POST(request: NextRequest) {
   const authorization = await authorizeAdminRequest(request, adminCapabilities.write);
@@ -10,7 +42,25 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json();
-    const operation = String(body.operation ?? "save_draft") as CmsDocumentOperation;
+    const requestedOperation = String(body.operation ?? "save_draft");
+
+    if (requestedOperation === "restore") {
+      const entityType = String(body.entityType ?? "");
+      const entityId = String(body.entityId ?? "");
+      const versionNumber = Number(body.versionNumber);
+      if (!isCmsEntityType(entityType) || !entityId || !Number.isInteger(versionNumber) || versionNumber < 1) {
+        return NextResponse.json({ ok: false, errors: ["A valid CMS entity, page, and version are required."] }, { status: 400 });
+      }
+
+      const document = await readCmsDocumentVersion({ entityType, entityId, versionNumber });
+      if (!document) {
+        return NextResponse.json({ ok: false, errors: [`CMS version ${versionNumber} was not found.`] }, { status: 404 });
+      }
+
+      return NextResponse.json({ ok: true, document, restoredFromVersion: versionNumber });
+    }
+
+    const operation = requestedOperation as CmsDocumentOperation;
 
     if (!allowedOperations.has(operation)) {
       return NextResponse.json(
@@ -20,6 +70,29 @@ export async function POST(request: NextRequest) {
         },
         { status: 400 }
       );
+    }
+
+    if (operation === "publish") {
+      const rateLimit = await getAdminRateLimiter().consume({
+        key: `${authorization.session.subject}:${String(body.document?.entityId ?? "unknown")}`,
+        scope: "admin-cms-publish",
+        limit: 3,
+        windowMs: 60_000
+      });
+
+      if (!rateLimit.allowed) {
+        return NextResponse.json(
+          {
+            ok: false,
+            errors: [`Too many publish attempts. Try again in ${rateLimit.retryAfterSeconds} seconds.`],
+            retryAfterSeconds: rateLimit.retryAfterSeconds
+          },
+          {
+            status: 429,
+            headers: { "Retry-After": String(rateLimit.retryAfterSeconds) }
+          }
+        );
+      }
     }
 
     const result = await persistCmsDocument({
@@ -37,4 +110,8 @@ export async function POST(request: NextRequest) {
       { status: 400 }
     );
   }
+}
+
+function isCmsEntityType(value: string): value is CmsEntityType {
+  return cmsEntityTypes.includes(value as CmsEntityType);
 }

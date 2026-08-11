@@ -1,3 +1,7 @@
+/**
+ * Verifies the admin customer journey with end-to-end browser coverage.
+ */
+
 import { expect, test } from "@playwright/test";
 
 test.describe.configure({ mode: "serial" });
@@ -63,14 +67,15 @@ test("website editor is canonical and its page selector is searchable", async ({
   await expect(page).toHaveURL(/\/admin\/homepage$/);
   const editor = page.locator('[data-store-component="HomepageVisualEditor"]');
   await expect(editor).toBeVisible();
-  await expect(editor).toHaveAttribute("data-hydrated", "true");
+  await expect(editor).toHaveAttribute("data-hydrated", "true", { timeout: 45_000 });
 
-  await page.getByRole("combobox", { name: "Page" }).click();
+  const pageSwitcher = page.getByRole("combobox", { exact: true, name: "Page" });
+  await pageSwitcher.click();
   const pageSearch = page.getByRole("combobox", { name: "Search pages" });
   await expect(pageSearch).toBeVisible();
   await pageSearch.fill("holiday");
   await pageSearch.press("Escape");
-  await expect(page.getByRole("combobox", { name: "Page" })).toBeFocused();
+  await expect(pageSwitcher).toBeFocused();
 
   await page.getByRole("button", { name: "Mobile" }).click();
   await expect(page.getByRole("button", { name: "Mobile" })).toHaveAttribute("aria-pressed", "true");

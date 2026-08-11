@@ -1,3 +1,7 @@
+/**
+ * Provides shared CMS storage types and utilities for the application.
+ */
+
 import type { CmsEntityType, CmsPageDocument } from "./cms-types";
 import { buildCmsDocumentId, normalizeCmsEntityId } from "./cms-scopes";
 import { validateCmsPageDocument } from "./validation";

@@ -1,3 +1,5 @@
+// Defines the PostgreSQL data model and generated Prisma client used by the storefront.
+
 generator client {
   provider = "prisma-client-js"
 }
@@ -122,6 +124,42 @@ enum BalloonQuoteStatus {
   ACCEPTED
   EXPIRED
   SUPERSEDED
+}
+
+enum ReturnRequestStatus {
+  REQUESTED
+  MANUAL_REVIEW
+  AUTHORIZED
+  LABEL_PENDING
+  LABEL_CREATED
+  DROPPED_OFF
+  IN_TRANSIT
+  DELIVERED_TO_WH01
+  RECEIVED
+  INSPECTING
+  APPROVED
+  PARTIALLY_APPROVED
+  REJECTED
+  REFUND_PENDING
+  REFUNDED
+  COMPLETED
+  CANCELLED
+  EXCEPTION
+}
+
+enum ReturnLineDecision {
+  ELIGIBLE
+  MANUAL_REVIEW
+  INELIGIBLE
+  AUTHORIZED
+  APPROVED
+  REJECTED
+}
+
+enum ReturnLabelPayer {
+  COMPANY
+  CUSTOMER
+  PENDING_REVIEW
 }
 
 model StoreLocation {
@@ -274,6 +312,7 @@ model WebsiteBrand {
   squareVendorIds    String[]
   visible            Boolean                  @default(false)
   featuredOnHomepage Boolean                  @default(false)
+  returnable         Boolean                  @default(true)
   sortOrder          Int                      @default(0)
   createdAt          DateTime                 @default(now())
   updatedAt          DateTime                 @updatedAt
@@ -359,6 +398,12 @@ model ProductOverride {
   lastSquareDescriptionSyncedAt DateTime?
   isBalloonComponent            Boolean                   @default(false)
   isShippable                   Boolean                   @default(true)
+  returnPolicyTags              String[]                  @default([])
+  finalSale                     Boolean                   @default(false)
+  packageLengthIn               Decimal?
+  packageWidthIn                Decimal?
+  packageHeightIn               Decimal?
+  packageWeightLb               Decimal?
   publishedAt                   DateTime?
   unpublishedAt                 DateTime?
   scheduledPublishAt            DateTime?
@@ -861,6 +906,191 @@ model BalloonQuote {
 
   @@unique([draftId, versionNumber])
   @@index([status, expiresAt])
+}
+
+model ReturnVerificationSession {
+  id                 String          @id @default(cuid())
+  publicTokenHash    String          @unique
+  orderReferenceHash String
+  emailHash          String
+  postalCodeHash     String
+  orderProOrderId    String?
+  verifiedAt         DateTime?
+  expiresAt          DateTime
+  failedAttempts     Int             @default(0)
+  orderSnapshot      Json?
+  createdAt          DateTime        @default(now())
+  updatedAt          DateTime        @updatedAt
+  requests           ReturnRequest[]
+
+  @@index([orderReferenceHash, createdAt])
+  @@index([expiresAt])
+}
+
+model ReturnRequest {
+  id                          String                    @id @default(cuid())
+  rmaNumber                   String                    @unique
+  orderProRmaId               String?                   @unique
+  verificationSessionId       String
+  idempotencyKey              String                    @unique
+  requestHash                 String
+  orderProOrderId             String
+  orderNumber                 String
+  status                      ReturnRequestStatus       @default(REQUESTED)
+  policyVersion               String
+  businessTimeZone            String
+  confirmedDeliveryAt         DateTime?
+  currency                    String                    @default("USD")
+  merchandiseRefundCents      Int
+  estimatedTaxRefundCents     Int
+  discountAdjustmentCents     Int                       @default(0)
+  refundableOriginalFeesCents Int                       @default(0)
+  originalShippingCents       Int                       @default(0)
+  originalLocalDeliveryCents  Int                       @default(0)
+  labelPayer                  ReturnLabelPayer
+  acceptedLabelDeductionCents Int                       @default(0)
+  estimatedNetRefundCents     Int
+  quoteSnapshot               Json
+  policyAcceptedAt            DateTime
+  conditionAcceptedAt         DateTime
+  labelDeductionAcceptedAt    DateTime?
+  shippoShipmentId            String?
+  shippoRateId                String?
+  shippoTransactionId         String?                   @unique
+  shippoCarrier               String?
+  shippoServiceLevel          String?
+  trackingNumber              String?                   @unique
+  labelCostCents              Int?
+  labelCurrency               String?
+  privateLabelUrl             String?
+  labelExpiresAt              DateTime?
+  squarePaymentId             String?
+  squareRefundId              String?                   @unique
+  squareRefundAmountCents     Int?
+  squareRefundCurrency        String?
+  squareRefundStatus          String?
+  finalApprovedRefundCents    Int?
+  createdAt                   DateTime                  @default(now())
+  updatedAt                   DateTime                  @updatedAt
+  verificationSession         ReturnVerificationSession @relation(fields: [verificationSessionId], references: [id], onDelete: Restrict)
+  items                       ReturnRequestItem[]
+  events                      ReturnStatusEvent[]
+
+  @@index([verificationSessionId])
+  @@index([orderProOrderId, createdAt])
+  @@index([status, updatedAt])
+}
+
+model ReturnRequestItem {
+  id                        String             @id @default(cuid())
+  returnRequestId           String
+  orderLineId               String
+  squareVariationId         String?
+  sku                       String?
+  upc                       String?
+  name                      String
+  variant                   String?
+  quantity                  Int
+  reason                    String
+  customerComment           String?
+  evidenceReferences        Json
+  decision                  ReturnLineDecision
+  decisionReason            String?
+  declaredUnused            Boolean
+  declaredOriginalPackaging Boolean
+  declaredSealUnopened      Boolean
+  partyOpened               Boolean            @default(false)
+  merchandiseRefundCents    Int
+  estimatedTaxRefundCents   Int
+  createdAt                 DateTime           @default(now())
+  updatedAt                 DateTime           @updatedAt
+  returnRequest             ReturnRequest      @relation(fields: [returnRequestId], references: [id], onDelete: Restrict)
+
+  @@unique([returnRequestId, orderLineId])
+  @@index([returnRequestId])
+}
+
+model ReturnStatusEvent {
+  id              String              @id @default(cuid())
+  returnRequestId String
+  status          ReturnRequestStatus
+  source          String
+  externalEventId String?
+  details         Json?
+  occurredAt      DateTime
+  createdAt       DateTime            @default(now())
+  returnRequest   ReturnRequest       @relation(fields: [returnRequestId], references: [id], onDelete: Restrict)
+
+  @@unique([source, externalEventId])
+  @@index([returnRequestId, occurredAt])
+}
+
+model CustomerAccount {
+  id                      String                 @id @default(cuid())
+  email                   String                 @unique
+  firstName               String?
+  lastName                String?
+  squareCustomerId        String?                @unique
+  termsAcceptedAt         DateTime
+  termsVersion            String
+  marketingEmailConsent   Boolean                @default(false)
+  marketingConsentAt      DateTime?
+  marketingConsentSource  String?
+  marketingConsentVersion String?
+  marketingUnsubscribedAt DateTime?
+  lastLoginAt             DateTime?
+  createdAt               DateTime               @default(now())
+  updatedAt               DateTime               @updatedAt
+  sessions                CustomerSession[]
+  consentEvents           CustomerConsentEvent[]
+
+  @@index([squareCustomerId])
+  @@index([createdAt])
+}
+
+model CustomerLoginChallenge {
+  id                        String    @id @default(cuid())
+  email                     String
+  codeHash                  String
+  attempts                  Int       @default(0)
+  termsVersion              String
+  marketingConsentRequested Boolean   @default(false)
+  marketingConsentVersion   String?
+  source                    String
+  expiresAt                 DateTime
+  consumedAt                DateTime?
+  createdAt                 DateTime  @default(now())
+
+  @@index([email, createdAt])
+  @@index([expiresAt])
+}
+
+model CustomerSession {
+  id                String          @id @default(cuid())
+  customerAccountId String
+  tokenHash         String          @unique
+  expiresAt         DateTime
+  lastSeenAt        DateTime        @default(now())
+  revokedAt         DateTime?
+  createdAt         DateTime        @default(now())
+  customerAccount   CustomerAccount @relation(fields: [customerAccountId], references: [id], onDelete: Cascade)
+
+  @@index([customerAccountId, expiresAt])
+  @@index([expiresAt])
+}
+
+model CustomerConsentEvent {
+  id                String          @id @default(cuid())
+  customerAccountId String
+  consentType       String
+  granted           Boolean
+  source            String
+  policyVersion     String
+  occurredAt        DateTime        @default(now())
+  customerAccount   CustomerAccount @relation(fields: [customerAccountId], references: [id], onDelete: Cascade)
+
+  @@index([customerAccountId, occurredAt])
+  @@index([consentType, occurredAt])
 }
 
 model AdminUser {

@@ -1,3 +1,7 @@
+/**
+ * Verifies the isolated behavior of admin rate limit.
+ */
+
 import { describe, expect, it } from "vitest";
 import { InMemoryAdminRateLimiter, PersistentAdminRateLimiter, type AdminRateLimitStore } from "@/server/admin/admin-rate-limit";
 

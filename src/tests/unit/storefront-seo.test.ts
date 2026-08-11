@@ -1,3 +1,7 @@
+/**
+ * Verifies the isolated behavior of storefront SEO.
+ */
+
 import { afterEach, describe, expect, it } from "vitest";
 import {
   absoluteStorefrontUrl,

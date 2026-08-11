@@ -1,3 +1,7 @@
+/**
+ * Renders the storefront breadcrumb interface and its user interactions.
+ */
+
 import Link from "next/link";
 
 export function StorefrontBreadcrumb({ currentLabel }: { currentLabel: string }) {

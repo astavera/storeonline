@@ -1,3 +1,7 @@
+/**
+ * Verifies the isolated behavior of Square read only catalog.
+ */
+
 import type { CatalogObject } from "square";
 import { describe, expect, it } from "vitest";
 import { normalizeSquareCatalogItem } from "@/server/square/read-only-catalog";

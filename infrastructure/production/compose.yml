@@ -1,3 +1,5 @@
+# Defines the production storefront, migration, worker, and PostgreSQL containers.
+
 name: storefront-canary
 
 services:
@@ -6,7 +8,7 @@ services:
       context: ../..
       dockerfile: Dockerfile
       target: migrations
-    image: storefront/migrations:canary
+    image: "storefront/migrations:${STOREFRONT_IMAGE_TAG:-canary}"
     env_file:
       - ${STOREFRONT_ENV_FILE:-../../.env.storefront-private}
     environment:
@@ -33,7 +35,7 @@ services:
         NEXT_PUBLIC_SITE_INDEXABLE: ${NEXT_PUBLIC_SITE_INDEXABLE:-false}
         NEXT_PUBLIC_SQUARE_APPLICATION_ID: ${NEXT_PUBLIC_SQUARE_APPLICATION_ID:-}
         NEXT_PUBLIC_SQUARE_LOCATION_ID: ${NEXT_PUBLIC_SQUARE_LOCATION_ID:-}
-    image: storefront/app:canary
+    image: "storefront/app:${STOREFRONT_IMAGE_TAG:-canary}"
     env_file:
       - ${STOREFRONT_ENV_FILE:-../../.env.storefront-private}
     environment:
@@ -50,11 +52,14 @@ services:
       - "3000"
     networks:
       - database
+      - orderpro-private
       - gateway
     read_only: true
     tmpfs:
       - /tmp:size=64m,mode=1777,noexec,nosuid
       - /app/.next/cache:size=256m,mode=0750,noexec,nosuid
+    volumes:
+      - admin-media:/app/public/uploads/admin
     cap_drop:
       - ALL
     security_opt:
@@ -77,7 +82,14 @@ services:
 networks:
   database:
     external: true
-    name: orderpro-production-database
+    name: ${STOREFRONT_DATABASE_NETWORK:-storefront-production-database}
+  orderpro-private:
+    external: true
+    name: ${STOREFRONT_ORDERPRO_NETWORK:-storefront-orderpro-private}
   gateway:
     external: true
-    name: orderpro-production-gateway
+    name: ${STOREFRONT_GATEWAY_NETWORK:-storefront-public-gateway}
+
+volumes:
+  admin-media:
+    name: storefront-admin-media

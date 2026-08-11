@@ -1,3 +1,7 @@
+/**
+ * Implements server-side config behavior and persistence boundaries.
+ */
+
 import "server-only";
 
 export const ORDERPRO_STAGING_API_BASE_URL = "https://orderpro-staging.vercel.app";

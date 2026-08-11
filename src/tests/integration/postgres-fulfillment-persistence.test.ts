@@ -1,3 +1,7 @@
+/**
+ * Verifies integration behavior for postgres fulfillment persistence.
+ */
+
 import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { PrismaClient } from "@prisma/client";

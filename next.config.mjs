@@ -1,4 +1,13 @@
+/**
+ * Configures Next.js security headers, redirects, build behavior, and runtime settings.
+ */
+
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+
 import oldUrlRedirects from "./src/config/old-url-redirects.config.json" with { type: "json" };
+
+const projectRoot = path.dirname(fileURLToPath(import.meta.url));
 
 const scriptSrc = [
   "'self'",
@@ -12,14 +21,25 @@ const scriptSrc = [
 const nextConfig = {
   distDir: process.env.NEXT_DIST_DIR?.trim() || ".next",
   output: "standalone",
+  outputFileTracingRoot: projectRoot,
   reactStrictMode: true,
   poweredByHeader: false,
+  turbopack: {
+    root: projectRoot
+  },
   async redirects() {
-    return oldUrlRedirects.map(({ source, destination, permanent }) => ({
-      source,
-      destination,
-      permanent
-    }));
+    return [
+      {
+        source: "/uploads/admin/20260710113045-home-hero-back-to-school-ecommerce-wireframe.svg",
+        destination: "/images/homepage/home-hero-back-to-school-ecommerce-wireframe.svg",
+        permanent: true
+      },
+      ...oldUrlRedirects.map(({ source, destination, permanent }) => ({
+        source,
+        destination,
+        permanent
+      }))
+    ];
   },
   async headers() {
     return [

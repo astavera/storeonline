@@ -11,13 +11,17 @@ RELATED FILES: src/config/header-navigation.config.ts, src/design/tokens/colors.
 BUSINESS LOGIC FILES: src/features/departments/services/department-service.ts
 */
 
-import { Heart, Search, UserRound } from "lucide-react";
+import { Search } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { defaultHeaderNavigation, type HeaderNavigationConfig, type HeaderNavigationLink } from "@/config/header-navigation.config";
 import { CartLink } from "./cart-link";
 import { HeaderCatalogSearch } from "./header-catalog-search";
 import { MobileSiteNavigation } from "./mobile-site-navigation";
+import { WishlistLink } from "./wishlist-link";
+import { WishlistDrawer } from "./wishlist-drawer";
+import { AccountDrawer } from "./account-drawer";
+import { AccountLink } from "./account-link";
 
 const SHOW_MOBILE_FULFILLMENT_SELECTOR = false;
 
@@ -45,9 +49,9 @@ export function SiteHeader({ navigation = defaultHeaderNavigation }: { navigatio
       </div>
       <div className="bg-[#FFFFFF] text-black">
         <div className="mx-auto flex min-h-[64px] w-full items-center justify-between gap-1 px-3 py-2 sm:min-h-[72px] sm:gap-6 sm:px-8 sm:py-3 lg:gap-8 xl:px-12 2xl:px-16">
-          <MobileSiteNavigation mobileCta={navigation.mobileCta} primaryLinks={primaryLinks} utilityLinks={drawerUtilityLinks} />
+          <MobileSiteNavigation primaryLinks={primaryLinks} utilityLinks={drawerUtilityLinks} />
           <Link className="flex min-w-0 flex-1 items-center justify-center sm:justify-start lg:min-w-[220px] lg:flex-none" data-header-logo href="/">
-            <Image alt="Modern State" className="h-9 w-auto max-w-[108px] object-contain sm:h-14 sm:max-w-[230px]" height={56} priority src="/images/modern-state-logo-original.png" width={230} />
+            <Image alt="Modern State" className="h-auto w-[108px] object-contain sm:w-[230px]" height={56} priority src="/images/modern-state-logo-original.png" style={{ height: "auto" }} width={230} />
             <span className="sr-only">Modern State - Toys, party, balloons and gifts</span>
           </Link>
           <nav aria-label="Primary navigation" className="hidden flex-1 items-center gap-8 text-[15px] font-bold leading-none xl:flex">
@@ -111,6 +115,8 @@ export function SiteHeader({ navigation = defaultHeaderNavigation }: { navigatio
           backgroundSize: "100% 100%"
         }}
       />
+      <WishlistDrawer />
+      <AccountDrawer />
     </header>
   );
 }
@@ -128,7 +134,15 @@ function HeaderUtilityLink({ link }: { link: HeaderNavigationLink }) {
     );
   }
 
-  const Icon = link.id === "account" ? UserRound : link.id === "wishlist" ? Heart : Search;
+  if (link.id === "wishlist") {
+    return <WishlistLink label={link.label} />;
+  }
+
+  if (link.id === "account") {
+    return <AccountLink label={link.label} />;
+  }
+
+  const Icon = Search;
 
   return (
     <Link aria-label={link.label} className="grid h-10 w-10 place-items-center rounded-full hover:bg-white/10 hover:text-red" data-header-nav-id={link.id} href={link.href}>

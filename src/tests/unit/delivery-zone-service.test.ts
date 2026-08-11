@@ -1,3 +1,7 @@
+/**
+ * Verifies the isolated behavior of delivery zone service.
+ */
+
 import { describe, expect, it } from "vitest";
 import {
   evaluateLocalDelivery,

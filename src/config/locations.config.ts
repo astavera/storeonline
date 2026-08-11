@@ -1,3 +1,7 @@
+/**
+ * Defines the locations configuration used by the application.
+ */
+
 export type StoreLocationConfig = {
   id: string;
   slug: string;

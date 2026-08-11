@@ -1,3 +1,7 @@
+/**
+ * Implements the local delivery routing service workflow for the fulfillment feature.
+ */
+
 import {
   evaluateLocalDelivery,
   type DeliveryZonePolicy,

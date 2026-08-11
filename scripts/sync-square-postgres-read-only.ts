@@ -1,3 +1,7 @@
+/**
+ * Synchronizes the approved read-only Square catalog projection into PostgreSQL.
+ */
+
 import { existsSync } from "node:fs";
 import { resolve } from "node:path";
 

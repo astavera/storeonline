@@ -1,28 +1,28 @@
+/**
+ * Handles HTTP requests for the API admin merchandising endpoint.
+ */
+
 import { NextRequest, NextResponse } from "next/server";
 import { ZodError } from "zod";
-import { readWebsiteMerchandising, saveWebsiteMerchandising } from "@/server/admin/website-merchandising-store";
-import { readSquareCatalogPreview } from "@/server/square/catalog-preview-store";
+import { readWebsiteMerchandisingSnapshot, saveWebsiteMerchandisingSnapshot } from "@/server/admin/website-merchandising-store";
 import { adminAuthorizationResponse, adminCapabilities, authorizeAdminRequest } from "@/server/admin/admin-security";
+import { readPostgresAdminCatalogSummary } from "@/server/square/postgres-admin-catalog-store";
 
 export async function GET(request: NextRequest) {
   const authorization = await authorizeAdminRequest(request, adminCapabilities.read);
   if (!authorization.ok) return adminAuthorizationResponse(authorization);
 
-  const catalog = await readSquareCatalogPreview();
-
-  if (!catalog) {
-    return NextResponse.json(
-      { ok: false, error: "The local Square catalog snapshot is unavailable." },
-      { status: 503, headers: { "Cache-Control": "private, no-store" } }
-    );
-  }
+  const [catalog, config] = await Promise.all([
+    readPostgresAdminCatalogSummary(),
+    readWebsiteMerchandisingSnapshot()
+  ]);
 
   return NextResponse.json(
     {
       ok: true,
-      config: await readWebsiteMerchandising(catalog.products),
-      productCount: catalog.products.length,
-      fetchedAt: catalog.fetchedAt
+      config,
+      productCount: catalog.variationCount,
+      fetchedAt: catalog.updatedAt ?? config.updatedAt
     },
     { headers: { "Cache-Control": "private, no-store" } }
   );
@@ -33,14 +33,8 @@ export async function PUT(request: NextRequest) {
   if (!authorization.ok) return adminAuthorizationResponse(authorization);
 
   try {
-    const catalog = await readSquareCatalogPreview();
-
-    if (!catalog) {
-      return NextResponse.json({ ok: false, error: "The local Square catalog snapshot is unavailable." }, { status: 503 });
-    }
-
     const body = await request.json();
-    const config = await saveWebsiteMerchandising(body.config, catalog.products);
+    const config = await saveWebsiteMerchandisingSnapshot(body.config);
 
     return NextResponse.json({ ok: true, config });
   } catch (error) {

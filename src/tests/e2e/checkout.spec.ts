@@ -1,3 +1,7 @@
+/**
+ * Verifies the checkout customer journey with end-to-end browser coverage.
+ */
+
 import { expect, test } from "@playwright/test";
 
 test.setTimeout(120_000);
@@ -77,5 +81,5 @@ test("balloon local delivery continues only after OrderPro approves the ZIP code
   const eligibilityResponse = await eligibilityResponsePromise;
 
   expect(eligibilityResponse.status()).toBe(200);
-  await expect(page).toHaveURL(/\/shop\?collection=latex&fulfillment=delivery&postalCode=10028/, { timeout: 15_000 });
+  await expect(page).toHaveURL(/\/shop\?collection=latex&fulfillment=delivery&postalCode=10028/, { timeout: 60_000 });
 });

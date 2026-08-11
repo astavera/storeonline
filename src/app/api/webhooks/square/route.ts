@@ -1,3 +1,7 @@
+/**
+ * Handles HTTP requests for the API webhooks Square endpoint.
+ */
+
 import { NextResponse } from "next/server";
 import { ZodError } from "zod";
 import { env } from "@/lib/validation/env";

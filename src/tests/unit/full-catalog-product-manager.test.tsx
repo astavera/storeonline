@@ -11,6 +11,8 @@ const websiteCategory: WebsiteCategory = {
   name: "Vehicles",
   slug: "vehicles",
   description: "Website vehicles.",
+  imageUrl: "",
+  imageAlt: "",
   parentId: null,
   visible: true,
   sortOrder: 0

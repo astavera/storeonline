@@ -1,3 +1,7 @@
+/**
+ * Defines the store section registry configuration used by the application.
+ */
+
 export type StoreSectionRegistryEntry = {
   sectionId: string;
   area: string;
@@ -21,7 +25,7 @@ export const storeSectionRegistry: StoreSectionRegistryEntry[] = [
     customerFacing: true,
     adminEditable: "Partially",
     editableFields: ["eyebrow", "title", "body", "ctaLabel", "ctaHref", "heroImage"],
-    relatedFiles: ["src/config/homepage.config.ts", "src/components/templates/home-page-template.tsx"],
+    relatedFiles: ["src/features/homepage/config/homepage.config.ts", "src/features/homepage/components/homepage-template.tsx"],
     doNotEditHere: ["Square catalog data", "checkout rules", "delivery fees"],
     businessLogicFiles: ["src/features/departments/services/department-service.ts"],
     riskLevel: "medium"
@@ -47,7 +51,7 @@ export const storeSectionRegistry: StoreSectionRegistryEntry[] = [
     customerFacing: true,
     adminEditable: "Yes",
     editableFields: ["product assignments", "badges", "sort order", "visibility"],
-    relatedFiles: ["src/config/homepage.config.ts", "src/components/commerce/product-card.tsx"],
+    relatedFiles: ["src/features/homepage/config/homepage.config.ts", "src/components/commerce/product-card.tsx"],
     doNotEditHere: ["price overrides without approval", "inventory counts"],
     businessLogicFiles: ["src/server/square/catalog-postgres-sync.ts", "src/features/catalog/services/product-display-service.ts"],
     riskLevel: "high"
@@ -64,6 +68,38 @@ export const storeSectionRegistry: StoreSectionRegistryEntry[] = [
     doNotEditHere: ["slot capacity", "delivery zones", "Square payment logic"],
     businessLogicFiles: ["src/features/balloons/services/balloon-builder-service.ts", "src/features/fulfillment/services/slot-capacity-service.ts"],
     riskLevel: "high"
+  },
+  {
+    sectionId: "home.party-supplies-callout",
+    area: "Homepage",
+    sectionName: "Party Supplies Callout",
+    description: "Compact homepage call to action for the party supplies department.",
+    customerFacing: true,
+    adminEditable: "Yes",
+    editableFields: ["visibility", "eyebrow", "title", "body", "cta", "image"],
+    relatedFiles: [
+      "src/features/homepage/config/homepage.config.ts",
+      "src/features/homepage/components/homepage-party-supplies-card.tsx"
+    ],
+    doNotEditHere: ["catalog prices", "inventory counts", "checkout rules"],
+    businessLogicFiles: [],
+    riskLevel: "low"
+  },
+  {
+    sectionId: "home.featured-brands-carousel",
+    area: "Homepage",
+    sectionName: "Featured Brands Carousel",
+    description: "Compact horizontal carousel of Catalog Publishing brands selected for the homepage.",
+    customerFacing: true,
+    adminEditable: "Yes",
+    editableFields: ["visibility", "title", "brand assignments", "brand order"],
+    relatedFiles: [
+      "src/features/homepage/config/homepage.config.ts",
+      "src/features/homepage/components/homepage-featured-brands-carousel.tsx"
+    ],
+    doNotEditHere: ["catalog product prices", "inventory counts"],
+    businessLogicFiles: [],
+    riskLevel: "low"
   },
   {
     sectionId: "home.local-storefront",
@@ -225,7 +261,7 @@ export const storeSectionRegistry: StoreSectionRegistryEntry[] = [
     sectionId: "balloons.fulfillment-selector",
     area: "Balloons",
     sectionName: "Fulfillment Selector",
-    description: "Pickup and local delivery selection for balloon orders.",
+    description: "Store pickup and local delivery selection for balloon orders.",
     customerFacing: true,
     adminEditable: "Partially",
     editableFields: ["eligible modes", "copy"],
@@ -238,7 +274,7 @@ export const storeSectionRegistry: StoreSectionRegistryEntry[] = [
     sectionId: "balloons.time-slot-picker",
     area: "Balloons",
     sectionName: "Time Slot Picker",
-    description: "Pickup and delivery slot selection backed by temporary holds and capacity points.",
+    description: "Pickup and local delivery slot selection backed by temporary holds and capacity points.",
     customerFacing: true,
     adminEditable: "Partially",
     editableFields: ["slot templates", "capacity points", "cutoff windows"],

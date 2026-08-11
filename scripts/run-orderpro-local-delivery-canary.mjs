@@ -1,4 +1,7 @@
 #!/usr/bin/env node
+/**
+ * Runs the OrderPro local-delivery canary workflow for the storefront project.
+ */
 
 import { spawn } from "node:child_process";
 import { dirname, resolve } from "node:path";

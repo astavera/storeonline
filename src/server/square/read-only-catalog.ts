@@ -1,3 +1,7 @@
+/**
+ * Implements server-side read only catalog behavior and persistence boundaries.
+ */
+
 import "server-only";
 
 import { SquareClient, SquareEnvironment, type CatalogObject } from "square";

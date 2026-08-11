@@ -1,3 +1,7 @@
+/**
+ * Implements server-side admin control plane service behavior and persistence boundaries.
+ */
+
 import "server-only";
 
 import { adminModules, getAdminModuleById, type AdminFieldValue, type AdminModule, type AdminWorkflowAction } from "@/config/admin-control-plane";
@@ -11,6 +15,7 @@ export type AdminControlPayload = {
   operation: AdminWorkflowAction;
   values: Record<string, unknown>;
   actorId?: string;
+  entityId?: string;
 };
 
 export type AdminControlResult = {
@@ -64,6 +69,7 @@ export function buildAdminControlOperation(payload: AdminControlPayload): AdminC
 
   const status = actionToStatus[payload.operation];
   const actorId = payload.actorId || "local-admin";
+  const entityId = resolveAdminEntityId(moduleConfig, payload.entityId);
   const payloadWithMeta = {
     ...sanitizedValues,
     workflow: {
@@ -82,7 +88,7 @@ export function buildAdminControlOperation(payload: AdminControlPayload): AdminC
     status,
     version: {
       entityType: "ADMIN_MODULE",
-      entityId: moduleConfig.id,
+      entityId,
       versionNumber: Date.now(),
       payload: payloadWithMeta
     },
@@ -90,7 +96,7 @@ export function buildAdminControlOperation(payload: AdminControlPayload): AdminC
       actorId,
       action: `admin.${payload.operation}`,
       entityType: "ADMIN_MODULE",
-      entityId: moduleConfig.id
+      entityId
     }),
     errors: []
   };
@@ -160,7 +166,7 @@ export async function persistAdminControlOperation(result: AdminControlResult): 
         entityType: result.version.entityType,
         entityId: result.version.entityId,
         status: result.status,
-        title: result.module.title,
+        title: versionTitle(result),
         payload: result.version.payload,
         publishedAt: result.status === "PUBLISHED" ? new Date() : null
       });
@@ -188,7 +194,7 @@ export async function persistAdminControlOperation(result: AdminControlResult): 
     entityType: result.version.entityType,
     entityId: result.version.entityId,
     status: result.status,
-    title: result.module.title,
+    title: versionTitle(result),
     payload: result.version.payload
   });
 
@@ -199,6 +205,32 @@ export async function persistAdminControlOperation(result: AdminControlResult): 
     versionNumber: localVersion.versionNumber,
     message: `Saved explicit development-local version ${localVersion.versionNumber}.`
   };
+}
+
+function resolveAdminEntityId(module: AdminModule, requestedEntityId?: string) {
+  if (module.id !== "homepage" || !requestedEntityId) {
+    return module.id;
+  }
+
+  const normalized = requestedEntityId.trim().toLowerCase();
+
+  if (normalized === "homepage") {
+    return normalized;
+  }
+
+  if (/^homepage:[a-z0-9]+(?:-[a-z0-9]+)*$/.test(normalized)) {
+    return normalized;
+  }
+
+  throw new TypeError("Homepage document ID is invalid.");
+}
+
+function versionTitle(result: AdminControlResult) {
+  const homepageName = result.version?.payload.homepageName;
+
+  return typeof homepageName === "string" && homepageName.trim()
+    ? homepageName.trim()
+    : result.module?.title ?? "CMS update";
 }
 
 export function getAdminControlReadiness() {

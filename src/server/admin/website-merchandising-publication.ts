@@ -1,3 +1,7 @@
+/**
+ * Implements server-side website merchandising publication behavior and persistence boundaries.
+ */
+
 import "server-only";
 
 import { createHash } from "node:crypto";

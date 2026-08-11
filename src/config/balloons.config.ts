@@ -1,3 +1,7 @@
+/**
+ * Defines the balloons configuration used by the application.
+ */
+
 export type BalloonFlowConfig = {
   slug: string;
   title: string;
@@ -56,7 +60,7 @@ export const balloonBuilderStepLabels: Record<(typeof balloonBuilderSteps)[numbe
   "type-selector": "Balloon type",
   "color-selector": "Colors",
   "addons-selector": "Extras",
-  "fulfillment-selector": "Pickup or delivery",
+  "fulfillment-selector": "Store pickup or local delivery",
   "time-slot-picker": "Preferred date and time"
 };
 

@@ -1,3 +1,7 @@
+/**
+ * Implements server-side location reconciliation behavior and persistence boundaries.
+ */
+
 import "server-only";
 
 import { Prisma } from "@prisma/client";

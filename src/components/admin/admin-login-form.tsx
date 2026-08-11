@@ -1,3 +1,7 @@
+/**
+ * Renders the admin login form interface and its user interactions.
+ */
+
 "use client";
 
 import { useState, type FormEvent } from "react";

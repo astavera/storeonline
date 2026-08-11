@@ -27,3 +27,9 @@ data/square-catalog-test.sqlite-shm
 data/square-catalog-test.sqlite-wal
 public/uploads/admin/*
 !public/uploads/admin/.gitkeep
+# Bootstrap media referenced by the currently published homepage. New Admin
+# uploads remain ignored and are persisted by the production media volume.
+!public/uploads/admin/188bd680-3391-456f-b87f-86bbe8701ded.png
+!public/uploads/admin/20260714185434-web-brand-caspari-images.png
+!public/uploads/admin/912104fc-801d-43b0-ae30-bd13d19277f2.png
+!public/uploads/admin/dc2209c9-9ea9-4d50-ad28-549aa5390aa8.png

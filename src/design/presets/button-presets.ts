@@ -1,3 +1,7 @@
+/**
+ * Defines the reusable button presets preset for the storefront design system.
+ */
+
 export type ButtonPresetId = "primary" | "secondary" | "quiet" | "danger" | "accent";
 
 export const buttonPresets: Record<ButtonPresetId, string> = {

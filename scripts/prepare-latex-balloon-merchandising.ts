@@ -1,3 +1,7 @@
+/**
+ * Prepares the catalog merchandising required for latex balloon ordering.
+ */
+
 import { existsSync } from "node:fs";
 import { resolve } from "node:path";
 

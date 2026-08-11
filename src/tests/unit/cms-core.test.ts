@@ -1,6 +1,11 @@
+/**
+ * Verifies the isolated behavior of CMS core.
+ */
+
 import { describe, expect, it } from "vitest";
-import { defaultHomepageSeo, normalizeHomepageSections } from "@/features/admin/services/homepage-visual-editor-service";
-import { homepageSections } from "@/config/homepage.config";
+import { normalizeHomepageSections } from "@/features/homepage/server";
+import { defaultHomepageSeo } from "@/features/homepage";
+import { homepageSections } from "@/features/homepage";
 import { createCmsPageDocumentForScope, homepageSectionsToCmsPageDocument, validateCmsPageDocument } from "@/lib/cms";
 
 describe("cms core", () => {

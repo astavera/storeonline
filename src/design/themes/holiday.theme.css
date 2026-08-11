@@ -1,3 +1,7 @@
+/*
+ * Defines the holiday theme theme values used by the storefront design system.
+ */
+
 :root {
   --theme-holiday-action: var(--color-legacy-navy);
   --theme-holiday-accent: var(--color-legacy-red);

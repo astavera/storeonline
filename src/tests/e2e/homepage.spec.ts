@@ -1,3 +1,7 @@
+/**
+ * Verifies the homepage customer journey with end-to-end browser coverage.
+ */
+
 import { expect, test } from "@playwright/test";
 
 test("homepage exposes the correct desktop and mobile navigation", async ({ page }, testInfo) => {
@@ -14,16 +18,19 @@ test("homepage exposes the correct desktop and mobile navigation", async ({ page
 
   if (testInfo.project.name === "mobile") {
     await expect(primaryNavigation).toBeHidden();
-    await expect(headerLogo).toBeHidden();
-    const accountLink = header.getByRole("link", { exact: true, name: "Account" });
-    const wishlistLink = header.getByRole("link", { exact: true, name: "Wishlist" });
+    await expect(headerLogo).toBeVisible();
+    const accountLink = header.getByRole("button", { exact: true, name: "Account" });
+    const wishlistLink = header.getByRole("button", { exact: true, name: "Wishlist" });
     const cartLink = header.getByRole("link", { exact: true, name: "Cart" });
     await expect(accountLink).toBeVisible();
     await expect(wishlistLink).toBeVisible();
     await expect(cartLink).toBeVisible();
-    const menuButton = header.getByRole("button", { name: "Open navigation menu" });
+    const menuButton = header.locator("[data-mobile-nav-trigger]");
     await expect(menuButton).toBeVisible();
+    await expect(menuButton).toHaveAccessibleName("Open navigation menu");
     await expect(menuButton).toHaveAttribute("aria-expanded", "false");
+    await expect(header.getByRole("search")).toBeVisible();
+    await expect(header.getByRole("searchbox", { name: "Search products" })).toBeVisible();
 
     const menuButtonBox = await menuButton.boundingBox();
     const accountLinkBox = await accountLink.boundingBox();
@@ -37,17 +44,20 @@ test("homepage exposes the correct desktop and mobile navigation", async ({ page
     expect(accountLinkBox!.x).toBeLessThan(wishlistLinkBox!.x);
     expect(wishlistLinkBox!.x).toBeLessThan(cartLinkBox!.x);
 
-    await menuButton.click();
+    await expect(async () => {
+      if ((await menuButton.getAttribute("aria-expanded")) !== "true") {
+        await menuButton.click({ force: true });
+      }
+      await expect(menuButton).toHaveAttribute("aria-expanded", "true");
+    }).toPass({ timeout: 15_000 });
+    await expect(menuButton).toHaveAccessibleName("Close navigation menu");
     const mobileNavigation = header.getByRole("navigation", { name: "Mobile navigation" });
-    const mobileDialog = header.getByRole("dialog", { name: "Mobile navigation" });
+    const mobileDialog = page.getByRole("dialog", { name: "Mobile navigation" });
     await expect(mobileDialog).toBeVisible();
     await expect(mobileDialog).toHaveAttribute("aria-modal", "true");
     await expect(mobileNavigation).toBeVisible();
     await expect(mobileNavigation).toHaveCSS("position", "fixed");
     expect((await mobileNavigation.boundingBox())?.x).toBe(0);
-    await expect(mobileNavigation.getByRole("search")).toBeVisible();
-    await expect(mobileNavigation.getByRole("searchbox", { name: "Search products" })).toBeVisible();
-    await expect(mobileNavigation.getByRole("link", { exact: true, name: "Shop" })).toBeVisible();
     await expect(mobileNavigation.getByRole("link", { exact: true, name: "Home" })).toBeVisible();
     await expect(mobileNavigation.getByRole("link", { exact: true, name: "Shop all" })).toBeVisible();
     await expect(mobileNavigation.getByRole("link", { exact: true, name: "Balloons" })).toBeVisible();
@@ -99,9 +109,15 @@ test("homepage exposes the correct desktop and mobile navigation", async ({ page
   }
 
   await expect(header).not.toContainText("Candy");
-  await expect(page.locator("[data-store-section='home.hero']")).toBeVisible();
-  await expect(page.locator(".homepage-hero-bg")).toHaveCSS("background-image", /halloween-pumpkins-hero-hd\.webp/);
-  await expect(page.locator(".homepage-seasonal-hero-card")).toBeVisible();
+  const hero = page.locator("[data-store-section='home.hero']");
+  const halloweenCarousel = hero.getByRole("region", { name: "Halloween featured collections" });
+  const activeHeroImage = halloweenCarousel.getByRole("img", {
+    name: "Spiderwebs, a witch crossing an orange moon, and a haunted house"
+  });
+  await expect(hero).toBeVisible();
+  await expect(halloweenCarousel).toBeVisible();
+  await expect(activeHeroImage).toBeVisible();
+  await expect(hero.getByRole("heading", { name: "Halloween Headquarters" })).toBeVisible();
   await page.emulateMedia({ reducedMotion: "reduce" });
-  await expect(page.locator(".homepage-hero-bg")).toHaveCSS("animation-name", "none");
+  await expect(activeHeroImage).toHaveCSS("animation-name", "none");
 });

@@ -1,3 +1,7 @@
+/**
+ * Renders the categories slug page and prepares its route-level data.
+ */
+
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { ProductGrid } from "@/components/commerce/product-grid";

@@ -1,3 +1,7 @@
+/**
+ * Validates and publishes a confirmed website merchandising draft.
+ */
+
 import { existsSync } from "node:fs";
 import { resolve } from "node:path";
 

@@ -1,3 +1,7 @@
+/**
+ * Renders the shop filter panel interface and its user interactions.
+ */
+
 "use client";
 
 import { Check, ChevronDown, Search, SlidersHorizontal, X } from "lucide-react";
@@ -21,16 +25,26 @@ export type ShopBrandFilter = {
   productCount: number;
 };
 
+export type ShopPriceFilter = {
+  id: string;
+  label: string;
+  productCount: number;
+};
+
 type ShopFilterPanelProps = {
   ageCounts: Partial<Record<ProductAgeGroup, number>>;
+  basePath?: string;
   brands: ShopBrandFilter[];
   categories: ShopCategoryFilter[];
+  categoryParam?: "category" | "department";
   fulfillmentCounts: Partial<Record<FulfillmentMode, number>>;
+  priceFilters?: ShopPriceFilter[];
   selectedAge?: ProductAgeGroup;
   selectedBrand?: string;
   selectedCategory?: string;
   selectedCollection?: string;
   selectedFulfillment?: FulfillmentMode;
+  selectedPrice?: string;
   selectedSort: string;
 };
 
@@ -43,8 +57,8 @@ const fulfillmentOptions: Array<{ id: FulfillmentMode; label: string }> = [
 export function ShopFilterPanel(props: ShopFilterPanelProps) {
   const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
   const mobileCloseButtonRef = useRef<HTMLButtonElement>(null);
-  const activeCount = [props.selectedCollection, props.selectedCategory, props.selectedBrand, props.selectedAge, props.selectedFulfillment].filter(Boolean).length;
-  const clearFiltersHref = shopHref({ sort: props.selectedSort });
+  const activeCount = [props.selectedCollection, props.selectedCategory, props.selectedBrand, props.selectedAge, props.selectedFulfillment, props.selectedPrice].filter(Boolean).length;
+  const clearFiltersHref = shopHref({ basePath: props.basePath, categoryParam: props.categoryParam, sort: props.selectedSort });
 
   useEffect(() => {
     if (!mobileFiltersOpen) return;
@@ -113,12 +127,13 @@ export function ShopFilterPanel(props: ShopFilterPanelProps) {
   );
 }
 
-function FilterGroups({ ageCounts, brands, categories, fulfillmentCounts, selectedAge, selectedBrand, selectedCategory, selectedCollection, selectedFulfillment, selectedSort }: ShopFilterPanelProps) {
+function FilterGroups({ ageCounts, basePath, brands, categories, categoryParam, fulfillmentCounts, priceFilters = [], selectedAge, selectedBrand, selectedCategory, selectedCollection, selectedFulfillment, selectedPrice, selectedSort }: ShopFilterPanelProps) {
   const selectedCategoryRecord = categories.find((category) => category.slug === selectedCategory);
   const selectedBrandRecord = brands.find((brand) => brand.slug === selectedBrand);
   const selectedAgeRecord = productAgeGroups.find((age) => age.id === selectedAge);
   const selectedFulfillmentRecord = fulfillmentOptions.find((mode) => mode.id === selectedFulfillment);
-  const shared = { age: selectedAge, brand: selectedBrand, category: selectedCategory, collection: selectedCollection, fulfillment: selectedFulfillment, sort: selectedSort };
+  const selectedPriceRecord = priceFilters.find((price) => price.id === selectedPrice);
+  const shared = { age: selectedAge, basePath, brand: selectedBrand, category: selectedCategory, categoryParam, collection: selectedCollection, fulfillment: selectedFulfillment, price: selectedPrice, sort: selectedSort };
 
   return (
     <>
@@ -136,6 +151,12 @@ function FilterGroups({ ageCounts, brands, categories, fulfillmentCounts, select
         <FilterLink active={!selectedAge} href={shopHref({ ...shared, age: undefined })}>All ages</FilterLink>
         {productAgeGroups.map((age) => <FilterLink active={selectedAge === age.id} count={ageCounts[age.id]} href={shopHref({ ...shared, age: age.id })} key={age.id}>{age.shortLabel}</FilterLink>)}
       </FilterGroup>
+      {priceFilters.length > 0 ? (
+        <FilterGroup label="Price" selection={selectedPriceRecord?.label}>
+          <FilterLink active={!selectedPrice} href={shopHref({ ...shared, price: undefined })}>All prices</FilterLink>
+          {priceFilters.map((price) => <FilterLink active={selectedPrice === price.id} count={price.productCount} href={shopHref({ ...shared, price: price.id })} key={price.id}>{price.label}</FilterLink>)}
+        </FilterGroup>
+      ) : null}
       <FilterGroup label="Sort by" selection={selectedSort === "price-low" ? "Low to high" : selectedSort === "price-high" ? "High to low" : undefined}>
         <FilterLink active={selectedSort === "featured"} href={shopHref({ ...shared, sort: "featured" })}>Featured</FilterLink>
         <FilterLink active={selectedSort === "price-low"} href={shopHref({ ...shared, sort: "price-low" })}>Low to high</FilterLink>
@@ -307,21 +328,26 @@ function FilterLink({ active, categoryDepth, categoryOverview = false, children,
 
 type ShopHrefInput = {
   age?: ProductAgeGroup;
+  basePath?: string;
   brand?: string;
   category?: string;
+  categoryParam?: "category" | "department";
   collection?: string;
   fulfillment?: FulfillmentMode;
+  price?: string;
   sort?: string;
 };
 
 function shopHref(input: ShopHrefInput) {
   const params = new URLSearchParams();
-  if (input.category) params.set("department", input.category);
+  if (input.category) params.set(input.categoryParam ?? "department", input.category);
   if (input.collection) params.set("collection", input.collection);
   if (input.brand) params.set("brand", input.brand);
   if (input.age) params.set("age", input.age);
   if (input.fulfillment) params.set("fulfillment", input.fulfillment);
+  if (input.price) params.set("price", input.price);
   if (input.sort && input.sort !== "featured") params.set("sort", input.sort);
   const query = params.toString();
-  return query ? `/shop?${query}` : "/shop";
+  const basePath = input.basePath?.startsWith("/") ? input.basePath : "/shop";
+  return query ? `${basePath}?${query}` : basePath;
 }

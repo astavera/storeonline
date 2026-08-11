@@ -1,0 +1,7 @@
+# Temporary Storefront route. This is the only Storefront hostname that should
+# be activated before the modernstate.com transfer and DNS cutover are complete.
+
+shop.srv1849559.hstgr.cloud {
+  encode zstd gzip
+  reverse_proxy storefront:3000
+}

@@ -15,7 +15,6 @@ BUSINESS LOGIC FILES: src/features/catalog/services/website-merchandising-servic
 
 import Link from "next/link";
 import Image from "next/image";
-import { useRouter } from "next/navigation";
 import { useMemo, useState, useSyncExternalStore, type ChangeEvent, type ReactNode } from "react";
 import { AlertTriangle, ArrowDown, ArrowUp, Check, ChevronRight, Download, FileSpreadsheet, Folder, FolderTree, Palette, PencilLine, Plus, Save, Search, Trash2, Upload } from "lucide-react";
 import { SectionFrame } from "@/components/sections/section-frame";
@@ -24,13 +23,16 @@ import { BrandGtinImporter, type BrandGtinMutation } from "@/components/admin/br
 import { HolidayProductManager, type HolidayProductMutation } from "@/components/admin/holiday-product-manager";
 import { SearchableSingleSelect } from "@/components/admin/searchable-select";
 import { FullCatalogProductManager } from "@/components/admin/full-catalog-product-manager";
+import { PartyMerchandisingManager, type PartyRecommendationDraft } from "@/components/admin/party-merchandising-manager";
 import type { StorefrontProduct } from "@/features/catalog/product-catalog";
+import { createPartyMerchandisingStructure, partyCategoriesByKind } from "@/features/catalog/services/party-merchandising-service";
 import {
   MAX_WEBSITE_CATEGORY_DEPTH,
   orderWebsiteCategories,
   slugifyWebsiteCategory,
   websiteCategoryDepth,
   websiteCategoryDescendantIds,
+  websiteCategoryKindIds,
   websiteCategoryLabel,
   websiteCategoryPath,
   websitePlacementReadinessIssues,
@@ -55,6 +57,7 @@ type ProductPlacementManagerProps = {
   initialConfig: WebsiteMerchandisingConfig;
   fetchedAt: string;
   hasMoreItems: boolean;
+  squareInboxCount: number;
   squareVendors: SquareVendorReference[];
   initialBrandProductCounts: Record<string, number>;
   initialCategoryProductCounts: Record<string, number>;
@@ -62,10 +65,9 @@ type ProductPlacementManagerProps = {
 
 type SaveState = "idle" | "saving" | "saved" | "error";
 type WorkspaceModule = "overview" | "structure" | "products" | "bulk";
-type StructureModule = "brands" | "categories" | "holidays";
+type StructureModule = "brands" | "categories" | "holidays" | "party";
 
-export function ProductPlacementManager({ products, initialConfig, fetchedAt, hasMoreItems, initialBrandProductCounts, initialCategoryProductCounts, squareVendors }: ProductPlacementManagerProps) {
-  const router = useRouter();
+export function ProductPlacementManager({ products, initialConfig, fetchedAt, hasMoreItems, squareInboxCount, initialBrandProductCounts, initialCategoryProductCounts, squareVendors }: ProductPlacementManagerProps) {
   const [categories, setCategories] = useState(initialConfig.categories);
   const [brands, setBrands] = useState(initialConfig.brands);
   const [holidays, setHolidays] = useState(initialConfig.holidays);
@@ -88,6 +90,7 @@ export function ProductPlacementManager({ products, initialConfig, fetchedAt, ha
   const [brandProductCountOverrides, setBrandProductCountOverrides] = useState(initialBrandProductCounts);
   const [categoryProductCountOverrides, setCategoryProductCountOverrides] = useState(initialCategoryProductCounts);
   const [catalogWebsiteCategoryId, setCatalogWebsiteCategoryId] = useState("");
+  const [configUpdatedAt, setConfigUpdatedAt] = useState(initialConfig.updatedAt);
 
   const selectedCategory = categories.find((category) => category.id === selectedCategoryId) ?? null;
   const selectedBrand = brands.find((brand) => brand.id === selectedBrandId) ?? null;
@@ -96,7 +99,7 @@ export function ProductPlacementManager({ products, initialConfig, fetchedAt, ha
   const { activeModule, structureModule } = resolveCatalogPublishingModule(catalogPublishingHash);
   const liveProductCount = placements.filter((placement) => placement.visible && placementIssues(placement, categories, holidays).length === 0).length;
   const readyProductCount = placements.filter((placement) => !placement.visible && placementIssues(placement, categories, holidays).length === 0).length;
-  const pendingProductCount = placements.length - liveProductCount - readyProductCount;
+  const pendingProductCount = Math.max(0, squareInboxCount - liveProductCount - readyProductCount);
   const productCountByBrand = useMemo(() => Object.fromEntries(brands.map((brand) => [brand.id, brandProductCountOverrides[brand.id] ?? placements.filter((placement) => placement.brandIds.includes(brand.id)).length])), [brandProductCountOverrides, brands, placements]);
   const productCountByCategory = useMemo(() => Object.fromEntries(categories.map((category) => [category.id, categoryProductCountOverrides[category.id] ?? placements.filter((placement) => placement.categoryIds.includes(category.id)).length])), [categories, categoryProductCountOverrides, placements]);
   function markChanged(message = "Unsaved website merchandising changes.") {
@@ -123,6 +126,8 @@ export function ProductPlacementManager({ products, initialConfig, fetchedAt, ha
       name,
       slug,
       description: newCategoryDescription.trim(),
+      imageUrl: "",
+      imageAlt: "",
       parentId,
       visible: false,
       sortOrder: siblings.length
@@ -348,7 +353,7 @@ export function ProductPlacementManager({ products, initialConfig, fetchedAt, ha
         body: JSON.stringify({
           config: {
             version: 3,
-            updatedAt: initialConfig.updatedAt,
+            updatedAt: configUpdatedAt,
             categories: normalizeCategorySiblingOrder(categories),
             brands: brands.map((brand, index) => ({ ...brand, sortOrder: index })),
             holidays: holidays.map((holiday, index) => ({ ...holiday, sortOrder: index })),
@@ -363,10 +368,10 @@ export function ProductPlacementManager({ products, initialConfig, fetchedAt, ha
       setBrands(result.config.brands);
       setHolidays(result.config.holidays);
       setPlacements(result.config.placements);
+      setConfigUpdatedAt(result.config.updatedAt);
       setIsDirty(false);
       setSaveState("saved");
       setSaveMessage("Saved. Only products explicitly marked live can now reach the website.");
-      router.refresh();
     } catch (error) {
       showError(error instanceof Error ? error.message : "Unable to save merchandising.");
     }
@@ -381,6 +386,69 @@ export function ProductPlacementManager({ products, initialConfig, fetchedAt, ha
     setCatalogWebsiteCategoryId(categoryId);
     navigateCatalogPublishing("products");
     window.setTimeout(() => document.getElementById("full-catalog-products")?.scrollIntoView({ behavior: "smooth", block: "start" }), 0);
+  }
+
+  function initializePartyMerchandising() {
+    const result = createPartyMerchandisingStructure(categories);
+    setCategories(result.categories);
+    const firstTheme = partyCategoriesByKind(result.categories, "party-theme")[0];
+    if (firstTheme) setSelectedCategoryId(firstTheme.id);
+    markChanged(result.createdIds.length > 0
+      ? `${result.createdIds.length} Party Supplies categories added to the current draft.`
+      : "Party Supplies structure is already complete.");
+  }
+
+  function editPartyCategory(categoryId: string) {
+    setSelectedCategoryId(categoryId);
+    window.location.hash = "structure-categories";
+  }
+
+  function applyPartyRecommendations(recommendations: PartyRecommendationDraft[]) {
+    if (recommendations.length === 0) return;
+    const knownCategoryIds = new Set(categories.map((category) => category.id));
+    const additionsByCategory = new Map<string, number>();
+    const existingByVariationId = new Map(placements.map((placement) => [placement.squareVariationId, placement]));
+    for (const recommendation of recommendations) {
+      const existingIds = new Set(existingByVariationId.get(recommendation.squareVariationId)?.categoryIds ?? []);
+      for (const categoryId of recommendation.categoryIds) {
+        if (knownCategoryIds.has(categoryId) && !existingIds.has(categoryId)) {
+          additionsByCategory.set(categoryId, (additionsByCategory.get(categoryId) ?? 0) + 1);
+        }
+      }
+    }
+
+    setPlacements((current) => {
+      const byVariationId = new Map(current.map((placement) => [placement.squareVariationId, placement]));
+      for (const recommendation of recommendations) {
+        const categoryIds = recommendation.categoryIds.filter((categoryId) => knownCategoryIds.has(categoryId));
+        if (categoryIds.length === 0) continue;
+        const existing = byVariationId.get(recommendation.squareVariationId);
+        const existingIds = new Set(existing?.categoryIds ?? []);
+        for (const categoryId of categoryIds) {
+          existingIds.add(categoryId);
+        }
+        byVariationId.set(recommendation.squareVariationId, existing
+          ? { ...existing, categoryIds: Array.from(existingIds), visible: false }
+          : {
+              squareVariationId: recommendation.squareVariationId,
+              categoryIds: Array.from(existingIds),
+              brandIds: [],
+              holidayAssignments: [],
+              ageGroups: [],
+              fulfillmentModes: [],
+              surfaceIds: [],
+              visible: false,
+              sortOrder: current.length + byVariationId.size
+            });
+      }
+      return Array.from(byVariationId.values());
+    });
+    setCategoryProductCountOverrides((current) => {
+      const next = { ...current };
+      for (const [categoryId, count] of additionsByCategory) next[categoryId] = (next[categoryId] ?? 0) + count;
+      return next;
+    });
+    markChanged(`${recommendations.length.toLocaleString()} recommended product${recommendations.length === 1 ? "" : "s"} added to the Party Supplies draft.`);
   }
 
   function recordCategoryAssignmentsRemoved(categoryId: string, removedCount: number) {
@@ -413,7 +481,7 @@ export function ProductPlacementManager({ products, initialConfig, fetchedAt, ha
         {activeModule === "overview" ? <section className="p-4 md:p-6" aria-labelledby="publishing-overview-heading">
           <h2 className="font-display text-xl font-semibold" id="publishing-overview-heading">Overview</h2>
           <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-            <Metric label="Square inbox" value={placements.length} />
+            <Metric label="Square inbox" value={squareInboxCount} />
             <Metric emphasis={pendingProductCount > 0} label="Needs setup" value={pendingProductCount} />
             <Metric label="Ready, hidden" value={readyProductCount} />
             <Metric label="Live on website" value={liveProductCount} />
@@ -433,6 +501,7 @@ export function ProductPlacementManager({ products, initialConfig, fetchedAt, ha
             {structureModule === "brands" ? <BrandManager brands={brands} disabled={isDirty || saveState === "saving"} newDescription={newBrandDescription} newName={newBrandName} onAdd={addBrand} onDescriptionChange={setNewBrandDescription} onNameChange={setNewBrandName} onProductsApplied={syncBrandProducts} onRemove={removeBrand} onSelect={setSelectedBrandId} onUpdate={updateBrand} productCountByBrand={productCountByBrand} selected={selectedBrand} squareVendors={squareVendors} /> : null}
             {structureModule === "categories" ? <CategoryManager categories={categories} newDescription={newCategoryDescription} newName={newCategoryName} newParentId={newCategoryParentId} onAdd={addCategory} onDescriptionChange={setNewCategoryDescription} onManageProducts={manageCategoryProducts} onMove={moveCategory} onNameChange={setNewCategoryName} onParentChange={setNewCategoryParentId} onRemove={removeCategory} onSelect={setSelectedCategoryId} onUpdate={updateCategory} productCountByCategory={productCountByCategory} selected={selectedCategory} /> : null}
             {structureModule === "holidays" ? <HolidayManager disabled={isDirty || saveState === "saving"} endDate={newHolidayEndDate} holidays={holidays} newDescription={newHolidayDescription} newName={newHolidayName} onAdd={addHoliday} onDescriptionChange={setNewHolidayDescription} onEndDateChange={setNewHolidayEndDate} onNameChange={setNewHolidayName} onProductsApplied={syncHolidayProducts} onRemove={removeHoliday} onSelect={setSelectedHolidayId} onStartDateChange={setNewHolidayStartDate} onUpdate={updateHoliday} selected={selectedHoliday} startDate={newHolidayStartDate} /> : null}
+            {structureModule === "party" ? <PartyMerchandisingManager categories={categories} disabled={saveState === "saving"} onApplyRecommended={applyPartyRecommendations} onEditCategory={editPartyCategory} onInitialize={initializePartyMerchandising} placements={placements} /> : null}
           </div>
         </section> : null}
 
@@ -585,14 +654,20 @@ function BrandManager({
 }) {
   const [vendorToImport, setVendorToImport] = useState("");
   const [uploadMessage, setUploadMessage] = useState("");
+  const [brandQuery, setBrandQuery] = useState("");
+  const [createOpen, setCreateOpen] = useState(brands.length === 0);
   const importedVendorIds = new Set(brands.flatMap((brand) => brand.squareVendorIds));
   const selectedProductCount = selected ? productCountByBrand[selected.id] ?? 0 : 0;
   const heroEligible = Boolean(selected?.visible && selected.logoUrl);
+  const normalizedBrandQuery = brandQuery.trim().toLowerCase();
+  const visibleBrands = normalizedBrandQuery
+    ? brands.filter((brand) => `${brand.name} ${brand.slug}`.toLowerCase().includes(normalizedBrandQuery))
+    : brands;
 
   async function uploadLogo(file: File) {
     setUploadMessage("Uploading logo...");
     try {
-      const asset = await uploadBrandImage(file, selected?.id ?? "website-brand");
+      const asset = await uploadAdminImage(file, selected?.id ?? "website-brand");
       onUpdate({ logoUrl: asset.url, imageAlt: selected?.imageAlt || `${selected?.name ?? "Brand"} logo` });
       setUploadMessage(`Uploaded ${asset.originalName}.`);
     } catch (error) {
@@ -609,20 +684,24 @@ function BrandManager({
             <h3 className="font-display text-xl font-semibold">Website brands</h3>
           </div>
         </div>
-        <span className="w-fit rounded-pill bg-green/10 px-3 py-1.5 text-xs font-semibold text-primary">{brands.length} brand{brands.length === 1 ? "" : "s"}</span>
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="w-fit rounded-pill bg-green/10 px-3 py-1.5 text-xs font-semibold text-primary">{brands.length} brand{brands.length === 1 ? "" : "s"}</span>
+          <button className="inline-flex min-h-9 items-center justify-center rounded-md bg-primary px-3 text-xs font-semibold text-white" onClick={() => setCreateOpen((current) => !current)} type="button">
+            <Plus className="mr-1.5" size={15} />{createOpen ? "Close creator" : "Add brand"}
+          </button>
+        </div>
       </div>
 
-      <div className="mt-5 rounded-md border border-border bg-surface-muted p-4">
+      {createOpen ? <div className="mt-5 rounded-md border border-blue/20 bg-cyan/40 p-4">
         <p className="text-xs font-semibold uppercase tracking-[0.1em] text-blue">Create a website brand</p>
         <div className="mt-3 grid gap-3 lg:grid-cols-[1fr_1fr_auto]">
           <input className={inputClassName} maxLength={80} onChange={(event) => onNameChange(event.target.value)} placeholder="Public brand name, e.g. Crayola" value={newName} />
           <input className={inputClassName} maxLength={240} onChange={(event) => onDescriptionChange(event.target.value)} placeholder="Short customer-facing description" value={newDescription} />
-          <button className="inline-flex min-h-11 items-center justify-center rounded-md bg-primary px-4 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50" disabled={!newName.trim()} onClick={() => onAdd()} type="button"><Plus className="mr-2" size={16} />Add brand</button>
+          <button className="inline-flex min-h-11 items-center justify-center rounded-md bg-primary px-4 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50" disabled={!newName.trim()} onClick={() => onAdd()} type="button"><Plus className="mr-2" size={16} />Create brand</button>
         </div>
-      </div>
 
-      {squareVendors.length > 0 ? (
-        <div className="mt-3 grid gap-3 rounded-md border border-blue/20 bg-cyan p-3 sm:grid-cols-[1fr_auto]">
+        {squareVendors.length > 0 ? (
+        <div className="mt-3 grid gap-3 border-t border-blue/15 pt-3 sm:grid-cols-[1fr_auto]">
           <div>
             <p className="mb-1.5 block text-xs font-semibold uppercase tracking-[0.08em] text-secondary">Or start from a Square vendor</p>
             <SearchableSingleSelect allLabel="Choose a Square vendor" label="Square vendor to import" onChange={setVendorToImport} options={squareVendors.map((vendor) => ({ id: vendor.id, label: `${vendor.name}${importedVendorIds.has(vendor.id) ? " (already imported)" : ""}`, disabled: importedVendorIds.has(vendor.id) }))} value={vendorToImport} />
@@ -630,16 +709,46 @@ function BrandManager({
           <button className="self-end rounded-md border border-border bg-surface px-4 py-2.5 text-sm font-semibold disabled:opacity-50" disabled={!vendorToImport} onClick={() => { const vendor = squareVendors.find((item) => item.id === vendorToImport); if (vendor) { onAdd(vendor); setVendorToImport(""); } }} type="button">Create from Square</button>
         </div>
       ) : (
-        <p className="mt-3 rounded-md border border-blue/20 bg-cyan p-3 text-xs font-semibold">Square vendors unavailable.</p>
+        <p className="mt-3 border-t border-blue/15 pt-3 text-xs font-semibold text-secondary">Square vendors unavailable.</p>
       )}
+      </div> : null}
 
-      <div className="mt-4 flex flex-wrap gap-2">
-        {brands.map((brand) => (
-          <button aria-pressed={selected?.id === brand.id} className={`rounded-pill border px-3 py-2 text-sm font-semibold ${selected?.id === brand.id ? "border-primary bg-primary text-white" : "border-border bg-surface-muted text-secondary hover:border-primary"}`} key={brand.id} onClick={() => onSelect(brand.id)} type="button">
-            {brand.name} · {productCountByBrand[brand.id] ?? 0} items · {brand.visible ? "Shop" : "Hidden"}{brand.featuredOnHomepage ? " · Hero" : ""}
-          </button>
-        ))}
-        {brands.length === 0 ? <p className="w-full rounded-md border border-dashed border-border p-5 text-center text-sm text-secondary">No website brands yet. Create the first one above.</p> : null}
+      <div className="mt-5 rounded-md border border-border bg-surface-muted p-3">
+        <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
+          <div>
+            <p className="text-sm font-semibold text-primary">Saved brands</p>
+            <p className="mt-0.5 text-xs text-secondary">Choose one to edit. Your selection stays open after saving.</p>
+          </div>
+          <label className="flex min-h-10 items-center gap-2 rounded-md border border-border bg-surface px-3 sm:w-64">
+            <Search aria-hidden="true" className="text-secondary" size={16} />
+            <span className="sr-only">Search saved brands</span>
+            <input className="min-w-0 flex-1 bg-transparent text-sm outline-none" onChange={(event) => setBrandQuery(event.target.value)} placeholder="Search brands" type="search" value={brandQuery} />
+          </label>
+        </div>
+        <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+          {visibleBrands.map((brand) => {
+            const active = selected?.id === brand.id;
+            return (
+              <button aria-pressed={active} className={`flex min-w-0 items-center gap-3 rounded-md border p-3 text-left transition ${active ? "border-primary bg-white shadow-sm ring-1 ring-primary/15" : "border-border bg-surface hover:border-primary/50"}`} key={brand.id} onClick={() => onSelect(brand.id)} type="button">
+                <span className="grid h-11 w-11 shrink-0 place-items-center overflow-hidden rounded-md border border-border bg-white">
+                  {brand.logoUrl ? <Image alt="" className="h-full w-full object-contain p-1.5" height={44} src={brand.logoUrl} unoptimized width={44} /> : <span className="text-sm font-black text-secondary">{brand.name.slice(0, 1).toUpperCase()}</span>}
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-sm font-semibold text-primary">{brand.name}</span>
+                  <span className="mt-1 flex flex-wrap gap-1 text-[11px] text-secondary">
+                    <span>{formatProductCount(productCountByBrand[brand.id] ?? 0)}</span>
+                    <span aria-hidden="true">·</span>
+                    <span className={brand.visible ? "font-semibold text-green" : ""}>{brand.visible ? "Visible" : "Hidden"}</span>
+                    {brand.featuredOnHomepage ? <><span aria-hidden="true">·</span><span className="font-semibold text-blue">Homepage</span></> : null}
+                  </span>
+                </span>
+                <ChevronRight className={active ? "text-primary" : "text-secondary"} size={16} />
+              </button>
+            );
+          })}
+          {brands.length === 0 ? <p className="rounded-md border border-dashed border-border bg-surface p-5 text-center text-sm text-secondary sm:col-span-2 xl:col-span-3">No website brands yet. Create the first one above.</p> : null}
+          {brands.length > 0 && visibleBrands.length === 0 ? <p className="rounded-md border border-dashed border-border bg-surface p-5 text-center text-sm text-secondary sm:col-span-2 xl:col-span-3">No saved brands match this search.</p> : null}
+        </div>
       </div>
 
       {selected ? (
@@ -649,10 +758,11 @@ function BrandManager({
               <p className="text-xs font-semibold uppercase tracking-[0.1em] text-blue">Editing brand</p>
               <h4 className="mt-1 font-display text-xl font-semibold">{selected.name}</h4>
             </div>
-            <div className="flex flex-wrap gap-2 text-xs font-semibold">
+            <div className="flex flex-wrap items-center gap-2 text-xs font-semibold">
               <span className="rounded-pill bg-surface-muted px-3 py-1.5">{selectedProductCount} assigned items</span>
               <span className={`rounded-pill px-3 py-1.5 ${selected.logoUrl ? "bg-green/10 text-green" : "bg-yellow/20 text-primary"}`}>{selected.logoUrl ? "Logo ready" : "Logo needed"}</span>
               <span className={`rounded-pill px-3 py-1.5 ${selected.visible ? "bg-green/10 text-green" : "bg-surface-muted text-secondary"}`}>{selected.visible ? "Shown in Shop" : "Hidden"}</span>
+              <button className="inline-flex min-h-8 items-center rounded-md border border-border bg-surface px-2.5 text-xs font-semibold text-primary" onClick={() => setCreateOpen(true)} type="button"><Plus className="mr-1" size={14} />New brand</button>
             </div>
           </div>
 
@@ -720,6 +830,8 @@ function CategoryManager({
   selected: WebsiteCategory | null;
 }) {
   const [categoryQuery, setCategoryQuery] = useState("");
+  const [uploadMessage, setUploadMessage] = useState("");
+  const [createOpen, setCreateOpen] = useState(categories.length === 0);
   const normalizedCategoryQuery = categoryQuery.trim().toLowerCase();
   const orderedCategories = orderWebsiteCategories(categories);
   const rootCategories = categories.filter((category) => !category.parentId).sort((a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name));
@@ -748,6 +860,20 @@ function CategoryManager({
   }) : [];
   const newCategorySlug = newName.trim() ? slugifyWebsiteCategory(newName) || "collection" : "new-category";
 
+  async function uploadCategoryImage(file: File) {
+    setUploadMessage("Uploading category image...");
+    try {
+      const asset = await uploadAdminImage(file, selected?.id ?? "website-category");
+      onUpdate({
+        imageUrl: asset.url,
+        imageAlt: selected?.imageAlt || selected?.name || "Category image"
+      });
+      setUploadMessage(`Uploaded ${asset.originalName}. Save changes to publish it.`);
+    } catch (error) {
+      setUploadMessage(error instanceof Error ? error.message : "Category image upload failed.");
+    }
+  }
+
   return (
     <section className="overflow-hidden rounded-md border border-border bg-surface">
       <div className="flex flex-col justify-between gap-4 border-b border-border p-5 sm:flex-row sm:items-center">
@@ -757,14 +883,15 @@ function CategoryManager({
             <h3 className="font-display text-xl font-semibold">Website categories</h3>
           </div>
         </div>
-        <div className="flex gap-2 text-xs font-semibold">
+        <div className="flex flex-wrap items-center gap-2 text-xs font-semibold">
           <span className="rounded-pill bg-surface-muted px-3 py-1.5">{rootCategories.length} main</span>
           <span className="rounded-pill bg-surface-muted px-3 py-1.5">{categories.length - rootCategories.length} subcategories</span>
           <span className="rounded-pill bg-green/10 px-3 py-1.5 text-green">{categories.filter((category) => category.visible).length} visible</span>
+          <button className="inline-flex min-h-9 items-center rounded-md bg-primary px-3 text-xs font-semibold text-white" onClick={() => setCreateOpen((current) => !current)} type="button"><Plus className="mr-1.5" size={15} />{createOpen ? "Close creator" : "Add category"}</button>
         </div>
       </div>
 
-      <form
+      {createOpen ? <form
         className="border-b border-border bg-cyan/40 p-5"
         onSubmit={(event) => {
           event.preventDefault();
@@ -789,7 +916,7 @@ function CategoryManager({
           </button>
         </div>
         <p className="mt-2 text-xs text-secondary">{newParentId ? "Nested subcategory" : "Main category"} · Up to {MAX_WEBSITE_CATEGORY_DEPTH} total levels · URL preview: <span className="font-semibold text-primary">/categories/{newCategorySlug}</span></p>
-      </form>
+      </form> : null}
 
       <div className="grid min-h-[540px] lg:grid-cols-[320px_minmax(0,1fr)]">
         <aside className="border-b border-border bg-surface-muted p-4 lg:border-b-0 lg:border-r">
@@ -842,21 +969,88 @@ function CategoryManager({
                 <span className={`w-fit rounded-pill px-3 py-1.5 text-xs font-semibold ${selected.visible ? "bg-green/10 text-green" : "bg-surface-muted text-secondary"}`}>{selected.visible ? "Visible in Shop" : "Hidden draft"}</span>
               </div>
 
-              <div className="mt-5 grid gap-4 sm:grid-cols-2">
-                <Field label="Display name">
-                  <input className={inputClassName} maxLength={80} onChange={(event) => onUpdate({ name: event.target.value })} value={selected.name} />
-                </Field>
-                <Field label="URL slug">
-                  <input className={inputClassName} maxLength={100} onChange={(event) => onUpdate({ slug: slugifyWebsiteCategory(event.target.value) })} value={selected.slug} />
-                  <span className="mt-1.5 block text-xs text-secondary">/categories/{selected.slug || "category"}</span>
-                </Field>
-                <SearchableField className="sm:col-span-2" label="Category structure">
-                  <SearchableSingleSelect allLabel="Main category (level 1)" label="Category structure" onChange={(parentId) => onUpdate({ parentId: parentId || null })} options={availableParentCategories.map((category) => ({ id: category.id, label: `Inside ${websiteCategoryLabel(category, categories)} (level ${websiteCategoryDepth(category, categories) + 1})` }))} searchLabel="Search parent categories" value={selected.parentId ?? ""} />
-                  <span className="mt-1.5 block text-xs text-secondary">You can use up to {MAX_WEBSITE_CATEGORY_DEPTH} total levels. Parent choices that would make this branch too deep are hidden.</span>
-                </SearchableField>
-                <Field className="sm:col-span-2" label="Customer-facing description">
-                  <textarea className={inputClassName} maxLength={240} onChange={(event) => onUpdate({ description: event.target.value })} placeholder="Describe what shoppers will find in this category." rows={3} value={selected.description} />
-                </Field>
+              <div className="mt-5 grid gap-5 lg:grid-cols-[220px_minmax(0,1fr)]">
+                <div className="rounded-md border border-border bg-surface-muted p-3">
+                  <div className="relative grid aspect-square place-items-center bg-white">
+                    {selected.imageUrl ? (
+                      <>
+                        <span aria-hidden="true" className="absolute inset-[10%] rounded-full bg-[#e4f4fb]" />
+                        <Image
+                          alt={selected.imageAlt || selected.name}
+                          className="relative z-[1] h-full w-full scale-[0.94] object-contain opacity-100 mix-blend-multiply brightness-[0.96] contrast-[1.12] saturate-[1.14]"
+                          height={220}
+                          src={
+                            selected.slug === "outdoor" &&
+                            !/cutout|transparent/i.test(selected.imageUrl)
+                              ? "/images/categories/outdoor-toys-collage-cutout-v5.png"
+                              : selected.imageUrl
+                          }
+                          unoptimized
+                          width={220}
+                        />
+                      </>
+                    ) : (
+                      <span className="px-4 text-center text-sm font-semibold text-secondary">Upload a category image</span>
+                    )}
+                  </div>
+                  <label className="mt-3 inline-flex min-h-10 w-full cursor-pointer items-center justify-center rounded-md border border-border bg-surface px-3 text-sm font-semibold">
+                    <Upload className="mr-2" size={16} />{selected.imageUrl ? "Replace image" : "Upload image"}
+                    <input
+                      accept="image/gif,image/jpeg,image/png,image/webp"
+                      className="sr-only"
+                      onChange={(event) => {
+                        const file = event.target.files?.[0];
+                        event.target.value = "";
+                        if (file) void uploadCategoryImage(file);
+                      }}
+                      type="file"
+                    />
+                  </label>
+                  {selected.imageUrl ? (
+                    <button className="mt-2 inline-flex min-h-9 w-full items-center justify-center rounded-md px-3 text-xs font-semibold text-red hover:bg-red/5" onClick={() => onUpdate({ imageUrl: "", imageAlt: "" })} type="button">
+                      Remove image
+                    </button>
+                  ) : null}
+                  {uploadMessage ? <p aria-live="polite" className="mt-2 text-xs text-secondary">{uploadMessage}</p> : null}
+                </div>
+
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <Field className="sm:col-span-2" label="Display name">
+                    <input className={inputClassName} maxLength={80} onChange={(event) => onUpdate({ name: event.target.value })} value={selected.name} />
+                  </Field>
+                  <Field className="sm:col-span-2" label="Customer-facing description">
+                    <textarea className={inputClassName} maxLength={240} onChange={(event) => onUpdate({ description: event.target.value })} placeholder="Describe what shoppers will find in this category." rows={3} value={selected.description} />
+                  </Field>
+                  <details className="group rounded-md border border-border bg-surface-muted sm:col-span-2">
+                    <summary className="cursor-pointer list-none px-4 py-3 text-sm font-semibold text-primary">Advanced settings <span className="ml-1 text-xs font-normal text-secondary">URL, parent and image metadata</span></summary>
+                    <div className="grid gap-4 border-t border-border p-4 sm:grid-cols-2">
+                      <Field label="URL slug">
+                        <input className={inputClassName} maxLength={100} onChange={(event) => onUpdate({ slug: slugifyWebsiteCategory(event.target.value) })} value={selected.slug} />
+                        <span className="mt-1.5 block text-xs text-secondary">/categories/{selected.slug || "category"}</span>
+                      </Field>
+                      <SearchableField label="Category structure">
+                        <SearchableSingleSelect allLabel="Main category (level 1)" label="Category structure" onChange={(parentId) => onUpdate({ parentId: parentId || null })} options={availableParentCategories.map((category) => ({ id: category.id, label: `Inside ${websiteCategoryLabel(category, categories)} (level ${websiteCategoryDepth(category, categories) + 1})` }))} searchLabel="Search parent categories" value={selected.parentId ?? ""} />
+                      </SearchableField>
+                      <Field label="Category image URL">
+                        <input className={inputClassName} maxLength={500} onChange={(event) => onUpdate({ imageUrl: event.target.value })} placeholder="/uploads/admin/..." value={selected.imageUrl} />
+                      </Field>
+                      <Field label="Image alt text">
+                        <input className={inputClassName} maxLength={160} onChange={(event) => onUpdate({ imageAlt: event.target.value })} placeholder={`${selected.name} category`} value={selected.imageAlt} />
+                      </Field>
+                      <Field label="Category purpose">
+                        <select className={inputClassName} onChange={(event) => onUpdate({ kind: event.target.value as WebsiteCategory["kind"] })} value={selected.kind ?? "standard"}>
+                          {websiteCategoryKindIds.map((kind) => <option key={kind} value={kind}>{formatCategoryKind(kind)}</option>)}
+                        </select>
+                      </Field>
+                      <Field label="Recommendation terms">
+                        <input className={inputClassName} maxLength={500} onChange={(event) => onUpdate({ recommendationTerms: event.target.value.split(",").map((term) => term.trim().slice(0, 80)).filter(Boolean).slice(0, 20) })} placeholder="spider-man, spiderman" value={(selected.recommendationTerms ?? []).join(", ")} />
+                      </Field>
+                      {selected.kind === "party-solid-color" ? <Field label="Solid color swatch">
+                        <input className={inputClassName} onChange={(event) => onUpdate({ swatchColor: event.target.value.toUpperCase() })} pattern="^#[0-9A-Fa-f]{6}$" placeholder="#D94149" value={selected.swatchColor ?? ""} />
+                      </Field> : null}
+                    </div>
+                  </details>
+                </div>
               </div>
 
               {hiddenAncestor ? <p className="mt-4 rounded-md border border-amber-300 bg-amber-50 p-3 text-sm font-semibold text-amber-900">This category stays hidden while its ancestor “{hiddenAncestor.name}” is hidden.</p> : null}
@@ -1009,14 +1203,22 @@ function Field({ children, className, label }: { children: ReactNode; className?
 function SearchableField({ children, className, label }: { children: ReactNode; className?: string; label: string }) { return <div className={className}><p className="mb-1.5 block text-xs font-semibold uppercase tracking-[0.08em] text-secondary">{label}</p>{children}</div>; }
 function formatProductCount(value: number) { return `${value.toLocaleString()} ${value === 1 ? "product" : "products"}`; }
 function formatSubcategoryCount(value: number) { return `${value.toLocaleString()} ${value === 1 ? "subcategory" : "subcategories"}`; }
+function formatCategoryKind(kind: string) {
+  if (kind === "party-group") return "Party group";
+  if (kind === "party-theme") return "Party theme";
+  if (kind === "party-product-type") return "Party product type";
+  if (kind === "party-solid-color") return "Party solid color";
+  return "Standard category";
+}
 function subscribeToCatalogHashChange(callback: () => void) { window.addEventListener("hashchange", callback); return () => window.removeEventListener("hashchange", callback); }
 function readCatalogPublishingHash() { return window.location.hash || "#overview"; }
-function navigateCatalogPublishing(module: "structure-brands" | "products" | "bulk") { window.location.hash = module; }
+function navigateCatalogPublishing(module: "structure-brands" | "structure-party" | "products" | "bulk") { window.location.hash = module; }
 function resolveCatalogPublishingModule(hash: string): { activeModule: WorkspaceModule; structureModule: StructureModule } {
   if (hash === "#products") return { activeModule: "products", structureModule: "brands" };
   if (hash === "#bulk") return { activeModule: "bulk", structureModule: "brands" };
   if (hash === "#structure-categories") return { activeModule: "structure", structureModule: "categories" };
   if (hash === "#structure-holidays") return { activeModule: "structure", structureModule: "holidays" };
+  if (hash === "#structure-party") return { activeModule: "structure", structureModule: "party" };
   if (hash === "#structure-brands" || hash === "#website-brands") return { activeModule: "structure", structureModule: "brands" };
   return { activeModule: "overview", structureModule: "brands" };
 }
@@ -1044,7 +1246,7 @@ function uniqueSlug(name: string, usedSlugs: string[]) { const base = slugifyWeb
 function placementIssues(placement: WebsiteProductPlacement, categories: WebsiteCategory[], holidays: WebsiteHoliday[]) {
   return websitePlacementReadinessIssues(placement, categories, holidays);
 }
-async function uploadBrandImage(file: File, context: string) {
+async function uploadAdminImage(file: File, context: string) {
   if (!file.type.startsWith("image/")) throw new Error("Upload must be an image file.");
   if (file.size > 5 * 1024 * 1024) throw new Error("Upload must be 5 MB or smaller.");
   const formData = new FormData();
@@ -1052,7 +1254,7 @@ async function uploadBrandImage(file: File, context: string) {
   formData.append("context", context);
   const response = await fetch("/api/admin/media", { method: "POST", body: formData });
   const result = (await response.json()) as { ok?: boolean; asset?: { url: string; originalName: string }; errors?: string[] };
-  if (!response.ok || !result.ok || !result.asset?.url) throw new Error(result.errors?.join(" ") || "Logo upload failed.");
+  if (!response.ok || !result.ok || !result.asset?.url) throw new Error(result.errors?.join(" ") || "Image upload failed.");
   return result.asset;
 }
 function formatSnapshotDate(value: string) { return new Intl.DateTimeFormat("en-US", { dateStyle: "medium", timeStyle: "short", timeZone: "America/New_York" }).format(new Date(value)); }

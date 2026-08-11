@@ -1,3 +1,7 @@
+/**
+ * Verifies the isolated behavior of capacity hold repository.
+ */
+
 import { describe, expect, it, vi } from "vitest";
 import {
   CapacityHoldConflictError,

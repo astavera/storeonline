@@ -1,3 +1,7 @@
+/**
+ * Handles HTTP requests for the API fulfillment local delivery postal eligibility endpoint.
+ */
+
 import { NextRequest, NextResponse } from "next/server";
 import {
   checkOrderProBalloonPostalEligibility,

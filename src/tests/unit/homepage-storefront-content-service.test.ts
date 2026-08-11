@@ -1,6 +1,10 @@
+/**
+ * Verifies the isolated behavior of homepage storefront content service.
+ */
+
 import { describe, expect, it } from "vitest";
 import { storefrontProducts } from "@/features/catalog/product-catalog";
-import { createHomepageItemLinkOptions } from "@/features/catalog/services/homepage-storefront-content-service";
+import { createHomepageItemLinkOptions } from "@/features/homepage/server";
 import type { WebsiteBrand, WebsiteCategory } from "@/features/catalog/services/website-merchandising-service";
 
 describe("homepage card destinations", () => {
@@ -22,6 +26,8 @@ describe("homepage card destinations", () => {
       name: "Arts & Crafts",
       slug: "arts-and-crafts",
       description: "Markers, paper, paint, and project kits.",
+      imageUrl: "/uploads/admin/arts-and-crafts.webp",
+      imageAlt: "Arts and crafts materials",
       parentId: null,
       visible: true,
       sortOrder: 0

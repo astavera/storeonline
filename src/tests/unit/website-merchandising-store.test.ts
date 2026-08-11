@@ -1,3 +1,7 @@
+/**
+ * Verifies the isolated behavior of website merchandising store.
+ */
+
 import { describe, expect, it } from "vitest";
 import type { WebsiteMerchandisingConfig } from "@/features/catalog/services/website-merchandising-service";
 import { mergeWebsiteMerchandisingProductSubset, parseWebsiteMerchandising } from "@/server/admin/website-merchandising-store";
@@ -27,7 +31,12 @@ describe("website merchandising store", () => {
       ]
     });
 
-    expect(config).toMatchObject({ version: 3, categories: [expect.objectContaining({ id: "category-toys", name: "Toys", parentId: null })], brands: [], holidays: [] });
+    expect(config).toMatchObject({
+      version: 3,
+      categories: [expect.objectContaining({ id: "category-toys", name: "Toys", imageUrl: "", imageAlt: "", parentId: null })],
+      brands: [],
+      holidays: []
+    });
     expect(config?.placements[0]).toMatchObject({ brandIds: [], ageGroups: [], fulfillmentModes: [], surfaceIds: [], holidayAssignments: [], visible: false });
   });
 
@@ -40,6 +49,31 @@ describe("website merchandising store", () => {
         placements: [{ squareVariationId: "variation-1", categoryIds: [], ageGroups: ["adult-only"], visible: true, sortOrder: 0 }]
       })
     ).toBeNull();
+  });
+
+  it("persists category image metadata and backfills older saved categories", () => {
+    const base = { version: 3, updatedAt: "2026-07-13T15:00:00.000Z", brands: [], holidays: [], placements: [] };
+    const saved = parseWebsiteMerchandising({
+      ...base,
+      categories: [{
+        id: "toys",
+        name: "Toys",
+        slug: "toys",
+        description: "Toys",
+        imageUrl: "/uploads/admin/toys.webp",
+        imageAlt: "Colorful toys",
+        parentId: null,
+        visible: true,
+        sortOrder: 0
+      }]
+    });
+    const legacyCurrentVersion = parseWebsiteMerchandising({
+      ...base,
+      categories: [{ id: "gifts", name: "Gifts", slug: "gifts", description: "Gifts", parentId: null, visible: true, sortOrder: 0 }]
+    });
+
+    expect(saved?.categories[0]).toMatchObject({ imageUrl: "/uploads/admin/toys.webp", imageAlt: "Colorful toys" });
+    expect(legacyCurrentVersion?.categories[0]).toMatchObject({ imageUrl: "", imageAlt: "" });
   });
 
   it("rejects placements that reference website structures that do not exist", () => {
@@ -143,7 +177,7 @@ function config(placements: WebsiteMerchandisingConfig["placements"]): WebsiteMe
   return {
     version: 3,
     updatedAt: "2026-07-13T15:00:00.000Z",
-    categories: [{ id: "category-toys", name: "Toys", slug: "toys", description: "Website toys.", parentId: null, visible: true, sortOrder: 0 }],
+    categories: [{ id: "category-toys", name: "Toys", slug: "toys", description: "Website toys.", imageUrl: "", imageAlt: "", parentId: null, visible: true, sortOrder: 0 }],
     brands: [],
     holidays: [],
     placements

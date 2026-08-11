@@ -1,3 +1,7 @@
+/**
+ * Renders the cart client interface and its user interactions.
+ */
+
 "use client";
 
 import { Minus, Plus, ShoppingBag, Trash2 } from "lucide-react";

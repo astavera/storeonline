@@ -1,3 +1,7 @@
+/**
+ * Provides shared section defaults types and utilities for the application.
+ */
+
 import { cmsScopes, type CmsKnownSectionType, type CmsScope, type SectionContent, type SectionDataSource, type SectionDesignSettings, type SectionLayoutSettings, type SectionMediaSettings, type SectionRegistryItem, type SectionSettingsSchema } from "./cms-types";
 import { createSectionDataSource } from "./data-sources";
 import { baseSectionSettingsSchema, commerceSectionSettingsSchema } from "./section-schemas";

@@ -1,3 +1,7 @@
+/**
+ * Implements server-side webhook inbox behavior and persistence boundaries.
+ */
+
 import "server-only";
 
 import { randomUUID } from "node:crypto";

@@ -1,3 +1,7 @@
+/**
+ * Renders the editing history interface and its user interactions.
+ */
+
 export type EditingHistory<T> = {
   past: T[];
   present: T;

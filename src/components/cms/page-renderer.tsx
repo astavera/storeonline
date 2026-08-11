@@ -1,3 +1,7 @@
+/**
+ * Renders the page renderer interface and its user interactions.
+ */
+
 import type { CSSProperties, ReactNode } from "react";
 import type { CmsPageDocument, CmsSection, SectionRegistryItem, ThemeTokens } from "@/lib/cms";
 import { createUnknownSectionFallback, defaultThemeTokens, mergeThemeTokens, resolveSectionRegistryItem } from "@/lib/cms";

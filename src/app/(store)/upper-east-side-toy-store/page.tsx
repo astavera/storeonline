@@ -1,3 +1,7 @@
+/**
+ * Renders the upper east side toy store page and prepares its route-level data.
+ */
+
 import { ContentPageTemplate } from "@/components/templates/content-page-template";
 
 export default function UpperEastSideToyStorePage() {

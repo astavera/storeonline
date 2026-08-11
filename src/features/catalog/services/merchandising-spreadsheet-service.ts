@@ -1,3 +1,7 @@
+/**
+ * Implements the merchandising spreadsheet service workflow for the catalog feature.
+ */
+
 import {
   productAgeGroupIds,
   type FulfillmentMode,

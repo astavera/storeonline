@@ -1,3 +1,7 @@
+/**
+ * Verifies the isolated behavior of Square catalog preview store.
+ */
+
 import { describe, expect, it } from "vitest";
 import { parseSquareCatalogPreview } from "@/server/square/catalog-preview-store";
 

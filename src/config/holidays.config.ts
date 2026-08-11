@@ -1,3 +1,7 @@
+/**
+ * Defines the holidays configuration used by the application.
+ */
+
 import type { ProductCardVariant } from "@/design/presets/card-presets";
 import type { ProductGridPresetId } from "@/design/presets/product-grid-presets";
 

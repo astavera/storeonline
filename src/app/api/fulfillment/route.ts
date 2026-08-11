@@ -1,3 +1,7 @@
+/**
+ * Handles HTTP requests for the API fulfillment endpoint.
+ */
+
 import { NextResponse } from "next/server";
 
 export async function GET() {

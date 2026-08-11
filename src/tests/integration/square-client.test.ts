@@ -1,3 +1,7 @@
+/**
+ * Verifies integration behavior for Square client.
+ */
+
 import { describe, expect, it } from "vitest";
 import { getSquareRuntimeConfig } from "@/server/square/client";
 

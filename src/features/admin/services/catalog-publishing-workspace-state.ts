@@ -1,3 +1,7 @@
+/**
+ * Implements the catalog publishing workspace state workflow for the admin feature.
+ */
+
 import type { WebsiteProductPlacement } from "@/features/catalog/services/website-merchandising-service";
 
 export const catalogPublishingWorkspaceStorageKey = "modern-state:admin:catalog-publishing-workspace:v1";

@@ -12,9 +12,10 @@ BUSINESS LOGIC FILES: none
 */
 
 import type { ReactNode } from "react";
-import { getPublishedHomepageState } from "@/features/admin/services/homepage-visual-editor-service";
+import { getPublishedHomepageState } from "@/features/homepage/server";
 import { SiteFooter } from "./site-footer";
 import { SiteHeader } from "./site-header";
+import { StorefrontRouteMap } from "./storefront-route-map";
 
 export async function StoreShell({ children }: { children: ReactNode }) {
   const homepageState = await getPublishedHomepageState();
@@ -23,6 +24,7 @@ export async function StoreShell({ children }: { children: ReactNode }) {
     <div className="min-h-screen bg-background">
       <a className="skip-link" href="#main-content">Skip to main content</a>
       <SiteHeader navigation={homepageState.headerNavigation} />
+      <StorefrontRouteMap />
       <div id="main-content" tabIndex={-1}>{children}</div>
       <SiteFooter />
     </div>
