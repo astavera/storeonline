@@ -1,3 +1,7 @@
+/**
+ * Implements server-side fulfillment router behavior and persistence boundaries.
+ */
+
 import "server-only";
 
 export type CartFulfillmentRequirement = {

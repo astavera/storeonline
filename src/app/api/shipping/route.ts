@@ -1,3 +1,7 @@
+/**
+ * Handles HTTP requests for the API shipping endpoint.
+ */
+
 import { NextResponse } from "next/server";
 import { getInitialShippingProviders } from "@/server/shipping/shipping-service";
 

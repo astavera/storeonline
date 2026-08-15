@@ -1,3 +1,7 @@
+/**
+ * Configures opt-in live integration tests that communicate with external services.
+ */
+
 import { defineConfig } from "vitest/config";
 import { fileURLToPath } from "node:url";
 

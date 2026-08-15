@@ -1,3 +1,7 @@
+/**
+ * Renders the storefront fallback shown when a route cannot be found.
+ */
+
 import Link from "next/link";
 
 export default function NotFound() {

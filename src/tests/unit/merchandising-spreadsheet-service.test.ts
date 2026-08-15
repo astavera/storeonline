@@ -1,3 +1,7 @@
+/**
+ * Verifies the isolated behavior of merchandising spreadsheet service.
+ */
+
 import { describe, expect, it } from "vitest";
 import type { StorefrontProduct } from "@/features/catalog/product-catalog";
 import {
@@ -13,6 +17,8 @@ const category: WebsiteCategory = {
   name: "Toys & Games",
   slug: "toys-and-games",
   description: "Customer-facing toys.",
+  imageUrl: "",
+  imageAlt: "",
   parentId: null,
   visible: true,
   sortOrder: 0

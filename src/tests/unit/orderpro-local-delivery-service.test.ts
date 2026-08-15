@@ -1,3 +1,7 @@
+/**
+ * Verifies the isolated behavior of OrderPro local delivery service.
+ */
+
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { LocalDeliveryQuoteRequest } from "@/features/fulfillment/contracts/orderpro-local-delivery";
 import { earliestNewYorkDeliveryDate } from "@/features/fulfillment/utils/new-york-delivery-date";

@@ -1,13 +1,17 @@
-export * from "./BuilderCanvas";
-export * from "./BuilderDevicePreview";
-export * from "./BuilderHistoryPanel";
-export * from "./BuilderInspector";
-export * from "./BuilderLayersPanel";
-export * from "./BuilderPreviewFrame";
-export * from "./BuilderSavePublishControls";
-export * from "./BuilderSectionLibrary";
-export * from "./BuilderSectionList";
-export * from "./BuilderShell";
-export * from "./BuilderSidebar";
-export * from "./BuilderTopbar";
+/**
+ * Exposes the administrative page-builder components and shared contracts.
+ */
+
+export * from "./builder-canvas";
+export * from "./builder-device-preview";
+export * from "./builder-history-panel";
+export * from "./builder-inspector";
+export * from "./builder-layers-panel";
+export * from "./builder-preview-frame";
+export * from "./builder-save-publish-controls";
+export * from "./builder-section-library";
+export * from "./builder-section-list";
+export * from "./builder-shell";
+export * from "./builder-sidebar";
+export * from "./builder-topbar";
 export * from "./types";

@@ -1,3 +1,7 @@
+/**
+ * Verifies the isolated behavior of admin login.
+ */
+
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { hashAdminPassword, isAdminLoginConfigured, verifyAdminCredentials, verifyAdminPassword } from "@/server/admin/admin-login";
 

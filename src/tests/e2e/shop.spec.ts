@@ -1,3 +1,7 @@
+/**
+ * Verifies the shop customer journey with end-to-end browser coverage.
+ */
+
 import { expect, test } from "@playwright/test";
 
 test("shop keeps products close and filters accessible on every viewport", async ({ page }, testInfo) => {
@@ -7,16 +11,22 @@ test("shop keeps products close and filters accessible on every viewport", async
   await expect(page.getByRole("region", { name: "Products" })).toBeVisible();
 
   const filterPanel = page.getByRole("complementary");
-  const mobileFilters = filterPanel.locator(":scope > details");
 
   if (testInfo.project.name === "mobile") {
-    await expect(mobileFilters).toBeVisible();
-    await expect(mobileFilters).not.toHaveAttribute("open", "");
-    await mobileFilters.getByText("Filter:", { exact: true }).click();
-    await expect(mobileFilters).toHaveAttribute("open", "");
-    await expect(mobileFilters.getByText("Product Category", { exact: true })).toBeVisible();
+    const filterTrigger = filterPanel.getByRole("button", { name: /Filter:/ });
+    await expect(filterTrigger).toBeVisible();
+    await expect(filterTrigger).toHaveAttribute("aria-expanded", "false");
+    await expect(async () => {
+      if ((await filterTrigger.getAttribute("aria-expanded")) !== "true") {
+        await filterTrigger.click({ force: true });
+      }
+      await expect(filterTrigger).toHaveAttribute("aria-expanded", "true");
+    }).toPass({ timeout: 15_000 });
+    const filterDialog = page.getByRole("dialog", { name: "Product filters" });
+    await expect(filterDialog).toBeVisible();
+    await expect(filterDialog.getByText("Product Category", { exact: true })).toBeVisible();
   } else {
-    await expect(mobileFilters).toBeHidden();
+    await expect(filterPanel.getByRole("button", { name: /Filter:/ })).toBeHidden();
     await expect(filterPanel.getByRole("heading", { exact: true, name: "Filter:" })).toBeVisible();
   }
 });

@@ -1,8 +1,12 @@
+/**
+ * Renders the full catalog product manager interface and its user interactions.
+ */
+
 "use client";
 
 import Image from "next/image";
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
-import { ChevronLeft, ChevronRight, ListChecks, LoaderCircle, PencilLine, Search, Save, Trash2, X } from "lucide-react";
+import { ChevronLeft, ChevronRight, Eye, EyeOff, ListChecks, LoaderCircle, PencilLine, Search, Save, Trash2, X } from "lucide-react";
 import { SearchableMultiSelect, SearchableSingleSelect } from "@/components/admin/searchable-select";
 import {
   productAgeGroups,
@@ -97,6 +101,7 @@ export function FullCatalogProductManager({
   const [squareCategoryId, setSquareCategoryId] = useState("");
   const [squareVendorId, setSquareVendorId] = useState("");
   const [websiteCategoryId, setWebsiteCategoryId] = useState(initialWebsiteCategoryId);
+  const [websiteSurfaceId, setWebsiteSurfaceId] = useState<WebsiteSurface | "">("");
   const [imageFilter, setImageFilter] = useState<ImageFilter>("all");
   const [page, setPage] = useState(1);
   const [reloadKey, setReloadKey] = useState(0);
@@ -182,6 +187,7 @@ export function FullCatalogProductManager({
     if (squareCategoryId) parameters.set("categoryId", squareCategoryId);
     if (squareVendorId) parameters.set("vendorId", squareVendorId);
     if (websiteCategoryId) parameters.set("websiteCategoryId", websiteCategoryId);
+    if (websiteSurfaceId) parameters.set("websiteSurfaceId", websiteSurfaceId);
     if (imageFilter !== "all") parameters.set("images", imageFilter);
     fetch(`/api/admin/full-catalog-products?${parameters}`, { cache: "no-store", signal: controller.signal })
       .then(async (response) => {
@@ -231,7 +237,7 @@ export function FullCatalogProductManager({
       });
 
     return () => controller.abort();
-  }, [hasHydratedWorkspace, imageFilter, page, query, reloadKey, squareCategoryId, squareVendorId, websiteCategoryId]);
+  }, [hasHydratedWorkspace, imageFilter, page, query, reloadKey, squareCategoryId, squareVendorId, websiteCategoryId, websiteSurfaceId]);
 
   const selectedRecord = catalog?.records.find((record) => record.product.squareVariationId === selectedId) ?? null;
   const currentPageIds = catalog?.records.map((record) => record.product.squareVariationId) ?? [];
@@ -320,6 +326,7 @@ export function FullCatalogProductManager({
       if (squareCategoryId) parameters.set("categoryId", squareCategoryId);
       if (squareVendorId) parameters.set("vendorId", squareVendorId);
       if (websiteCategoryId) parameters.set("websiteCategoryId", websiteCategoryId);
+      if (websiteSurfaceId) parameters.set("websiteSurfaceId", websiteSurfaceId);
       const response = await fetch(`/api/admin/full-catalog-products?${parameters}`, { cache: "no-store" });
       const result = await response.json() as { ok: boolean; error?: string; variationIds?: string[]; total?: number; truncated?: boolean };
       if (!response.ok || !result.ok || !result.variationIds) throw new Error(result.error || "Matching products could not be selected.");
@@ -457,7 +464,7 @@ export function FullCatalogProductManager({
         </p>
       </div>
 
-      <div className="mt-5 grid gap-3 lg:grid-cols-2 2xl:grid-cols-[minmax(0,1.35fr)_minmax(210px,1fr)_minmax(210px,1fr)_minmax(230px,1fr)_160px]">
+      <div className="mt-5 grid gap-3 lg:grid-cols-2 xl:grid-cols-3">
         <form className="flex min-h-11 items-center gap-2 rounded-md border border-border bg-surface px-3 focus-within:border-border" onSubmit={submitSearch}>
           <Search className="shrink-0 text-secondary" size={17} />
           <input className="min-w-0 flex-1 bg-transparent py-3 text-sm outline-none" onChange={(event) => setQueryInput(event.target.value)} placeholder="Search name, SKU or GTIN" type="search" value={queryInput} />
@@ -490,6 +497,26 @@ export function FullCatalogProductManager({
           searchLabel="Search website categories"
           value={websiteCategoryId}
         />
+        <select
+          aria-label="Filter by website placement"
+          className={inputClassName}
+          onChange={(event) => {
+            setIsLoading(true);
+            setError("");
+            setSuccess("");
+            setSelectedIds(new Set());
+            setWebsiteSurfaceId(event.target.value as WebsiteSurface | "");
+            setPage(1);
+          }}
+          value={websiteSurfaceId}
+        >
+          <option value="">Website placement: any</option>
+          {websiteSurfaceOptions.map((surface) => (
+            <option key={surface.id} value={surface.id}>
+              {surface.label}
+            </option>
+          ))}
+        </select>
         <select aria-label="Filter by image" className={inputClassName} onChange={(event) => { setIsLoading(true); setError(""); setSuccess(""); setSelectedIds(new Set()); setImageFilter(event.target.value as ImageFilter); setPage(1); }} value={imageFilter}>
           <option value="all">Image status: any</option>
           <option value="with">Image status: has image</option>
@@ -561,13 +588,66 @@ export function FullCatalogProductManager({
                 <StatusPill placement={draft} saved={selectedRecord.saved} />
               </div>
 
+              <div className="mt-5 rounded-md border border-border bg-surface-muted p-4">
+                <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
+                  <div>
+                    <p className="font-semibold">Website visibility</p>
+                    <p className="mt-1 text-xs leading-relaxed text-secondary">
+                      Private products stay in Catalog Publishing but do not appear to customers.
+                    </p>
+                  </div>
+                  <div className="inline-flex w-full rounded-md border border-border bg-surface p-1 sm:w-auto">
+                    <button
+                      aria-pressed={!draft.visible}
+                      className={`inline-flex min-h-10 flex-1 items-center justify-center gap-2 rounded px-4 text-sm font-semibold transition sm:flex-none ${!draft.visible ? "bg-primary text-white" : "text-secondary hover:bg-surface-muted"}`}
+                      disabled={disabled}
+                      onClick={() => updateDraft({ visible: false })}
+                      type="button"
+                    >
+                      <EyeOff aria-hidden="true" size={16} />
+                      Private
+                    </button>
+                    <button
+                      aria-pressed={draft.visible}
+                      className={`inline-flex min-h-10 flex-1 items-center justify-center gap-2 rounded px-4 text-sm font-semibold transition sm:flex-none ${draft.visible ? "bg-green text-white" : "text-secondary hover:bg-surface-muted"} disabled:cursor-not-allowed disabled:opacity-40`}
+                      disabled={disabled || readinessIssues.length > 0}
+                      onClick={() => updateDraft({ visible: true })}
+                      type="button"
+                    >
+                      <Eye aria-hidden="true" size={16} />
+                      Visible on website
+                    </button>
+                  </div>
+                </div>
+                {readinessIssues.length > 0 ? (
+                  <p className="mt-3 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-900">
+                    Complete setup before publishing: {readinessIssues[0]}
+                  </p>
+                ) : (
+                  <p className="mt-3 text-xs font-semibold text-green-800">
+                    This product is ready. Choose its visibility and save the product.
+                  </p>
+                )}
+              </div>
+
               <div className="mt-5 grid gap-5 lg:grid-cols-2">
                 <ChoiceSection label="Website categories">
                   {categories.length ? <SearchableMultiSelect disabled={disabled} label="Website categories" onToggle={(categoryId) => updateDraft({ categoryIds: toggleValue(draft.categoryIds, categoryId) })} options={categories.map((category) => ({ id: category.id, label: websiteCategoryLabel(category, categories) }))} values={draft.categoryIds} /> : <EmptyChoice href="#structure-categories" label="Create a website category first." />}
                 </ChoiceSection>
 
-                <ChoiceSection label="Visible in">
-                  <SearchableMultiSelect disabled={disabled} label="Visible in" onToggle={(surfaceId) => updateDraft({ surfaceIds: toggleValue<WebsiteSurface>(draft.surfaceIds, surfaceId) })} options={websiteSurfaceOptions} values={draft.surfaceIds} />
+                <ChoiceSection label="Homepage & website placement">
+                  <WebsitePlacementVisibility
+                    disabled={disabled}
+                    onToggle={(surfaceId) =>
+                      updateDraft({
+                        surfaceIds: toggleValue<WebsiteSurface>(
+                          draft.surfaceIds,
+                          surfaceId
+                        )
+                      })
+                    }
+                    values={draft.surfaceIds}
+                  />
                 </ChoiceSection>
 
                 <ChoiceSection label="Fulfillment">
@@ -589,8 +669,8 @@ export function FullCatalogProductManager({
 
               <div className="mt-5 flex flex-col gap-4 rounded-md border border-border bg-surface-muted p-4 sm:flex-row sm:items-center sm:justify-between">
                 <div>
-                  <label className="inline-flex cursor-pointer items-center gap-3 font-semibold"><input checked={draft.visible} className="h-5 w-5 accent-primary" disabled={disabled || readinessIssues.length > 0} onChange={(event) => updateDraft({ visible: event.target.checked })} type="checkbox" /> Visible on website</label>
-                  {readinessIssues.length ? <p className="mt-1 text-xs text-secondary">{readinessIssues[0]}</p> : <p className="mt-1 text-xs text-secondary">Ready to publish when you choose.</p>}
+                  <p className="font-semibold">{draft.visible ? "Will be visible after saving" : "Will remain private after saving"}</p>
+                  <p className="mt-1 text-xs text-secondary">Use the visibility control above whenever you want to change this status.</p>
                 </div>
                 <div className="flex items-center gap-2">
                   <label className="text-xs font-semibold text-secondary">Order <input className="ml-2 min-h-10 w-24 rounded-md border border-border bg-surface px-3 text-sm text-primary" min={0} onChange={(event) => updateDraft({ sortOrder: Number(event.target.value) || 0 })} type="number" value={draft.sortOrder} /></label>
@@ -772,6 +852,78 @@ function createCategoryRemovalEdit(categoryId: string): WebsiteBulkEdit {
 
 function ChoiceSection({ children, label }: { children: React.ReactNode; label: string }) {
   return <fieldset className="rounded-md border border-border p-4"><legend className="px-1 text-sm font-semibold">{label}</legend><div className="w-full">{children}</div></fieldset>;
+}
+
+function WebsitePlacementVisibility({
+  disabled,
+  onToggle,
+  values
+}: {
+  disabled: boolean;
+  onToggle: (surfaceId: WebsiteSurface) => void;
+  values: WebsiteSurface[];
+}) {
+  return (
+    <div className="grid gap-2">
+      <p className="mb-1 text-xs leading-relaxed text-secondary">
+        Choose every customer-facing area where this product may appear.
+      </p>
+      {websiteSurfaceOptions.map((surface) => {
+        const checked = values.includes(surface.id);
+
+        return (
+          <label
+            className={`flex cursor-pointer items-start gap-3 rounded-md border p-3 transition ${
+              checked
+                ? "border-primary bg-primary/[0.06]"
+                : "border-border bg-surface-muted hover:border-primary/40"
+            } ${disabled ? "cursor-not-allowed opacity-55" : ""}`}
+            key={surface.id}
+          >
+            <input
+              checked={checked}
+              className="mt-0.5 h-5 w-5 shrink-0 accent-primary"
+              disabled={disabled}
+              onChange={() => onToggle(surface.id)}
+              type="checkbox"
+            />
+            <span className="min-w-0">
+              <span className="block text-sm font-semibold text-primary">
+                {surface.label}
+              </span>
+              <span className="mt-0.5 block text-xs leading-relaxed text-secondary">
+                {websiteSurfaceDescription(surface.id)}
+              </span>
+            </span>
+          </label>
+        );
+      })}
+    </div>
+  );
+}
+
+function websiteSurfaceDescription(surfaceId: WebsiteSurface) {
+  if (surfaceId === "homepage") {
+    return "Eligible for homepage product sections and optional product selections.";
+  }
+
+  if (surfaceId === "new-and-trending") {
+    return "Eligible for the automatic New & Trending carousel.";
+  }
+
+  if (surfaceId === "shop") {
+    return "Available in the main Shop catalog and category-driven homepage rows.";
+  }
+
+  if (surfaceId === "search") {
+    return "Can appear in customer search results.";
+  }
+
+  if (surfaceId === "category-pages") {
+    return "Can appear on its assigned website category pages.";
+  }
+
+  return "Can appear on active holiday and seasonal pages.";
 }
 
 function EmptyChoice({ href, label }: { href: string; label: string }) {

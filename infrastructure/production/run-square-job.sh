@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# Runs an approved Square maintenance command inside the production storefront container.
+
 set -Eeuo pipefail
 
 readonly DOCKER_BIN="${DOCKER_BIN:-/usr/bin/docker}"

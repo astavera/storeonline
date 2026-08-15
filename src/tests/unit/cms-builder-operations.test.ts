@@ -1,3 +1,7 @@
+/**
+ * Verifies the isolated behavior of CMS builder operations.
+ */
+
 import { describe, expect, it } from "vitest";
 import { addCmsSection, applySectionPresetToSection, applyThemePresetToDocument, changeCmsSectionVariant, createCmsPageDocument, duplicateCmsSection, moveCmsSection, removeCmsSection, renameCmsSection, sectionPresets, setCmsSectionHidden, themePresets, updateCmsSection, updateCmsThemeOverrides } from "@/lib/cms";
 

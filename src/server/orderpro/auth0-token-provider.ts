@@ -1,3 +1,7 @@
+/**
+ * Implements server-side Auth0 token provider behavior and persistence boundaries.
+ */
+
 import "server-only";
 import { z } from "zod";
 import type { OrderProAuth0Configuration } from "@/server/orderpro/config";

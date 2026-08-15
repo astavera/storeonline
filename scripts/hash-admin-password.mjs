@@ -1,3 +1,7 @@
+/**
+ * Generates a secure administrative password hash for environment configuration.
+ */
+
 import { randomBytes, scryptSync } from "node:crypto";
 
 const password = process.argv[2];

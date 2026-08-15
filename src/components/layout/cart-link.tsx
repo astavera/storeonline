@@ -1,3 +1,7 @@
+/**
+ * Renders the cart link interface and its user interactions.
+ */
+
 "use client";
 
 import Link from "next/link";

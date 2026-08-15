@@ -1,3 +1,7 @@
+/**
+ * Defines the reusable section layout presets preset for the storefront design system.
+ */
+
 export type SectionLayoutPresetId =
   | "homepage-hero-split-image"
   | "homepage-hero-centered"

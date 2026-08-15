@@ -1,3 +1,7 @@
+/**
+ * Implements the walking route distance fee service workflow for the fulfillment feature.
+ */
+
 export const walkingRouteDistanceFeeReasonCodes = [
   "QUOTED",
   "MANAGER_REVIEW",

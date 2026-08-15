@@ -1,3 +1,7 @@
+/**
+ * Verifies the isolated behavior of balloon draft service.
+ */
+
 import { describe, expect, it } from "vitest";
 import {
   BalloonDraftError,

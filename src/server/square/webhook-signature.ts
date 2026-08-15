@@ -1,3 +1,7 @@
+/**
+ * Implements server-side webhook signature behavior and persistence boundaries.
+ */
+
 import "server-only";
 import { createHmac, timingSafeEqual } from "crypto";
 

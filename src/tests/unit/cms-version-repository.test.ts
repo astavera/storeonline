@@ -1,3 +1,7 @@
+/**
+ * Verifies the isolated behavior of CMS version repository.
+ */
+
 import { describe, expect, it } from "vitest";
 import {
   createDatabaseCmsVersion,

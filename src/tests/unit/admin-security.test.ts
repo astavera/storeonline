@@ -1,3 +1,7 @@
+/**
+ * Verifies the isolated behavior of admin security.
+ */
+
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   adminCapabilities,

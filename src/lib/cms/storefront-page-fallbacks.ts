@@ -1,3 +1,7 @@
+/**
+ * Provides shared storefront page fallbacks types and utilities for the application.
+ */
+
 import type { StorefrontEditablePage } from "@/config/storefront-pages.config";
 import { balloonBuilderStepLabels, balloonBuilderSteps, balloonFlows } from "@/config/balloons.config";
 import { getDepartmentBySlug } from "@/config/departments.config";
@@ -89,18 +93,19 @@ function sectionsForEditablePage(page: StorefrontEditablePage): CmsSection[] {
 
   if (page.scope === "department") {
     const department = getDepartmentBySlug(page.entityId);
+    const imageOnlyDepartment = page.entityId === "toys" || page.entityId === "party-supplies";
 
     return [
       createCmsSection("hero", {
         id: `${page.entityId}.hero`,
         label: `${page.title} hero`,
-        variant: department?.layout_preset ?? "standard",
+        variant: imageOnlyDepartment ? "image-only" : department?.layout_preset ?? "standard",
         content: {
           eyebrow: "",
-          title: department?.hero_title_en ?? page.title,
-          body: department?.hero_subtitle_en ?? page.description,
-          primaryCtaLabel: "Browse products",
-          primaryCtaHref: "/shop",
+          title: imageOnlyDepartment ? page.title : department?.hero_title_en ?? page.title,
+          body: imageOnlyDepartment ? "" : department?.hero_subtitle_en ?? page.description,
+          primaryCtaLabel: imageOnlyDepartment ? "" : "Browse products",
+          primaryCtaHref: imageOnlyDepartment ? "" : "/shop",
           items: []
         },
         media: {
@@ -111,8 +116,8 @@ function sectionsForEditablePage(page: StorefrontEditablePage): CmsSection[] {
           columns: 1,
           containerWidth: "wide",
           imagePosition: department?.hero_image_url ? "background" : "none",
-          paddingTop: 112,
-          paddingBottom: 56
+          paddingTop: imageOnlyDepartment ? 0 : 112,
+          paddingBottom: imageOnlyDepartment ? 0 : 56
         },
         design: {
           backgroundTone: department?.hero_image_url ? "dark" : "default"
@@ -218,13 +223,13 @@ function createBalloonPageSections(page: StorefrontEditablePage): CmsSection[] {
   const selectedFlow = balloonFlows.find((flow) => flow.slug === flowSlug);
   const title =
     selectedFlow?.title ??
-    (flowSlug === "local-delivery" ? "Balloon Local Delivery" : flowSlug === "pickup" ? "Balloon Pickup" : balloons?.hero_title_en ?? "Balloons planned around your moment.");
+    (flowSlug === "local-delivery" ? "Balloon Local Delivery" : flowSlug === "pickup" ? "Balloon Store Pickup" : balloons?.hero_title_en ?? "Balloons planned around your moment.");
   const body =
     selectedFlow?.description ??
     (flowSlug === "local-delivery"
       ? "Local delivery ordering is coming soon. Contact the store with your address and event date to ask about availability."
       : flowSlug === "pickup"
-        ? "Online pickup scheduling is coming soon. Contact your preferred store to confirm balloon choices and timing."
+        ? "Choose a store and available pickup time for your balloon order."
         : balloons?.hero_subtitle_en ?? page.description);
 
   return [
@@ -264,7 +269,7 @@ function createBalloonPageSections(page: StorefrontEditablePage): CmsSection[] {
       variant: "guided",
       content: {
         title: "Plan your balloon order",
-        body: "Browse balloon types and planning steps, then contact the store to confirm colors, timing, pickup, or local delivery.",
+        body: "Browse balloon types and planning steps, then confirm colors, timing, store pickup, or local delivery.",
         items: balloonBuilderSteps.map((step) => ({
           id: step,
           title: balloonBuilderStepLabels[step],
@@ -304,13 +309,13 @@ function createBalloonPageSections(page: StorefrontEditablePage): CmsSection[] {
     }),
     createCmsSection("pickupDeliveryInfo", {
       id: "balloons.fulfillment-selector",
-      label: "Pickup and local delivery",
+      label: "Store pickup and local delivery",
       variant: "pickup-delivery",
       content: {
-        title: "Pickup and local delivery",
+        title: "Store pickup and local delivery",
         body: "",
         items: [
-          { id: "pickup", title: "Pickup", body: "Choose your preferred store and contact us to confirm pickup timing." },
+          { id: "pickup", title: "Store pickup", body: "Choose your preferred store and an available pickup time." },
           { id: "local-delivery", title: "Local delivery", body: "Contact us with your delivery address and event date to check availability and pricing." }
         ]
       },
@@ -327,7 +332,7 @@ function createBalloonPageSections(page: StorefrontEditablePage): CmsSection[] {
       variant: "timing-availability",
       content: {
         title: "Timing and availability",
-        body: "Balloon orders may require advance notice. Contact the store to confirm a pickup or delivery window.",
+        body: "Balloon orders may require advance notice. Your pickup or local delivery window is confirmed before checkout.",
         items: []
       },
       layout: {

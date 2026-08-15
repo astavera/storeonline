@@ -1,3 +1,7 @@
+/**
+ * Renders the application error boundary and recovery action.
+ */
+
 "use client";
 
 export default function ErrorPage({ reset }: { reset: () => void }) {

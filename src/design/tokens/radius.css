@@ -1,3 +1,7 @@
+/*
+ * Defines the radius design tokens shared by the storefront interface.
+ */
+
 :root {
   --radius-xs: 0.25rem;
   --radius-sm: 0.375rem;

@@ -1,6 +1,10 @@
+/**
+ * Implements server-side admin local CMS store behavior and persistence boundaries.
+ */
+
 import "server-only";
 
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readFile, readdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 export type LocalCmsStatus = "DRAFT" | "PREVIEW" | "PUBLISHED" | "SCHEDULED" | "UNPUBLISHED";
@@ -24,6 +28,36 @@ export async function readLocalCmsVersions(entityId: string) {
     const parsed = JSON.parse(raw);
 
     return Array.isArray(parsed) ? parsed.filter(isLocalCmsVersion) : [];
+  } catch {
+    return [];
+  }
+}
+
+export async function readLocalCmsVersionsByEntityPrefix(entityIdPrefix: string) {
+  try {
+    const entries = await readdir(localCmsDir, { withFileTypes: true });
+    const versionGroups = await Promise.all(
+      entries
+        .filter((entry) => entry.isFile() && entry.name.endsWith(".json"))
+        .map(async (entry) => {
+          try {
+            const raw = await readFile(path.join(localCmsDir, entry.name), "utf8");
+            const parsed = JSON.parse(raw);
+
+            return Array.isArray(parsed)
+              ? parsed.filter(
+                  (version): version is LocalCmsVersion =>
+                    isLocalCmsVersion(version) &&
+                    version.entityId.startsWith(entityIdPrefix)
+                )
+              : [];
+          } catch {
+            return [];
+          }
+        })
+    );
+
+    return versionGroups.flat();
   } catch {
     return [];
   }

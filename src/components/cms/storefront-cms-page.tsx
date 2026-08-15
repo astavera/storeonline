@@ -1,9 +1,14 @@
+/**
+ * Renders the storefront CMS page interface and its user interactions.
+ */
+
 import { DepartmentCardGrid } from "@/components/commerce/department-card-grid";
 import { AddToCartButton } from "@/components/commerce/add-to-cart-button";
+import { PickupLocationInventory } from "@/components/commerce/pickup-location-inventory";
+import { WishlistButton } from "@/components/commerce/wishlist-button";
 import { ProductGrid } from "@/components/commerce/product-grid";
 import { SiteFooter } from "@/components/layout/site-footer";
 import { SiteHeader } from "@/components/layout/site-header";
-import { StorefrontBreadcrumb } from "@/components/layout/storefront-breadcrumb";
 import { storeLocations } from "@/config/locations.config";
 import { fulfillmentModeLabel, getProductBySlug, getProductsByDepartment, getProductsBySlugs, getVisibleProducts, type StorefrontProduct } from "@/features/catalog/product-catalog";
 import type { ProductGridPresetId } from "@/design/presets/product-grid-presets";
@@ -71,26 +76,7 @@ export type StorefrontCmsSectionRenderOptions = {
 
 export function StorefrontCmsPage({ document, product, products }: { document: CmsPageDocument; product?: StorefrontProduct; products?: StorefrontProduct[] }) {
   const primaryHeadingSectionId = primaryHeadingSectionIdForDocument(document);
-  return (
-    <>
-      {shouldShowDocumentBreadcrumb(document) ? (
-        <div className="bg-surface pt-8">
-          <div className="container-shell">
-            <StorefrontBreadcrumb currentLabel={breadcrumbLabelForDocument(document)} />
-          </div>
-        </div>
-      ) : null}
-      <PageRenderer document={document} renderSection={(section, context) => renderStorefrontCmsSection(section, context, { primaryHeadingSectionId, product, products })} />
-    </>
-  );
-}
-
-function shouldShowDocumentBreadcrumb(document: CmsPageDocument) {
-  return document.slug !== "/" && !(document.entityType === "landing" && document.entityId === "shop");
-}
-
-function breadcrumbLabelForDocument(document: CmsPageDocument) {
-  return document.title.replace(/^(Landing|Department|Holiday|Product|Location|Policy):\s*/i, "");
+  return <PageRenderer document={document} renderSection={(section, context) => renderStorefrontCmsSection(section, context, { primaryHeadingSectionId, product, products })} />;
 }
 
 function primaryHeadingSectionIdForDocument(document: CmsPageDocument) {
@@ -190,10 +176,39 @@ function EditableGlobalFrameSection({ section }: { section: CmsSection }) {
 
 function EditableHeroSection({ isPrimaryHeading, section }: { isPrimaryHeading: boolean; section: CmsSection }) {
   const image = section.media.image;
+  const imageOnly = section.variant === "image-only";
   const imageIsBackground = Boolean(image) && section.layout.imagePosition === "background";
   const showSplitMedia = !imageIsBackground && section.layout.imagePosition !== "none";
   const isDark = section.design.backgroundTone === "dark" || section.design.backgroundTone === "brand" || imageIsBackground;
   const Heading = isPrimaryHeading ? "h1" : "h2";
+
+  if (imageOnly) {
+    const title = String(section.content.title || section.label);
+
+    if (!image) {
+      return <Heading className="sr-only">{title}</Heading>;
+    }
+
+    return (
+      <section
+        aria-label={`${title} hero`}
+        className="relative isolate aspect-[4/3] overflow-hidden bg-surface-muted sm:aspect-[16/7] lg:aspect-[3/1]"
+        data-cms-component="EditableImageOnlyHeroSection"
+        data-cms-edit-field="image"
+      >
+        <Heading className="sr-only">{title}</Heading>
+        <Image
+          alt=""
+          className="object-cover"
+          fill
+          priority
+          sizes="100vw"
+          src={image}
+          unoptimized={/^https?:\/\//i.test(image)}
+        />
+      </section>
+    );
+  }
 
   return (
     <section
@@ -235,7 +250,6 @@ function EditableProductDetailSection({ isPrimaryHeading, product: providedProdu
   const image = section.media.image || product?.imageUrl || "";
   const price = product ? (product.priceAvailable === false ? "Price unavailable" : formatMoney(product.priceCents)) : "$0.00";
   const fulfillmentModes = product?.fulfillmentModes ?? [];
-  const inventoryStatus = product?.inventoryStatus ?? "in-stock";
   const Heading = isPrimaryHeading ? "h1" : "h2";
 
   return (
@@ -262,24 +276,20 @@ function EditableProductDetailSection({ isPrimaryHeading, product: providedProdu
               <span className="rounded-md border border-border bg-surface-muted px-3 py-2 text-sm font-semibold text-secondary">Pickup</span>
             )}
           </div>
-          <div className="mt-8 max-w-sm" data-cms-edit-field="primaryCta">
-            {product && !product.previewOnly ? (
-              <AddToCartButton disabled={product.inventoryStatus === "out-of-stock" || product.priceAvailable === false} disabledReason={product.priceAvailable === false ? "Price unavailable" : "Out of stock"} label={String(section.content.primaryCtaLabel || "Add to cart")} squareVariationId={product.squareVariationId} />
-            ) : product?.previewOnly ? (
-              <div className="rounded-pill border border-blue/30 bg-cyan px-5 py-3 text-center font-black text-primary">Read-only Square preview</div>
-            ) : (
-              <Link className="inline-flex min-h-11 w-full items-center justify-center rounded-pill bg-blue px-6 py-3 text-sm font-black text-white" href="/contact">
-                Contact the store
-              </Link>
-            )}
-          </div>
-          <div className="mt-8 grid gap-3 rounded-md border border-border bg-surface-muted p-4 text-sm text-secondary" data-cms-edit-field="linkedProducts">
-            <p>
-              <span className="font-semibold text-primary">Availability:</span> {inventoryLabel(inventoryStatus)}
-            </p>
-            <p>
-              <span className="font-semibold text-primary">Good to know:</span> Final availability and your order total are confirmed before purchase.
-            </p>
+          {product ? <PickupLocationInventory product={product} /> : null}
+          <div className="mt-8 flex max-w-sm items-stretch gap-2" data-cms-edit-field="primaryCta">
+            <div className="min-w-0 flex-1">
+              {product && !product.previewOnly ? (
+                <AddToCartButton disabled={product.inventoryStatus === "out-of-stock" || product.priceAvailable === false} disabledReason={product.priceAvailable === false ? "Price unavailable" : "Out of stock"} label={String(section.content.primaryCtaLabel || "Add to cart")} showQuantitySelector squareVariationId={product.squareVariationId} />
+              ) : product?.previewOnly ? (
+                <div className="rounded-pill border border-blue/30 bg-cyan px-5 py-3 text-center font-black text-primary">Read-only Square preview</div>
+              ) : (
+                <Link className="inline-flex min-h-11 w-full items-center justify-center rounded-pill bg-blue px-6 py-3 text-sm font-black text-white" href="/contact">
+                  Contact the store
+                </Link>
+              )}
+            </div>
+            {product ? <WishlistButton productName={product.name} squareVariationId={product.squareVariationId} /> : null}
           </div>
         </section>
       </div>
@@ -304,13 +314,13 @@ function EditableProductModuleSection({ isPrimaryHeading, product: providedProdu
     return <section className="container-shell py-4" data-cms-component="ProductPrice"><p className="text-2xl font-semibold">{product ? (product.priceAvailable === false ? "Price unavailable" : formatMoney(product.priceCents)) : "Price unavailable"}</p></section>;
   }
   if (type === "addToCartButton" || type === "buyNowButton") {
-    return <section className="container-shell py-4" data-cms-component="ProductPurchaseAction">{product && !product.previewOnly ? <div className="max-w-sm"><AddToCartButton disabled={product.inventoryStatus === "out-of-stock" || product.priceAvailable === false} disabledReason={product.priceAvailable === false ? "Price unavailable" : "Out of stock"} label={String(section.content.primaryCtaLabel || "Add to cart")} squareVariationId={product.squareVariationId} /></div> : <p className="text-secondary">Purchasing is unavailable for this preview.</p>}</section>;
+    return <section className="container-shell py-4" data-cms-component="ProductPurchaseAction">{product ? <div className="flex max-w-sm items-stretch gap-2"><div className="min-w-0 flex-1">{!product.previewOnly ? <AddToCartButton disabled={product.inventoryStatus === "out-of-stock" || product.priceAvailable === false} disabledReason={product.priceAvailable === false ? "Price unavailable" : "Out of stock"} label={String(section.content.primaryCtaLabel || "Add to cart")} showQuantitySelector squareVariationId={product.squareVariationId} /> : <p className="text-secondary">Purchasing is unavailable for this preview.</p>}</div><WishlistButton productName={product.name} squareVariationId={product.squareVariationId} /></div> : <p className="text-secondary">Product unavailable.</p>}</section>;
   }
   if (type === "productDescription") {
     return <section className="container-shell py-6" data-cms-component="ProductDescription"><h2 className="font-display text-2xl font-semibold">{title}</h2><p className="mt-3 max-w-3xl text-secondary">{String(section.content.body || product?.description || "Product details are being prepared.")}</p></section>;
   }
   if (type === "stockIndicator") {
-    return <section className="container-shell py-4" data-cms-component="ProductStockIndicator"><p><span className="font-semibold">Availability:</span> {inventoryLabel(product?.inventoryStatus ?? "special-order")}</p></section>;
+    return product ? <section className="container-shell py-4" data-cms-component="ProductStockIndicator"><PickupLocationInventory product={product} /></section> : null;
   }
 
   return <EditableEditorialSection section={section} />;
@@ -347,13 +357,6 @@ function EditableShopCatalogSection({ isPrimaryHeading, products, section }: { i
     <section className="bg-surface" data-cms-component="EditableShopCatalogSection">
       <section className="py-8 md:py-12">
         <div className="container-shell">
-          <nav aria-label="Breadcrumb" className="mb-5 text-sm font-black text-primary [&_*]:text-primary" data-cms-edit-field="breadcrumbs">
-            <Link className="text-primary hover:underline" href="/">
-              Home
-            </Link>
-            <span className="mx-2 text-secondary">›</span>
-            <span className="text-primary">{title}</span>
-          </nav>
           <div className="mb-8 max-w-3xl">
             <Heading className="font-display text-4xl font-black leading-tight md:text-5xl" data-cms-edit-field="title">{title}</Heading>
             <p className="mt-3 text-lg text-secondary">Browse toys, balloons, party supplies, stationery, gifts, and neighborhood favorites.</p>
@@ -726,22 +729,6 @@ function productGridPresetForSection(section: CmsSection): ProductGridPresetId {
   }
 
   return "editorial";
-}
-
-function inventoryLabel(status: StorefrontProduct["inventoryStatus"]) {
-  if (status === "out-of-stock") {
-    return "Out of stock";
-  }
-
-  if (status === "limited") {
-    return "Limited quantities available";
-  }
-
-  if (status === "special-order") {
-    return "Special order";
-  }
-
-  return "In stock";
 }
 
 function HeroFallbackPanel() {

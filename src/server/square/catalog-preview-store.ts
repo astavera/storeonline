@@ -1,3 +1,7 @@
+/**
+ * Implements server-side catalog preview store behavior and persistence boundaries.
+ */
+
 import "server-only";
 
 import { readFile } from "node:fs/promises";

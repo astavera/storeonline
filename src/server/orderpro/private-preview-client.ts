@@ -1,3 +1,7 @@
+/**
+ * Implements server-side private preview client behavior and persistence boundaries.
+ */
+
 import "server-only";
 
 import { z } from "zod";

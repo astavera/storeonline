@@ -1,3 +1,7 @@
+/**
+ * Defines the admin control plane configuration used by the application.
+ */
+
 export type AdminFieldType = "text" | "textarea" | "select" | "boolean" | "number" | "url" | "datetime" | "list" | "json";
 
 export type AdminFieldValue = string | number | boolean | string[];
@@ -100,6 +104,8 @@ export const adminModules: AdminModule[] = [
     connectedModels: ["CmsContentVersion", "WebsiteProductPlacement", "MediaAsset"],
     editableFields: [
       ...contentFields,
+      { name: "homepageId", label: "Homepage ID", type: "text", required: true, helpText: "Stable identifier for this homepage document.", defaultValue: "main" },
+      { name: "homepageName", label: "Homepage name", type: "text", required: true, helpText: "Internal name such as Halloween Homepage or Christmas Homepage.", defaultValue: "Main Homepage" },
       { name: "sectionOrder", label: "Section order", type: "list", helpText: "Ordered section IDs for the homepage.", defaultValue: ["home.hero", "home.departments", "home.featured-products"] },
       { name: "visualSections", label: "Visual sections JSON", type: "json", helpText: "Full homepage visual editor state for sections, images, layout, visibility, and positions.", defaultValue: "[]" },
       { name: "headerNavigation", label: "Header navigation JSON", type: "json", helpText: "Homepage header navigation labels, links, visibility, and order.", defaultValue: "{}" },

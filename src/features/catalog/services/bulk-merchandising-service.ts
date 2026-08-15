@@ -1,3 +1,7 @@
+/**
+ * Implements the bulk merchandising service workflow for the catalog feature.
+ */
+
 import type { FulfillmentMode, ProductAgeGroup } from "@/features/catalog/product-catalog";
 import {
   websitePlacementReadinessIssues,

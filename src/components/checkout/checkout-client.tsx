@@ -1,3 +1,7 @@
+/**
+ * Renders the checkout client interface and its user interactions.
+ */
+
 "use client";
 
 import { CalendarDays, CreditCard, MapPin, PackageCheck, ShieldCheck } from "lucide-react";

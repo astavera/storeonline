@@ -1,3 +1,7 @@
+/**
+ * Implements the product description service workflow for the catalog feature.
+ */
+
 export type SquareDescriptionInput = {
   descriptionHtml?: string | null;
   descriptionPlaintext?: string | null;

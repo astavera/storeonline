@@ -1,3 +1,7 @@
+/**
+ * Provides shared design presets types and utilities for the application.
+ */
+
 import type { ButtonPreset, CardPreset, LayoutPreset, SectionPreset, ThemePreset } from "./cms-types";
 
 export const themePresets: ThemePreset[] = [

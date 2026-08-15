@@ -1,3 +1,7 @@
+/**
+ * Implements the balloon builder service workflow for the balloons feature.
+ */
+
 export type BalloonComponentKind = "stocked-variation" | "non-stocked-modifier";
 
 export function requiresSquareVariation(kind: BalloonComponentKind) {

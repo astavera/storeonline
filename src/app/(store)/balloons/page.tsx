@@ -1,9 +1,13 @@
+/**
+ * Renders the balloons page and prepares its route-level data.
+ */
+
 import { BalloonsPageTemplate } from "@/components/templates/balloons-page-template";
 import { isOrderProDeliveryTestMode } from "@/server/orderpro/orderpro-local-delivery-service";
 
 export const metadata = {
   title: "Balloons",
-  description: "Order balloons for pickup or local delivery through a guided Modern State balloon flow."
+  description: "Order balloons for store pickup or local delivery through a guided Modern State balloon flow."
 };
 
 type BalloonsPageProps = {

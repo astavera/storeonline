@@ -1,3 +1,7 @@
+/**
+ * Implements the delivery zone service workflow for the fulfillment feature.
+ */
+
 export type LngLat = readonly [number, number];
 
 export type GeoJsonPolygon = {

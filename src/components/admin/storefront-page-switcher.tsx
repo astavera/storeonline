@@ -1,3 +1,7 @@
+/**
+ * Renders the storefront page switcher interface and its user interactions.
+ */
+
 "use client";
 
 import { useMemo, useTransition } from "react";

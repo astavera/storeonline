@@ -1,3 +1,7 @@
+/**
+ * Imports validated legacy storefront content into the current content model.
+ */
+
 import { createHash } from "node:crypto";
 import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";

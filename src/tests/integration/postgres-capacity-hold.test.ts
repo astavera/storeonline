@@ -1,3 +1,7 @@
+/**
+ * Verifies integration behavior for postgres capacity hold.
+ */
+
 import { randomUUID } from "node:crypto";
 import { PrismaClient } from "@prisma/client";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";

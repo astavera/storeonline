@@ -1,3 +1,7 @@
+/**
+ * Implements server-side CMS version repository behavior and persistence boundaries.
+ */
+
 import "server-only";
 
 import { Prisma } from "@prisma/client";
@@ -43,6 +47,51 @@ export async function readLatestDatabaseCmsVersion(input: {
         ...(input.statuses ? { status: { in: input.statuses as never[] } } : {})
       },
       orderBy: [{ versionNumber: "desc" }, { createdAt: "desc" }]
+    });
+  } catch (error) {
+    throw new PersistenceUnavailableError("CMS", { cause: error });
+  }
+}
+
+export async function readDatabaseCmsVersions(input: {
+  entityType: string;
+  entityId: string;
+  limit?: number;
+}) {
+  try {
+    return await getPrismaClient().cmsContentVersion.findMany({
+      where: {
+        entityType: input.entityType,
+        entityId: input.entityId
+      },
+      orderBy: [{ versionNumber: "desc" }, { createdAt: "desc" }],
+      take: Math.min(Math.max(input.limit ?? 12, 1), 50),
+      select: {
+        versionNumber: true,
+        status: true,
+        title: true,
+        createdAt: true
+      }
+    });
+  } catch (error) {
+    throw new PersistenceUnavailableError("CMS", { cause: error });
+  }
+}
+
+export async function readDatabaseCmsVersion(input: {
+  entityType: string;
+  entityId: string;
+  versionNumber: number;
+}) {
+  try {
+    return await getPrismaClient().cmsContentVersion.findUnique({
+      where: {
+        entityType_entityId_versionNumber: {
+          entityType: input.entityType,
+          entityId: input.entityId,
+          versionNumber: input.versionNumber
+        }
+      }
     });
   } catch (error) {
     throw new PersistenceUnavailableError("CMS", { cause: error });

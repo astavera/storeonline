@@ -1,3 +1,7 @@
+/**
+ * Provides shared builder operations types and utilities for the application.
+ */
+
 import type { CmsKnownSectionType, CmsPageDocument, CmsSection, CmsSectionPatch, SectionPreset, ThemePreset, ThemeTokenOverrides } from "./cms-types";
 import { createCmsSection, normalizeSectionType } from "./section-registry";
 

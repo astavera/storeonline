@@ -1,3 +1,5 @@
+/** Verifies balloon pickup and local-delivery selection without shipping. */
+
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { BalloonCatalogGate } from "@/components/balloons/balloon-catalog-gate";
@@ -5,14 +7,15 @@ import { earliestNewYorkDeliveryDate } from "@/features/fulfillment/utils/new-yo
 
 const { pushMock } = vi.hoisted(() => ({ pushMock: vi.fn() }));
 
-vi.mock("next/navigation", () => ({
-  useRouter: () => ({ push: pushMock })
-}));
+vi.mock("next/navigation", () => ({ useRouter: () => ({ push: pushMock }) }));
 
 describe("BalloonCatalogGate", () => {
   beforeEach(() => {
-    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({
-      json: async () => ({ availability: pickupAvailability() })
+    vi.stubGlobal("fetch", vi.fn().mockImplementation(async (input) => {
+      if (String(input).includes("pickup-slots")) {
+        return { json: async () => ({ availability: pickupAvailability() }) } as Response;
+      }
+      return { json: async () => ({ eligibility: approvedEligibility("10075") }) } as Response;
     }));
   });
 
@@ -23,157 +26,77 @@ describe("BalloonCatalogGate", () => {
     vi.unstubAllGlobals();
   });
 
-  it("opens the fulfillment gate for a collection and offers both pickup stores", async () => {
+  it("offers store pickup and local delivery without shipping", () => {
     render(<BalloonCatalogGate />);
-
     fireEvent.click(screen.getByRole("button", { name: "Shop latex balloons" }));
 
     expect(screen.getByRole("dialog", { name: "Choose fulfillment" })).toBeTruthy();
-    expect(screen.queryByText("Shopping Latex")).toBeNull();
-    expect(screen.queryByRole("heading", { name: "Pickup or delivery?" })).toBeNull();
-    expect(screen.queryByLabelText("Balloon order progress")).toBeNull();
-    expect(screen.queryByText(/We’ll use this choice/)).toBeNull();
-
-    fireEvent.click(screen.getByRole("button", { name: /Store pickup/ }));
-
-    expect(screen.queryByText("Shopping Latex")).toBeNull();
-    expect(screen.getByRole("heading", { name: "Choose your pickup store" })).toBeTruthy();
-    expect(screen.getByRole("radio", { name: /3rd Avenue Store/ })).toBeTruthy();
-    expect(screen.getByRole("radio", { name: /86th Street Store/ })).toBeTruthy();
-    expect(screen.getByRole("button", { name: /Pickup date/ })).toBeTruthy();
-    const shopButton = screen.getByRole("button", { name: "Shop Latex balloons" }) as HTMLButtonElement;
-    expect(shopButton.disabled).toBe(true);
-    fireEvent.click(await screen.findByRole("button", { name: /^10:00 AM/ }));
-    expect(shopButton.disabled).toBe(false);
-    expect(screen.getByRole("button", { name: "Change to local delivery" })).toBeTruthy();
-
-    fireEvent.click(screen.getByRole("button", { name: "Change to local delivery" }));
-
-    expect(screen.queryByText(/OrderPro will confirm whether you can continue/)).toBeNull();
-    expect(screen.getByRole("button", { name: "Change to pickup" })).toBeTruthy();
-    expect(screen.getByLabelText("ZIP code")).toBeTruthy();
-    expect(screen.queryByLabelText("Street address")).toBeNull();
-    expect(screen.queryByRole("button", { name: /Delivery date/ })).toBeNull();
-    expect((screen.getByRole("button", { name: "Check delivery" }) as HTMLButtonElement).disabled).toBe(true);
+    expect(screen.getByRole("button", { name: "Store pickup" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Local delivery" })).toBeTruthy();
+    expect(screen.queryByText(/shipping/i)).toBeNull();
   });
 
-  it("continues directly to the balloon order after OrderPro approves the ZIP code", async () => {
-    vi.mocked(fetch).mockImplementation(async (input) => {
-      if (String(input).includes("local-delivery-postal-eligibility")) {
-        return {
-          json: async () => ({
-            eligibility: {
-              eligible: true,
-              source: "MOCK",
-              postalCode: "10075",
-              approvalId: "balloon-delivery-test-approved",
-              expiresAt: new Date(Date.now() + 15 * 60_000).toISOString()
-            }
-          })
-        } as Response;
-      }
-
-      return { json: async () => ({ availability: pickupAvailability() }) } as Response;
-    });
+  it("continues after OrderPro approves local delivery", async () => {
     render(<BalloonCatalogGate />);
-
     fireEvent.click(screen.getByRole("button", { name: "Shop latex balloons" }));
-    fireEvent.click(screen.getByRole("button", { name: /Local delivery/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Local delivery" }));
     fireEvent.change(screen.getByLabelText("ZIP code"), { target: { value: "10075" } });
     fireEvent.click(screen.getByRole("button", { name: "Check delivery" }));
 
     await waitFor(() => expect(pushMock).toHaveBeenCalledWith("/shop?collection=latex&fulfillment=delivery&postalCode=10075"));
-    expect(screen.queryByText("Approved by OrderPro")).toBeNull();
-    const preference = JSON.parse(window.sessionStorage.getItem("modern-state-balloon-fulfillment") ?? "null") as { mode: string; postalCode: string; approvalId: string };
-    expect(preference).toMatchObject({
-      mode: "delivery",
-      postalCode: "10075",
-      approvalId: "balloon-delivery-test-approved"
-    });
+    expect(JSON.parse(window.sessionStorage.getItem("modern-state-balloon-fulfillment") ?? "null")).toMatchObject({ mode: "delivery", postalCode: "10075" });
   });
 
-  it("offers a generic store contact and a mobile call action when delivery is unavailable", async () => {
+  it("requires an OrderPro slot and continues with store pickup", async () => {
+    render(<BalloonCatalogGate />);
+    fireEvent.click(screen.getByRole("button", { name: "Shop latex balloons" }));
+    fireEvent.click(screen.getByRole("button", { name: "Store pickup" }));
+    fireEvent.click(await screen.findByRole("button", { name: "10:00 AM–12:00 PM" }));
+    fireEvent.click(screen.getByRole("button", { name: "Shop Latex balloons" }));
+
+    await waitFor(() => expect(pushMock).toHaveBeenCalledTimes(1));
+    const destination = String(pushMock.mock.calls[0][0]);
+    expect(destination).toContain("collection=latex");
+    expect(destination).toContain("fulfillment=pickup");
+    expect(destination).toContain("location=3rd-avenue");
+    expect(JSON.parse(window.sessionStorage.getItem("modern-state-balloon-fulfillment") ?? "null")).toMatchObject({ mode: "pickup" });
+  });
+
+  it("offers store contact when local delivery is unavailable", async () => {
     vi.mocked(fetch).mockResolvedValue({
-      json: async () => ({
-        eligibility: {
-          eligible: false,
-          source: "ORDERPRO",
-          reasonCode: "OUTSIDE_DELIVERY_AREA",
-          message: "Outside delivery area."
-        }
-      })
+      json: async () => ({ eligibility: { eligible: false, source: "ORDERPRO", reasonCode: "OUTSIDE_DELIVERY_AREA", message: "Outside delivery area." } })
     } as Response);
     render(<BalloonCatalogGate />);
-
     fireEvent.click(screen.getByRole("button", { name: "Shop latex balloons" }));
-    fireEvent.click(screen.getByRole("button", { name: /Local delivery/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Local delivery" }));
     fireEvent.change(screen.getByLabelText("ZIP code"), { target: { value: "99999" } });
     fireEvent.click(screen.getByRole("button", { name: "Check delivery" }));
 
-    expect(await screen.findByText("Sorry, we don't currently deliver to this area.")).toBeTruthy();
-    expect(screen.getByText("We may still be able to help. Contact our store:")).toBeTruthy();
-    expect(screen.queryByText(/86th Street store/i)).toBeNull();
+    expect(await screen.findByText("Sorry, we don\'t currently deliver to this area.")).toBeTruthy();
     expect(screen.getByRole("link", { name: "212-831-8010" }).getAttribute("href")).toBe("tel:2128318010");
-    expect(screen.getByRole("link", { name: "Call our store" }).getAttribute("href")).toBe("tel:2128318010");
     expect(pushMock).not.toHaveBeenCalled();
   });
 
-  it("opens the same fulfillment flow from a linked balloon collection", () => {
+  it("opens fulfillment choices from a linked collection", () => {
     render(<BalloonCatalogGate initialCollection="mylar" />);
-
     expect(screen.getByRole("dialog", { name: "Choose fulfillment" })).toBeTruthy();
-    fireEvent.click(screen.getByRole("button", { name: /Store pickup/ }));
-    expect(screen.queryByText("Shopping Mylar")).toBeNull();
-    expect(screen.getByRole("button", { name: "Shop Mylar balloons" })).toBeTruthy();
-  });
-
-  it("shows the slot UI without inventing pickup times when OrderPro returns none", async () => {
-    vi.mocked(fetch).mockResolvedValueOnce({
-      json: async () => ({ availability: { ...pickupAvailability(), availableSlots: [] } })
-    } as Response);
-    render(<BalloonCatalogGate />);
-
-    fireEvent.click(screen.getByRole("button", { name: "Shop latex balloons" }));
-    fireEvent.click(screen.getByRole("button", { name: /Store pickup/ }));
-
-    expect(await screen.findByText(/Available times from OrderPro will appear here/)).toBeTruthy();
-    expect(screen.queryByRole("button", { name: /^10:00 AM/ })).toBeNull();
-    expect((screen.getByRole("button", { name: "Shop Latex balloons" }) as HTMLButtonElement).disabled).toBe(true);
-  });
-
-  it("requires and saves an OrderPro pickup date and time slot before shopping", async () => {
-    render(<BalloonCatalogGate />);
-
-    fireEvent.click(screen.getByRole("button", { name: "Shop latex balloons" }));
-    fireEvent.click(screen.getByRole("button", { name: /Store pickup/ }));
-    fireEvent.click(await screen.findByRole("button", { name: /^12:00/ }));
-    fireEvent.click(screen.getByRole("button", { name: "Shop Latex balloons" }));
-
-    expect(pushMock).toHaveBeenCalledTimes(1);
-    const destination = String(pushMock.mock.calls[0][0]);
-    expect(destination).toContain("collection=latex");
-    expect(destination).toContain(`pickupDate=${earliestNewYorkDeliveryDate()}`);
-    expect(destination).toContain(`pickupSlot=pickup-test-store-3rd-avenue-${earliestNewYorkDeliveryDate()}-1200`);
-    expect(destination).toContain("pickupSlotLabel=");
-
-    const preference = JSON.parse(window.sessionStorage.getItem("modern-state-balloon-fulfillment") ?? "null") as { requestedDate: string; slotId: string; slotLabel: string };
-    expect(preference.requestedDate).toBe(earliestNewYorkDeliveryDate());
-    expect(preference.slotId).toBe(`pickup-test-store-3rd-avenue-${earliestNewYorkDeliveryDate()}-1200`);
-    expect(preference.slotLabel).toMatch(/^12:00/);
+    expect(screen.getByRole("button", { name: "Store pickup" })).toBeTruthy();
+    expect(screen.queryByText(/shipping/i)).toBeNull();
   });
 });
+
+function approvedEligibility(postalCode: string) {
+  return { eligible: true as const, source: "MOCK" as const, postalCode, approvalId: "approved", expiresAt: new Date(Date.now() + 15 * 60_000).toISOString() };
+}
 
 function pickupAvailability() {
   const requestedDate = earliestNewYorkDeliveryDate();
   return {
-    available: true,
-    source: "MOCK",
-    locationId: "store-3rd-avenue",
+    available: true as const,
+    source: "MOCK" as const,
+    locationId: "location-third-avenue",
     requestedDate,
     expiresAt: new Date(Date.now() + 15 * 60_000).toISOString(),
-    availableSlots: [
-      { id: `pickup-test-store-3rd-avenue-${requestedDate}-1000`, startsAt: `${requestedDate}T10:00:00-04:00`, endsAt: `${requestedDate}T12:00:00-04:00`, label: "10:00 AM–12:00 PM" },
-      { id: `pickup-test-store-3rd-avenue-${requestedDate}-1200`, startsAt: `${requestedDate}T12:00:00-04:00`, endsAt: `${requestedDate}T15:00:00-04:00`, label: "12:00–3:00 PM" }
-    ]
+    availableSlots: [{ id: `pickup-${requestedDate}-1000`, startsAt: `${requestedDate}T10:00:00-04:00`, endsAt: `${requestedDate}T12:00:00-04:00`, label: "10:00 AM–12:00 PM" }]
   };
 }

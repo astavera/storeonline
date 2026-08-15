@@ -1,3 +1,7 @@
+/**
+ * Implements server-side client behavior and persistence boundaries.
+ */
+
 import "server-only";
 
 import type { ZodType } from "zod";

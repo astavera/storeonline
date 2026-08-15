@@ -1,3 +1,7 @@
+/**
+ * Verifies the isolated behavior of local delivery routing service.
+ */
+
 import { describe, expect, it } from "vitest";
 import {
   routeLocalWalkingDelivery,

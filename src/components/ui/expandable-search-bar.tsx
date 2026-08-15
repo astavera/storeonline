@@ -1,3 +1,7 @@
+/**
+ * Renders the expandable search bar interface and its user interactions.
+ */
+
 "use client";
 
 import { AnimatePresence, motion } from "framer-motion";

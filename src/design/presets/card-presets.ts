@@ -1,3 +1,7 @@
+/**
+ * Defines the reusable card presets preset for the storefront design system.
+ */
+
 export type ProductCardVariant = "minimal" | "premium" | "image-focused" | "balloons" | "compact" | "horizontal" | "admin";
 
 export const cardPresets: Record<ProductCardVariant, string> = {

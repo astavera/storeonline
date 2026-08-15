@@ -1,3 +1,7 @@
+/**
+ * Verifies the isolated behavior of operational runtime migration.
+ */
+
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";

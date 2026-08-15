@@ -1,3 +1,7 @@
+/**
+ * Handles HTTP requests for the API internal Square catalog sync endpoint.
+ */
+
 import * as Sentry from "@sentry/nextjs";
 import { NextResponse } from "next/server";
 import { PersistenceUnavailableError } from "@/server/db/persistence-policy";

@@ -1,3 +1,7 @@
+/**
+ * Verifies the isolated behavior of prisma JSON.
+ */
+
 import { describe, expect, it } from "vitest";
 import { toPrismaJson } from "@/server/prisma-json";
 

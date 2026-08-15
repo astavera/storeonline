@@ -1,3 +1,7 @@
+/**
+ * Defines the old URL redirects configuration used by the application.
+ */
+
 import redirectData from "./old-url-redirects.config.json";
 
 export type OldUrlRedirect = {

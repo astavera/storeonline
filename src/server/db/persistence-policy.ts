@@ -1,3 +1,7 @@
+/**
+ * Implements server-side persistence policy behavior and persistence boundaries.
+ */
+
 export class PersistenceUnavailableError extends Error {
   readonly code = "PERSISTENCE_UNAVAILABLE";
   readonly domain: string;
@@ -14,6 +18,12 @@ export function isDevelopmentLocalPersistenceEnabled() {
 }
 
 export function requireDatabaseOrDevelopmentFallback(domain: string) {
+  if (
+    isDevelopmentLocalPersistenceEnabled() &&
+    process.env.PREFER_LOCAL_SQUARE_CATALOG === "true"
+  ) {
+    return "development-local" as const;
+  }
   if (process.env.DATABASE_URL) return "database" as const;
   if (isDevelopmentLocalPersistenceEnabled()) return "development-local" as const;
   throw new PersistenceUnavailableError(domain);

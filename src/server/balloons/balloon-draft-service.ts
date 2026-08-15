@@ -1,3 +1,7 @@
+/**
+ * Implements server-side balloon draft service behavior and persistence boundaries.
+ */
+
 import "server-only";
 
 import { createHash, randomBytes } from "node:crypto";

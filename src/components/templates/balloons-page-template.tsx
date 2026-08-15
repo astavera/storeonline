@@ -59,12 +59,12 @@ export async function BalloonsPageTemplate({
     );
   }
 
-  const title = selectedFlow?.title ?? (flowSlug === "local-delivery" ? "Balloon Local Delivery" : "Balloon Pickup");
+  const title = selectedFlow?.title ?? (flowSlug === "local-delivery" ? "Balloon Local Delivery" : "Balloon Store Pickup");
   const body =
     selectedFlow?.description ??
     (flowSlug === "local-delivery"
       ? "Enter your delivery address and event date to preview store assignment, delivery pricing, and available windows."
-      : "Online pickup scheduling is coming soon. Contact your preferred store to confirm balloon choices and timing.");
+      : "Choose a store and available pickup time for your balloon order.");
 
   return (
     <main>
@@ -90,7 +90,7 @@ export async function BalloonsPageTemplate({
         <div className="container-shell">
           <div className="mb-8 max-w-2xl">
             <h2 className="font-display text-3xl font-semibold">Plan your balloon order</h2>
-            <p className="mt-3 text-secondary">Browse balloon types and planning steps, then contact the store to confirm colors, timing, pickup, or local delivery.</p>
+            <p className="mt-3 text-secondary">Browse balloon types and planning steps, then confirm colors, timing, store pickup, or local delivery.</p>
           </div>
           <div className="grid gap-4 md:grid-cols-3">
             {balloonBuilderSteps.map((step) => (
@@ -124,8 +124,8 @@ export async function BalloonsPageTemplate({
           ) : (
             <div className="grid gap-5 md:grid-cols-2">
               <div className="surface-card p-6">
-                <h2 className="font-display text-2xl font-semibold">Pickup</h2>
-                <p className="mt-3 text-secondary">Choose your preferred store and contact us to confirm pickup timing.</p>
+                <h2 className="font-display text-2xl font-semibold">Store pickup</h2>
+                <p className="mt-3 text-secondary">Choose your preferred store and an available pickup time.</p>
               </div>
               <div className="surface-card p-6">
                 <h2 className="font-display text-2xl font-semibold">Local delivery</h2>
@@ -140,7 +140,7 @@ export async function BalloonsPageTemplate({
       <SectionFrame area="Balloons" className="bg-surface-muted py-14" component="BalloonTimeSlotPickerSection" sectionId="balloons.time-slot-picker" variant="capacity-points">
         <div className="container-shell">
           <h2 className="font-display text-3xl font-semibold">Timing and availability</h2>
-          <p className="mt-3 max-w-2xl text-secondary">Balloon orders may require advance notice. Contact the store to confirm a pickup or delivery window.</p>
+          <p className="mt-3 max-w-2xl text-secondary">Balloon orders may require advance notice. Your pickup or local delivery window is confirmed before checkout.</p>
         </div>
       </SectionFrame>
     </main>

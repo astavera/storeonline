@@ -1,3 +1,7 @@
+/*
+ * Defines the shadows design tokens shared by the storefront interface.
+ */
+
 :root {
   --shadow-soft: 0 16px 42px rgba(31, 41, 51, 0.08);
   --shadow-card: 0 10px 24px rgba(31, 41, 51, 0.06);

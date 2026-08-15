@@ -1,3 +1,7 @@
+/**
+ * Renders the balloons landing experience interface and its user interactions.
+ */
+
 import { BalloonCatalogGate } from "@/components/balloons/balloon-catalog-gate";
 import { SectionFrame } from "@/components/sections/section-frame";
 

@@ -1,3 +1,7 @@
+/**
+ * Defines the OrderPro pickup contracts used by the fulfillment feature.
+ */
+
 export type OrderProPickupSlot = {
   id: string;
   startsAt: string;

@@ -1,3 +1,7 @@
+/**
+ * Implements Square catalog cache behavior for the catalog feature.
+ */
+
 export type SquareCatalogCacheSummary = {
   available: boolean;
   environment: "sandbox" | "production" | null;

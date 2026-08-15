@@ -1,8 +1,13 @@
+/**
+ * Renders the admin product placement page and prepares its route-level data.
+ */
+
 import { ProductPlacementManager } from "@/components/admin/product-placement-manager";
-import { reconcileWebsiteMerchandising, websiteCategoryPath } from "@/features/catalog/services/website-merchandising-service";
+import { websiteCategoryPath } from "@/features/catalog/services/website-merchandising-service";
 import { readWebsiteMerchandisingSnapshot } from "@/server/admin/website-merchandising-store";
 import { readSquareCatalogPreview } from "@/server/square/catalog-preview-store";
 import { readPostgresAdminCatalogSummary } from "@/server/square/postgres-admin-catalog-store";
+import { isDevelopmentLocalPersistenceEnabled } from "@/server/db/persistence-policy";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -11,11 +16,10 @@ export default async function AdminProductPlacementPage() {
   const [catalog, fullConfig, catalogSummary] = await Promise.all([
     readSquareCatalogPreview(),
     readWebsiteMerchandisingSnapshot(),
-    readPostgresAdminCatalogSummary()
+    readAdminCatalogSummary()
   ]);
 
   const previewProducts = catalog?.products ?? [];
-  const initialConfig = reconcileWebsiteMerchandising(fullConfig, previewProducts);
   const initialBrandProductCounts = Object.fromEntries(
     fullConfig.brands.map((brand) => [brand.id, fullConfig.placements.filter((placement) => placement.brandIds.includes(brand.id)).length])
   );
@@ -30,5 +34,29 @@ export default async function AdminProductPlacementPage() {
     }
   }
   const initialCategoryProductCounts = Object.fromEntries(fullConfig.categories.map((category) => [category.id, variationIdsByCategory.get(category.id)?.size ?? 0]));
-  return <ProductPlacementManager fetchedAt={catalog?.fetchedAt ?? catalogSummary.updatedAt ?? new Date().toISOString()} hasMoreItems={catalog?.hasMoreItems ?? false} initialBrandProductCounts={initialBrandProductCounts} initialCategoryProductCounts={initialCategoryProductCounts} initialConfig={initialConfig} products={previewProducts} squareVendors={[]} />;
+  return <ProductPlacementManager fetchedAt={catalogSummary.updatedAt ?? fullConfig.updatedAt} hasMoreItems={catalogSummary.hasMore} initialBrandProductCounts={initialBrandProductCounts} initialCategoryProductCounts={initialCategoryProductCounts} initialConfig={fullConfig} products={previewProducts} squareInboxCount={catalogSummary.variationCount} squareVendors={[]} />;
+}
+
+async function readAdminCatalogSummary() {
+  const preferLocalCatalog =
+    process.env.NODE_ENV === "development" &&
+    process.env.PREFER_LOCAL_SQUARE_CATALOG === "true";
+
+  if (preferLocalCatalog) {
+    const { readSquareCatalogCacheSummary } = await import(
+      "@/server/square/catalog-test-cache-store"
+    );
+    return readSquareCatalogCacheSummary();
+  }
+
+  try {
+    return await readPostgresAdminCatalogSummary();
+  } catch (error) {
+    if (!isDevelopmentLocalPersistenceEnabled()) throw error;
+
+    const { readSquareCatalogCacheSummary } = await import(
+      "@/server/square/catalog-test-cache-store"
+    );
+    return readSquareCatalogCacheSummary();
+  }
 }

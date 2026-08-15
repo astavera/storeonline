@@ -1,3 +1,7 @@
+/**
+ * Implements server-side slot occurrence generator behavior and persistence boundaries.
+ */
+
 import "server-only";
 
 import type { FulfillmentMode } from "@prisma/client";

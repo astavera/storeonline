@@ -1,3 +1,7 @@
+/**
+ * Verifies the isolated behavior of slot capacity service.
+ */
+
 import { describe, expect, it } from "vitest";
 import {
   canReserveCapacity,

@@ -1,16 +1,18 @@
+/**
+ * Renders the mobile site navigation interface and its user interactions.
+ */
+
 "use client";
 
-import { Menu, Search, X } from "lucide-react";
+import { Menu, X } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useId, useRef, useState } from "react";
 import type { HeaderNavigationLink } from "@/config/header-navigation.config";
 
 export function MobileSiteNavigation({
-  mobileCta,
   primaryLinks,
   utilityLinks
 }: {
-  mobileCta: HeaderNavigationLink;
   primaryLinks: HeaderNavigationLink[];
   utilityLinks: HeaderNavigationLink[];
 }) {
@@ -181,24 +183,7 @@ export function MobileSiteNavigation({
             data-mobile-nav-panel
             id={menuId}
           >
-            <div className="border-b border-border px-2 pb-4 pt-1">
-              <form action="/search" className="flex min-h-12 items-center gap-2 rounded-md border border-border bg-surface-muted px-3 focus-within:border-border" role="search">
-                <Search aria-hidden="true" className="shrink-0 text-blue" size={20} />
-                <label className="sr-only" htmlFor={`${menuId}-search`}>
-                  Search products
-                </label>
-                <input className="min-w-0 flex-1 bg-transparent py-3 text-base font-semibold outline-none placeholder:text-text-muted" id={`${menuId}-search`} name="q" placeholder="Search products" type="search" />
-                <button className="shrink-0 rounded-pill bg-blue px-3 py-2 text-sm font-black text-white hover:bg-primary" type="submit">
-                  Search
-                </button>
-              </form>
-              {mobileCta.visible ? (
-                <Link className="mt-3 flex min-h-11 items-center justify-center rounded-pill bg-yellow px-4 py-2 text-sm font-black text-blue hover:bg-cyan" data-header-nav-id={mobileCta.id} href={mobileCta.href} onClick={() => setIsOpen(false)}>
-                  {mobileCta.label}
-                </Link>
-              ) : null}
-            </div>
-            <div className="mt-3 grid gap-1">
+            <div className="grid gap-1 pt-2">
               <Link className="rounded-md px-4 py-3 text-base font-black hover:bg-surface-muted hover:text-blue" href="/" onClick={() => setIsOpen(false)}>
                 Home
               </Link>

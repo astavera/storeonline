@@ -1,7 +1,10 @@
+/**
+ * Renders the storefront homepage page and prepares its route-level data.
+ */
+
 import type { Metadata } from "next";
-import { HomePageTemplate } from "@/components/templates/home-page-template";
-import { getPublishedHomepageSections, getPublishedHomepageState } from "@/features/admin/services/homepage-visual-editor-service";
-import { resolveHomepageStorefrontContent } from "@/features/catalog/services/homepage-storefront-content-service";
+import { HomePageTemplate } from "@/features/homepage";
+import { getPublishedHomepageSections, getPublishedHomepageState, resolveHomepageStorefrontContent } from "@/features/homepage/server";
 import { storefrontIsIndexable } from "@/lib/seo/storefront-seo";
 
 export const dynamic = "force-dynamic";
@@ -32,7 +35,15 @@ export async function generateMetadata(): Promise<Metadata> {
 
 export default async function HomePage() {
   const homepageSections = await getPublishedHomepageSections();
-  const { products } = await resolveHomepageStorefrontContent();
+  const { categories, products, trendingProducts } =
+    await resolveHomepageStorefrontContent();
 
-  return <HomePageTemplate products={products} sections={homepageSections} />;
+  return (
+    <HomePageTemplate
+      categories={categories}
+      products={products}
+      sections={homepageSections}
+      trendingProducts={trendingProducts}
+    />
+  );
 }

@@ -1,3 +1,7 @@
+/**
+ * Verifies the isolated behavior of inventory postgres sync.
+ */
+
 import { describe, expect, it, vi } from "vitest";
 import type { InventoryCount } from "square";
 import {

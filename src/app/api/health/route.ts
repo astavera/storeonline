@@ -1,3 +1,7 @@
+/**
+ * Handles HTTP requests for the API health endpoint.
+ */
+
 import { NextResponse } from "next/server";
 
 export const dynamic = "force-dynamic";

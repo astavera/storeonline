@@ -1,3 +1,7 @@
+/**
+ * Defines the storefront pages configuration used by the application.
+ */
+
 import type { CmsScope } from "@/lib/cms";
 import { departments } from "./departments.config";
 import { holidays } from "./holidays.config";
@@ -46,7 +50,11 @@ const balloonFlowPages: StorefrontEditablePage[] = ["latex", "mylar", "numbers-l
 const departmentPages: StorefrontEditablePage[] = departments
   .filter((department) => department.slug !== "balloons")
   .map((department) => ({
-    title: department.title_en,
+    title: department.slug === "toys"
+      ? "Toys Department Page"
+      : department.slug === "party-supplies"
+        ? "Party Supplies Department Page"
+        : department.title_en,
     route: `/${department.slug}`,
     scope: "department",
     entityId: department.slug,
@@ -56,7 +64,7 @@ const departmentPages: StorefrontEditablePage[] = departments
 
 const holidayPages: StorefrontEditablePage[] = [
   {
-    title: "Holidays index",
+    title: "Holidays Department Page",
     route: "/holidays",
     scope: "holiday",
     entityId: "index",

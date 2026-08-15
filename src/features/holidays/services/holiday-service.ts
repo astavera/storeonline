@@ -1,3 +1,7 @@
+/**
+ * Implements the holiday service workflow for the holidays feature.
+ */
+
 import { holidays } from "@/config/holidays.config";
 
 export function listVisibleHolidays() {

@@ -1,3 +1,7 @@
+/**
+ * Implements server-side cart service behavior and persistence boundaries.
+ */
+
 import "server-only";
 import { z } from "zod";
 import {

@@ -1,3 +1,7 @@
+/**
+ * Implements server-side Square webhook handler behavior and persistence boundaries.
+ */
+
 import "server-only";
 
 import { z } from "zod";
@@ -33,12 +37,24 @@ const paymentWebhookSchema = z.object({
   }).passthrough()
 }).passthrough();
 
+const refundWebhookSchema = z.object({
+  data: z.object({
+    object: z.object({
+      refund: z.object({
+        id: z.string().trim().min(1),
+        status: z.string().trim().min(1)
+      }).passthrough()
+    }).passthrough()
+  }).passthrough()
+}).passthrough();
+
 export type SquareInventoryProjection = z.infer<typeof inventoryWebhookSchema>["data"]["object"]["inventory_counts"][number];
 
 export type SquareWebhookOperations = {
   applyInventoryCounts(counts: SquareInventoryProjection[]): Promise<void>;
   synchronizeCatalog(): Promise<void>;
   confirmCompletedShippingPayment(paymentId: string): Promise<void>;
+  applyReturnRefundStatus?(refundId: string, status: string): Promise<void>;
 };
 
 export function createSquareWebhookHandler(operations: SquareWebhookOperations): WebhookEventHandler {
@@ -57,6 +73,14 @@ export function createSquareWebhookHandler(operations: SquareWebhookOperations):
       if (payload.data.object.payment.status === "COMPLETED") {
         await operations.confirmCompletedShippingPayment(payload.data.object.payment.id);
       }
+      return;
+    }
+    if (record.eventType === "refund.updated") {
+      const payload = refundWebhookSchema.parse(record.payload);
+      await operations.applyReturnRefundStatus?.(
+        payload.data.object.refund.id,
+        payload.data.object.refund.status
+      );
       return;
     }
     if (record.eventType === "order.updated") {
@@ -86,6 +110,14 @@ const productionOperations: SquareWebhookOperations = {
 
   async confirmCompletedShippingPayment(paymentId) {
     await confirmCompletedShippingPayment(paymentId);
+  },
+
+  async applyReturnRefundStatus(refundId, status) {
+    const { getReturnsRepository } = await import("@/server/returns/return-repository");
+    await getReturnsRepository().applySquareRefundStatus({
+      squareRefundId: refundId,
+      squareStatus: status
+    });
   }
 };
 

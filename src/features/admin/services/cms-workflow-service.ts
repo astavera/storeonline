@@ -1,3 +1,7 @@
+/**
+ * Implements the CMS workflow service workflow for the admin feature.
+ */
+
 export type CmsWorkflowStatus = "DRAFT" | "PREVIEW" | "SCHEDULED" | "PUBLISHED" | "UNPUBLISHED" | "ARCHIVED";
 
 export type CmsVersion = {

@@ -1,3 +1,7 @@
+/**
+ * Defines the shared layout and providers for the storefront homepage route area.
+ */
+
 import type { ReactNode } from "react";
 import { StoreShell } from "@/components/layout/store-shell";
 

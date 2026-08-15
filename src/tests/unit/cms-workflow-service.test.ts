@@ -1,3 +1,7 @@
+/**
+ * Verifies the isolated behavior of CMS workflow service.
+ */
+
 import { describe, expect, it } from "vitest";
 import { canPublishCmsVersion, createRollbackVersion } from "@/features/admin/services/cms-workflow-service";
 

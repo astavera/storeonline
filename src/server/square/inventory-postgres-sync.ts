@@ -1,3 +1,7 @@
+/**
+ * Implements server-side inventory postgres sync behavior and persistence boundaries.
+ */
+
 import "server-only";
 
 import { randomUUID } from "node:crypto";

@@ -1,3 +1,7 @@
+/*
+ * Defines the breakpoints design tokens shared by the storefront interface.
+ */
+
 :root {
   --breakpoint-sm: 640px;
   --breakpoint-md: 768px;

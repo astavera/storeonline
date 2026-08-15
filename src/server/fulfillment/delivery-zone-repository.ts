@@ -1,3 +1,7 @@
+/**
+ * Implements server-side delivery zone repository behavior and persistence boundaries.
+ */
+
 import "server-only";
 
 import { Prisma } from "@prisma/client";

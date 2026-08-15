@@ -1,3 +1,7 @@
+/**
+ * Renders the locations page and prepares its route-level data.
+ */
+
 import { LocationsIndexTemplate } from "@/components/templates/locations-page-template";
 
 export const metadata = {

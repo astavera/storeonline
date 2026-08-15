@@ -1,3 +1,7 @@
+/**
+ * Defines the header navigation configuration used by the application.
+ */
+
 export type HeaderNavigationLink = {
   id: string;
   label: string;
@@ -22,8 +26,8 @@ export const defaultHeaderNavigation: HeaderNavigationConfig = {
   ],
   utility: [
     { id: "search", label: "Search", href: "/search", visible: true },
-    { id: "account", label: "Account", href: "/contact", visible: true },
-    { id: "wishlist", label: "Wishlist", href: "/shop", visible: true },
+    { id: "account", label: "Account", href: "#account", visible: true },
+    { id: "wishlist", label: "Wishlist", href: "#wishlist", visible: true },
     { id: "cart", label: "Cart", href: "/cart", visible: true }
   ],
   mobileCta: { id: "mobile-shop", label: "Shop", href: "/shop", visible: true }
@@ -33,10 +37,29 @@ export function normalizeHeaderNavigation(value: unknown): HeaderNavigationConfi
   const source = value && typeof value === "object" ? (value as Partial<HeaderNavigationConfig>) : {};
 
   return {
-    primary: normalizeLinks(source.primary, defaultHeaderNavigation.primary),
+    primary: ensureAboutUsLink(normalizeLinks(source.primary, defaultHeaderNavigation.primary)),
     utility: normalizeLinks(source.utility, defaultHeaderNavigation.utility),
     mobileCta: normalizeLink(source.mobileCta, defaultHeaderNavigation.mobileCta)
   };
+}
+
+function ensureAboutUsLink(links: HeaderNavigationLink[]) {
+  const withoutAboutUs = links.filter(
+    (link) => link.id !== "about-us" && link.href !== "/about"
+  );
+  const holidaysIndex = withoutAboutUs.findIndex(
+    (link) => link.id === "holidays" || link.href === "/holidays"
+  );
+  const insertAt = holidaysIndex >= 0 ? holidaysIndex + 1 : withoutAboutUs.length;
+
+  withoutAboutUs.splice(insertAt, 0, {
+    id: "about-us",
+    label: "About Us",
+    href: "/about",
+    visible: true
+  });
+
+  return withoutAboutUs;
 }
 
 function normalizeLinks(value: unknown, fallback: HeaderNavigationLink[]) {
@@ -49,10 +72,12 @@ function normalizeLink(value: unknown, fallback: HeaderNavigationLink): HeaderNa
   const label = typeof source.label === "string" && source.label.trim() ? source.label.trim() : fallback.label;
   const href = typeof source.href === "string" && source.href.trim() ? source.href.trim() : fallback.href;
 
+  const id = typeof source.id === "string" && source.id.trim() ? source.id.trim() : fallbackId;
+
   return {
-    id: typeof source.id === "string" && source.id.trim() ? source.id.trim() : fallbackId,
+    id,
     label,
-    href,
+    href: id === "wishlist" ? "#wishlist" : id === "account" ? "#account" : href,
     visible: source.visible !== false
   };
 }

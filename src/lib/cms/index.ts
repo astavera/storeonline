@@ -1,3 +1,7 @@
+/**
+ * Provides shared index types and utilities for the application.
+ */
+
 export * from "./cms-types";
 export * from "./cms-scopes";
 export * from "./cms-storage";

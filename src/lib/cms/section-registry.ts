@@ -1,3 +1,7 @@
+/**
+ * Provides shared section registry types and utilities for the application.
+ */
+
 import { cmsKnownSectionTypes, type CmsKnownSectionType, type CmsScope, type CmsSection, type CmsSectionType, type SectionRegistryItem } from "./cms-types";
 import { createSectionDataSource } from "./data-sources";
 import { defaultResponsiveVisibility, sectionDefinitions, settingsSchemaFor } from "./section-defaults";

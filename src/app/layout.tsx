@@ -1,3 +1,7 @@
+/**
+ * Defines the shared layout and providers for the storefront homepage route area.
+ */
+
 import type { Metadata } from "next";
 import { storefrontIsIndexable } from "@/lib/seo/storefront-seo";
 import "./globals.css";

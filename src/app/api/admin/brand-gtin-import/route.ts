@@ -1,3 +1,7 @@
+/**
+ * Handles HTTP requests for the API admin brand GTIN import endpoint.
+ */
+
 import { NextRequest, NextResponse } from "next/server";
 import { z, ZodError } from "zod";
 import { prepareBrandGtinImport } from "@/features/catalog/services/brand-gtin-import-service";

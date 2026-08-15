@@ -1,3 +1,7 @@
+/**
+ * Renders the header catalog search interface and its user interactions.
+ */
+
 "use client";
 
 import { Search, X } from "lucide-react";

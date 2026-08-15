@@ -31,6 +31,18 @@ Never reuse production tokens in local, CI, or preview environments. Variables p
 ### Other integrations
 
 - `SHIPPO_API_TOKEN`: server-only shipping credential.
+- `SHIPPO_TEST_MODE`, `SHIPPO_ALLOWED_RETURN_CARRIERS`, and
+  `SHIPPO_DEFAULT_RETURN_SERVICE`: fail-closed return-label selection.
+- `SHIPPO_RETURN_ADDRESS_*`: WH01 return destination; every required address
+  field must be present before a quote or packing slip can be created.
+- `SHIPPO_WEBHOOK_SECRET`: random secret path segment for return tracking
+  ingress; use at least 32 characters and rotate it as an API credential.
+- `ORDERPRO_RETURNS_ENABLED`,
+  `ORDERPRO_STOREFRONT_RETURNS_SHARED_SECRET`,
+  `RETURNS_SESSION_SECRET`, and `RETURNS_BUSINESS_TIME_ZONE`: private RMA
+  integration and signed return-session policy.
+- `SQUARE_RETURNS_REFUNDS_ENABLED`: separate Sandbox-only return-refund switch;
+  it does not override the global production Square-write guard.
 - `MAPBOX_ACCESS_TOKEN`: map token; restrict it by origin and API scope.
 - `SENTRY_DSN`: error reporting destination.
 - `ADMIN_SESSION_SECRET`: reserved for the admin authentication phase; do not treat its presence as authentication.
@@ -42,6 +54,20 @@ Copy `.env.example` to `.env` and replace placeholders with local or sandbox val
 For Supabase with Prisma, obtain both connection strings from the project dashboard's **Connect** dialog. Use the transaction pooler string as `DATABASE_URL` and the session pooler string, or a reachable direct connection, as `DIRECT_URL`. These database URLs contain the database password; they are not Supabase API keys and must remain server-only. Publishable or secret Supabase API keys are needed only if the application later adopts the Supabase Data API, Auth, Storage, Realtime, or Edge Functions.
 
 The application currently supports demo fallbacks when integrations are absent. A successful fallback build does not certify payments, inventory, fulfillment, or admin security for production.
+
+## Production media persistence
+
+Admin image uploads are served from `/uploads/admin` and written to
+`/app/public/uploads/admin` inside the storefront container. The production
+Compose stack mounts the named `storefront-admin-media` volume at that path so
+uploads remain available across container rebuilds while the rest of the
+runtime stays read-only.
+
+The small set of media files already referenced by the published homepage is
+included as bootstrap media in the repository. On the first deployment Docker
+initializes the empty named volume from those image files. Back up the named
+volume before moving hosts or deleting Docker volumes; Git is not the ongoing
+storage system for new Admin uploads.
 
 ## CI behavior
 

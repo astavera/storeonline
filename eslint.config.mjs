@@ -1,3 +1,7 @@
+/**
+ * Defines lint rules, generated-file exclusions, and project-specific ESLint overrides.
+ */
+
 import { defineConfig, globalIgnores } from "eslint/config";
 import nextVitals from "eslint-config-next/core-web-vitals";
 import nextTypeScript from "eslint-config-next/typescript";

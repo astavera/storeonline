@@ -1,3 +1,7 @@
+/**
+ * Defines the reusable product grid presets preset for the storefront design system.
+ */
+
 export type ProductGridPresetId =
   | "compact"
   | "editorial"

@@ -1,3 +1,7 @@
+/**
+ * Verifies the isolated behavior of cart service.
+ */
+
 import { describe, expect, it } from "vitest";
 import { storefrontProducts } from "@/features/catalog/product-catalog";
 import { quoteCart, quoteCartWithProducts } from "@/server/checkout/cart-service";
@@ -18,7 +22,7 @@ describe("cart service", () => {
     expect(quote.compatibleFulfillmentModes).toEqual(["pickup", "local-delivery", "shipping"]);
   });
 
-  it("keeps compatible fulfillment modes and reports unavailable items", () => {
+  it("keeps balloon carts pickup-or-delivery-only and reports unavailable items", () => {
     const quote = quoteCart({
       items: [
         { squareVariationId: "seed-mylar-balloon-pick", quantity: 1 },

@@ -1,3 +1,7 @@
+/**
+ * Renders the admin module editor interface and its user interactions.
+ */
+
 "use client";
 
 import { CalendarClock, Eye, Rocket, Save, Undo2 } from "lucide-react";

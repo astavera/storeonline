@@ -17,8 +17,11 @@ import { StorefrontCmsPage } from "@/components/cms/storefront-cms-page";
 import { ProductGrid } from "@/components/commerce/product-grid";
 import { ButtonLink } from "@/components/ui/button";
 import { getDepartmentBySlug } from "@/config/departments.config";
+import { DepartmentLandingPage, type DepartmentLandingSearchParams } from "@/features/departments/components/department-landing-page";
 import { filterWebsiteCatalogProducts } from "@/features/catalog/services/website-merchandising-service";
+import type { CmsPageDocument } from "@/lib/cms";
 import { readLatestCmsDocument } from "@/server/admin/admin-cms-document-service";
+import { readDepartmentBestSellers } from "@/server/commerce/best-seller-store";
 import { readResolvedSquareWebsiteCatalog } from "@/server/square/website-catalog-store";
 import { buildStorefrontMetadata } from "@/lib/seo/storefront-seo";
 import { SectionFrame } from "../sections/section-frame";
@@ -31,21 +34,40 @@ function sectionPrefix(slug: string) {
   return sectionPrefixBySlug[slug] ?? slug;
 }
 
-export async function DepartmentPageTemplate({ slug }: { slug: string }) {
+export async function DepartmentPageTemplate({ slug, searchParams }: { slug: string; searchParams?: DepartmentLandingSearchParams }) {
   const squareCatalog = await readResolvedSquareWebsiteCatalog();
   const resolvedCatalog = squareCatalog?.catalog ?? null;
   const websiteCategory = resolvedCatalog?.categories.find((category) => category.slug === slug);
-  const products = resolvedCatalog && websiteCategory ? filterWebsiteCatalogProducts(resolvedCatalog, { categoryId: websiteCategory.id, surface: "category-pages" }) : squareCatalog ? [] : undefined;
+  const products = resolvedCatalog && websiteCategory ? filterWebsiteCatalogProducts(resolvedCatalog, { categoryId: websiteCategory.id, surface: "shop" }) : [];
   const publishedDocument = await readLatestCmsDocument({ entityType: "department", entityId: slug, statuses: ["PUBLISHED"] });
 
   if (publishedDocument) {
-    return <StorefrontCmsPage document={publishedDocument} products={products} />;
+    return <StorefrontCmsPage document={storefrontDepartmentDocument(publishedDocument, slug)} products={products} />;
   }
 
   const department = getDepartmentBySlug(slug);
 
   if (!department) {
     notFound();
+  }
+
+  if (slug === "toys" || slug === "party-supplies") {
+    const bestSellers = await readDepartmentBestSellers(slug);
+    const productByVariationId = new Map((resolvedCatalog?.products ?? []).map((product) => [product.squareVariationId, product]));
+    const bestSellerProducts = bestSellers.variationIds
+      .map((variationId) => productByVariationId.get(variationId))
+      .filter((product): product is NonNullable<typeof product> => Boolean(product));
+
+    return (
+      <DepartmentLandingPage
+        bestSellerProducts={bestSellerProducts}
+        bestSellerSource={bestSellers.source}
+        catalog={resolvedCatalog}
+        catalogAvailable={Boolean(squareCatalog)}
+        department={department}
+        searchParams={searchParams}
+      />
+    );
   }
 
   const prefix = sectionPrefix(department.slug);
@@ -98,6 +120,25 @@ export async function DepartmentPageTemplate({ slug }: { slug: string }) {
       </SectionFrame>
     </main>
   );
+}
+
+function storefrontDepartmentDocument(document: CmsPageDocument, slug: string): CmsPageDocument {
+  if (slug !== "toys" && slug !== "party-supplies") return document;
+
+  if (slug === "toys") {
+    return {
+      ...document,
+      sections: document.sections.filter((section) => String(section.type) !== "hero" && String(section.type) !== "featuredCategories")
+    };
+  }
+
+  return {
+    ...document,
+    sections: document.sections.map((section) => {
+      if (section.id !== `${slug}.hero` && String(section.type) !== "hero") return section;
+      return { ...section, variant: "image-only" };
+    })
+  };
 }
 
 export async function getDepartmentPageMetadata(slug: string): Promise<Metadata> {

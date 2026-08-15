@@ -1,3 +1,7 @@
+/**
+ * Verifies the isolated behavior of catalog publishing workspace state.
+ */
+
 import { describe, expect, it } from "vitest";
 import {
   catalogPublishingWorkspaceStorageKey,

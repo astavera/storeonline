@@ -1,3 +1,7 @@
+/**
+ * Renders the upper east side greeting cards page and prepares its route-level data.
+ */
+
 import { ContentPageTemplate } from "@/components/templates/content-page-template";
 
 export default function UpperEastSideGreetingCardsPage() {

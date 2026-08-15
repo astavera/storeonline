@@ -1,3 +1,7 @@
+/**
+ * Verifies the isolated behavior of website merchandising publication.
+ */
+
 import { describe, expect, it } from "vitest";
 import {
   planWebsiteMerchandisingPublication,

@@ -1,3 +1,7 @@
+/**
+ * Registers TypeScript path aliases for Node-based maintenance scripts.
+ */
+
 import { existsSync } from "node:fs";
 import { registerHooks } from "node:module";
 import { resolve } from "node:path";

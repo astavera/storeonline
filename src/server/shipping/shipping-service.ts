@@ -1,3 +1,7 @@
+/**
+ * Implements server-side shipping service behavior and persistence boundaries.
+ */
+
 import "server-only";
 
 import { createHash, createHmac, timingSafeEqual } from "node:crypto";

@@ -1,3 +1,5 @@
+# Validates linting, types, tests, builds, and database compatibility in continuous integration.
+
 name: CI
 
 on:

@@ -1,3 +1,7 @@
+/**
+ * Verifies the isolated behavior of webhook inbox.
+ */
+
 import { describe, expect, it } from "vitest";
 import { ZodError } from "zod";
 import { InMemoryWebhookInboxRepository, parseWebhookEnvelope } from "@/server/webhooks/webhook-inbox";

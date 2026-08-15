@@ -1,3 +1,7 @@
+/**
+ * Verifies the isolated behavior of admin return to.
+ */
+
 import { describe, expect, it } from "vitest";
 import { safeAdminReturnTo } from "@/lib/security/admin-return-to";
 

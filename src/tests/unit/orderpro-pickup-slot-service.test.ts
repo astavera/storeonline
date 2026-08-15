@@ -1,3 +1,7 @@
+/**
+ * Verifies the isolated behavior of OrderPro pickup slot service.
+ */
+
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { earliestNewYorkDeliveryDate } from "@/features/fulfillment/utils/new-york-delivery-date";
 import {

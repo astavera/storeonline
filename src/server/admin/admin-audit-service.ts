@@ -1,3 +1,7 @@
+/**
+ * Implements server-side admin audit service behavior and persistence boundaries.
+ */
+
 import "server-only";
 
 export type AdminAuditEvent = {

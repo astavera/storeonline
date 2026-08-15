@@ -1,3 +1,7 @@
+/**
+ * Provides shared page templates types and utilities for the application.
+ */
+
 import type { CmsEntityType, CmsPageDocument, CmsScope, CmsSection, SeoConfig } from "./cms-types";
 import { buildCmsDocumentId, cmsScopeToEntityType, normalizeCmsEntityId } from "./cms-scopes";
 import { createCmsSection } from "./section-registry";

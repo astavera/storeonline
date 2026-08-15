@@ -1,3 +1,7 @@
+/**
+ * Implements the website merchandising service workflow for the catalog feature.
+ */
+
 import {
   productAgeGroupIds,
   type FulfillmentMode,
@@ -5,27 +9,39 @@ import {
   type StorefrontProduct
 } from "@/features/catalog/product-catalog";
 
-export const websiteSurfaceIds = ["shop", "homepage", "search", "category-pages", "holiday-pages"] as const;
+export const websiteSurfaceIds = ["shop", "homepage", "new-and-trending", "search", "category-pages", "holiday-pages"] as const;
+export const websiteCategoryKindIds = ["standard", "party-group", "party-theme", "party-product-type", "party-solid-color"] as const;
 export const MAX_WEBSITE_CATEGORY_DEPTH = 4;
 
 export const websiteSurfaceOptions = [
   { id: "shop", label: "Shop catalog" },
   { id: "homepage", label: "Homepage" },
+  { id: "new-and-trending", label: "New & Trending carousel" },
   { id: "search", label: "Search results" },
   { id: "category-pages", label: "Category pages" },
   { id: "holiday-pages", label: "Holiday pages" }
 ] as const;
 
 export type WebsiteSurface = (typeof websiteSurfaceIds)[number];
+export type WebsiteCategoryKind = (typeof websiteCategoryKindIds)[number];
 
 export type WebsiteCategory = {
   id: string;
   name: string;
   slug: string;
   description: string;
+  imageUrl: string;
+  imageAlt: string;
   parentId: string | null;
   visible: boolean;
   sortOrder: number;
+  kind?: WebsiteCategoryKind;
+  recommendationTerms?: string[];
+  swatchColor?: string;
+};
+
+export type WebsiteCategoryImageOptions = {
+  parentSlug?: string;
 };
 
 export type WebsiteBrand = {
@@ -111,19 +127,25 @@ export function reconcileWebsiteMerchandising(
   const knownBrandIds = new Set(config.brands.map((brand) => brand.id));
   const knownHolidayIds = new Set(config.holidays.map((holiday) => holiday.id));
   const placementsByProduct = new Map(config.placements.map((placement) => [placement.squareVariationId, placement]));
+  const categories = orderWebsiteCategories([...config.categories]
+    .map((category, index) => ({
+      ...category,
+      name: category.name.trim(),
+      slug: slugifyWebsiteCategory(category.slug || category.name) || `category-${index + 1}`,
+      description: category.description.trim(),
+      imageUrl: category.imageUrl.trim(),
+      imageAlt: category.imageAlt.trim() || (category.imageUrl.trim() ? category.name.trim() : ""),
+      parentId: category.parentId ?? null,
+      sortOrder: Number.isFinite(category.sortOrder) ? category.sortOrder : index,
+      kind: normalizeWebsiteCategoryKind(category.kind),
+      recommendationTerms: Array.from(new Set((category.recommendationTerms ?? []).map((term) => term.trim()).filter(Boolean))).slice(0, 20),
+      swatchColor: normalizeSwatchColor(category.swatchColor)
+    })));
 
   return {
     version: 3,
     updatedAt,
-    categories: orderWebsiteCategories([...config.categories]
-      .map((category, index) => ({
-        ...category,
-        name: category.name.trim(),
-        slug: slugifyWebsiteCategory(category.slug || category.name) || `category-${index + 1}`,
-        description: category.description.trim(),
-        parentId: category.parentId ?? null,
-        sortOrder: Number.isFinite(category.sortOrder) ? category.sortOrder : index
-      }))),
+    categories,
     brands: [...config.brands]
       .map((brand, index) => ({
         ...brand,
@@ -148,15 +170,20 @@ export function reconcileWebsiteMerchandising(
     placements: [
       ...config.placements
         .filter((placement) => knownProductIds.has(placement.squareVariationId))
-        .map((placement) => ({
-          ...placement,
-          categoryIds: Array.from(new Set(placement.categoryIds.filter((categoryId) => knownCategoryIds.has(categoryId)))),
-          brandIds: Array.from(new Set(placement.brandIds.filter((brandId) => knownBrandIds.has(brandId)))),
-          holidayAssignments: placement.holidayAssignments.filter((assignment) => knownHolidayIds.has(assignment.holidayId)),
-          ageGroups: Array.from(new Set(placement.ageGroups.filter(isProductAgeGroup))),
-          fulfillmentModes: Array.from(new Set(placement.fulfillmentModes.filter(isFulfillmentMode))),
-          surfaceIds: Array.from(new Set(placement.surfaceIds.filter(isWebsiteSurface)))
-        })),
+        .map((placement) => {
+          const categoryIds = Array.from(new Set(placement.categoryIds.filter((categoryId) => knownCategoryIds.has(categoryId))));
+          return {
+            ...placement,
+            categoryIds,
+            brandIds: Array.from(new Set(placement.brandIds.filter((brandId) => knownBrandIds.has(brandId)))),
+            holidayAssignments: placement.holidayAssignments.filter((assignment) => knownHolidayIds.has(assignment.holidayId)),
+            ageGroups: Array.from(new Set(placement.ageGroups.filter(isProductAgeGroup))),
+            fulfillmentModes: isBalloonWebsitePlacement({ ...placement, categoryIds }, categories)
+              ? ["pickup" as const, "local-delivery" as const]
+              : Array.from(new Set(placement.fulfillmentModes.filter(isFulfillmentMode))),
+            surfaceIds: Array.from(new Set(placement.surfaceIds.filter(isWebsiteSurface)))
+          };
+        }),
       ...products
         .filter((product) => !placementsByProduct.has(product.squareVariationId))
         .map(createPendingPlacement)
@@ -190,6 +217,7 @@ export function resolveWebsiteCatalog(
   const productVariationIdsBySurface: Record<WebsiteSurface, string[]> = {
     shop: [],
     homepage: [],
+    "new-and-trending": [],
     search: [],
     "category-pages": [],
     "holiday-pages": []
@@ -209,6 +237,14 @@ export function resolveWebsiteCatalog(
       continue;
     }
 
+    const visibleCategorySlugsForProduct = Array.from(new Set(
+      visibleCategoryIdsForProduct.flatMap((categoryId) => {
+        const category = categoryById.get(categoryId);
+        return category
+          ? websiteCategoryPathFromMap(category, categoryById).map((pathCategory) => pathCategory.slug)
+          : [];
+      })
+    ));
     const primaryCategory = visibleCategoryIdsForProduct
       .map((categoryId) => categoryById.get(categoryId))
       .filter((category): category is WebsiteCategory => Boolean(category))
@@ -242,9 +278,10 @@ export function resolveWebsiteCatalog(
         ...product,
         department: primaryCategory?.name ?? "Uncategorized",
         ageGroups: placement.ageGroups,
-        fulfillmentModes: placement.fulfillmentModes,
+        fulfillmentModes: isBalloonWebsitePlacement(placement, categories) ? ["pickup", "local-delivery"] : placement.fulfillmentModes,
         websiteSurfaces: placement.surfaceIds,
-        websiteBrandIds: visibleBrandIdsForProduct
+        websiteBrandIds: visibleBrandIdsForProduct,
+        websiteCategorySlugs: visibleCategorySlugsForProduct
       },
       sortOrder: placement.sortOrder
     });
@@ -297,6 +334,10 @@ export function websitePlacementIssues(placement: WebsiteProductPlacement) {
     issues.push("Choose where the product appears on the website.");
   }
 
+  if (placement.surfaceIds.includes("new-and-trending") && !placement.surfaceIds.includes("shop")) {
+    issues.push("New & Trending products must also appear in the Shop catalog.");
+  }
+
   if (placement.fulfillmentModes.length === 0) {
     issues.push("Choose at least one fulfillment method.");
   }
@@ -320,6 +361,17 @@ export function websitePlacementReadinessIssues(
     return path.length > 0 && path.every((pathCategory) => pathCategory.visible);
   }).map((category) => category.id));
 
+  if (
+    isBalloonWebsitePlacement(placement, categories) &&
+    (
+      placement.fulfillmentModes.length !== 2 ||
+      !placement.fulfillmentModes.includes("pickup") ||
+      !placement.fulfillmentModes.includes("local-delivery")
+    )
+  ) {
+    issues.push("Balloon products are available for store pickup or local delivery only.");
+  }
+
   if (!placement.categoryIds.some((categoryId) => enabledCategoryIds.has(categoryId))) {
     issues.push("Enable at least one assigned website category.");
   }
@@ -339,6 +391,26 @@ export function websitePlacementReadinessIssues(
   }
 
   return Array.from(new Set(issues));
+}
+
+export function isBalloonWebsitePlacement(
+  placement: Pick<WebsiteProductPlacement, "categoryIds">,
+  categories: WebsiteCategory[]
+) {
+  const categoryById = new Map(categories.map((category) => [category.id, category]));
+  return placement.categoryIds.some((categoryId) => {
+    const category = categoryById.get(categoryId);
+    return category ? websiteCategoryPathFromMap(category, categoryById).some(isBalloonFulfillmentCategory) : false;
+  });
+}
+
+function isBalloonFulfillmentCategory(category: WebsiteCategory) {
+  const slug = slugifyWebsiteCategory(category.slug || category.name);
+  return slug === "balloons"
+    || slug === "latex-balloons"
+    || slug === "mylar-balloons"
+    || slug === "balloon-add-ons"
+    || slug.startsWith("balloon-");
 }
 
 export function isWebsitePlacementReady(placement: WebsiteProductPlacement) {
@@ -382,6 +454,34 @@ export function orderWebsiteCategories(categories: WebsiteCategory[]) {
   for (const category of categories) visit(category);
 
   return ordered;
+}
+
+/**
+ * Returns real, published website categories that are ready for an image-led
+ * storefront surface such as the homepage category carousel.
+ *
+ * When `parentSlug` is supplied, only that category's direct children are
+ * returned. Parent and ancestor visibility are honored so hidden structures
+ * never leak into the storefront.
+ */
+export function listVisibleWebsiteCategoriesWithImages(
+  categories: WebsiteCategory[],
+  options: WebsiteCategoryImageOptions = {}
+) {
+  const categoryById = new Map(categories.map((category) => [category.id, category]));
+  const parent = options.parentSlug
+    ? categories.find((category) => category.slug === options.parentSlug)
+    : null;
+
+  if (options.parentSlug && !parent) return [];
+
+  return orderWebsiteCategories(categories).filter((category) => {
+    if (!category.imageUrl.trim()) return false;
+    if (parent && category.parentId !== parent.id) return false;
+
+    const path = websiteCategoryPathFromMap(category, categoryById);
+    return path.length > 0 && path.every((pathCategory) => pathCategory.visible);
+  });
 }
 
 export function websiteCategoryLabel(category: WebsiteCategory, categories: WebsiteCategory[]) {
@@ -454,6 +554,15 @@ function createPendingPlacement(product: StorefrontProduct, index: number): Webs
 
 function isProductAgeGroup(value: string): value is ProductAgeGroup {
   return productAgeGroupIds.includes(value as ProductAgeGroup);
+}
+
+function normalizeWebsiteCategoryKind(value: WebsiteCategoryKind | undefined): WebsiteCategoryKind {
+  return websiteCategoryKindIds.includes(value as WebsiteCategoryKind) ? value as WebsiteCategoryKind : "standard";
+}
+
+function normalizeSwatchColor(value: string | undefined) {
+  const normalized = value?.trim().toUpperCase() ?? "";
+  return /^#[0-9A-F]{6}$/.test(normalized) ? normalized : "";
 }
 
 function isFulfillmentMode(value: string): value is FulfillmentMode {

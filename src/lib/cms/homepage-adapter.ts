@@ -1,5 +1,8 @@
-import type { HomepageSectionConfig } from "@/config/homepage.config";
-import type { HomepageSeoConfig } from "@/config/homepage-seo.config";
+/**
+ * Provides shared homepage adapter types and utilities for the application.
+ */
+
+import type { HomepageSectionConfig, HomepageSeoConfig } from "@/features/homepage";
 import type { CmsKnownSectionType, CmsPageDocument, CmsSection } from "./cms-types";
 import { createCmsPageDocument } from "./page-templates";
 import { createCmsSection, normalizeSectionType } from "./section-registry";

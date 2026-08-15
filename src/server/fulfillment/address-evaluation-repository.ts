@@ -1,3 +1,7 @@
+/**
+ * Implements server-side address evaluation repository behavior and persistence boundaries.
+ */
+
 import "server-only";
 
 import { createHmac } from "node:crypto";

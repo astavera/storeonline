@@ -1,3 +1,7 @@
+/**
+ * Implements server-side runtime behavior and persistence boundaries.
+ */
+
 import "server-only";
 import { createAuth0TokenProvider } from "@/server/orderpro/auth0-token-provider";
 import { createOrderProClient, type OrderProClient } from "@/server/orderpro/client";

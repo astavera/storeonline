@@ -1,3 +1,7 @@
+/**
+ * Verifies the isolated behavior of product display service.
+ */
+
 import { describe, expect, it } from "vitest";
 import { isProductDisplayable } from "@/features/catalog/services/product-display-service";
 

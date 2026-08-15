@@ -1,3 +1,5 @@
+# Schedules periodic storefront webhook processing on the production host.
+
 [Unit]
 Description=Run the Storefront Square webhook worker every 15 seconds
 

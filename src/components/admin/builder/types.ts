@@ -1,3 +1,7 @@
+/**
+ * Renders the types interface and its user interactions.
+ */
+
 import type { CmsPageDocument, CmsScope, CmsSection } from "@/lib/cms";
 
 export type BuilderDevice = "desktop" | "tablet" | "mobile";

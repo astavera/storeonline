@@ -1,3 +1,7 @@
+/**
+ * Defines the OrderPro local delivery contracts used by the fulfillment feature.
+ */
+
 export type LocalDeliveryQuoteContext = "checkout" | "balloon-order";
 
 export type LocalDeliveryAddress = {

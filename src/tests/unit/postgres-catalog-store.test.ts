@@ -1,3 +1,7 @@
+/**
+ * Verifies the isolated behavior of postgres catalog store.
+ */
+
 import { describe, expect, it } from "vitest";
 
 describe("PostgreSQL catalog storefront contract", () => {

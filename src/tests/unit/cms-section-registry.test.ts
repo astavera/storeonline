@@ -1,3 +1,7 @@
+/**
+ * Verifies the isolated behavior of CMS section registry.
+ */
+
 import { describe, expect, it } from "vitest";
 import { createUnknownSectionFallback, isSectionCompatibleWithScope, resolveSectionRegistryItem, sectionRegistry, type CmsKnownSectionType } from "@/lib/cms";
 

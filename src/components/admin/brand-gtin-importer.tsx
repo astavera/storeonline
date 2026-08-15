@@ -1,3 +1,7 @@
+/**
+ * Renders the brand GTIN importer interface and its user interactions.
+ */
+
 "use client";
 
 import { useState, type ChangeEvent } from "react";

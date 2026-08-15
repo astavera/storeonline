@@ -1,3 +1,7 @@
+/**
+ * Renders the holidays slug page and prepares its route-level data.
+ */
+
 import { HolidayDetailTemplate } from "@/components/templates/holidays-page-template";
 
 export const dynamic = "force-dynamic";

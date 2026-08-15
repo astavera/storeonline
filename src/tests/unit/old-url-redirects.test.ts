@@ -1,3 +1,7 @@
+/**
+ * Verifies the isolated behavior of old URL redirects.
+ */
+
 import { describe, expect, it } from "vitest";
 import { oldUrlRedirects } from "@/config/old-url-redirects.config";
 

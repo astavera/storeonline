@@ -1,3 +1,7 @@
+/**
+ * Renders the OrderPro managed panel interface and its user interactions.
+ */
+
 import { ExternalLink, ShieldCheck } from "lucide-react";
 import { SectionFrame } from "@/components/sections/section-frame";
 

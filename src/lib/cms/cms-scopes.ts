@@ -1,3 +1,7 @@
+/**
+ * Provides shared CMS scopes types and utilities for the application.
+ */
+
 import { cmsScopes, type CmsEntityType, type CmsScope } from "./cms-types";
 
 export { cmsScopes, type CmsScope };

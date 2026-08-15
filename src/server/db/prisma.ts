@@ -1,3 +1,7 @@
+/**
+ * Implements server-side prisma behavior and persistence boundaries.
+ */
+
 import "server-only";
 
 import { PrismaClient } from "@prisma/client";

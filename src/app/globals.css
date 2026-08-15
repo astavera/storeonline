@@ -1,3 +1,7 @@
+/*
+ * Defines the styles and responsive presentation for globals.
+ */
+
 @import "../design/tokens/colors.css";
 @import "../design/tokens/typography.css";
 @import "../design/tokens/spacing.css";
@@ -52,6 +56,13 @@ img {
   box-shadow: none;
 }
 
+[data-account-field]:focus,
+[data-account-field]:focus-visible,
+[data-account-field-shell]:focus-within {
+  outline: none;
+  box-shadow: none;
+}
+
 /* Search fields and native selects keep a quiet, neutral focus state. */
 input[type="search"]:focus,
 input[type="search"]:focus-visible,
@@ -88,6 +99,29 @@ select:not([multiple]):focus-visible {
 .container-shell {
   width: min(100% - 2rem, var(--container-width));
   margin-inline: auto;
+}
+
+/* Gives wide homepage features slightly more breathing room on desktop screens. */
+.homepage-wide-shell {
+  max-width: none;
+}
+
+@media (min-width: 1024px) {
+  .homepage-wide-shell {
+    width: calc(100% - 6rem);
+  }
+}
+
+@media (min-width: 1280px) {
+  .homepage-wide-shell {
+    width: calc(100% - 10rem);
+  }
+}
+
+@media (min-width: 1536px) {
+  .homepage-wide-shell {
+    width: calc(100% - 12rem);
+  }
 }
 
 .surface-card {
@@ -522,11 +556,6 @@ select:not([multiple]):focus-visible {
     padding: 0.6rem 0 0;
   }
 
-  .storefront-product-card .product-card-meta,
-  .storefront-product-card .product-card-fulfillment {
-    display: none;
-  }
-
   .storefront-product-card .product-card-title-wrap {
     flex: none;
     min-height: 2.35rem;
@@ -541,74 +570,74 @@ select:not([multiple]):focus-visible {
     -webkit-line-clamp: 3;
   }
 
-  .storefront-product-card .product-card-inventory-price {
-    min-height: 2.9rem;
-    flex-direction: column-reverse;
-    align-items: flex-start;
-    justify-content: flex-end;
-    gap: 0.55rem;
-  }
-
   .storefront-product-card .product-card-price {
     font-size: 0.95rem;
     line-height: 1;
-  }
-
-  .storefront-product-card .product-card-inventory {
-    font-size: 0.72rem;
-    line-height: 1.2;
-  }
-
-  .storefront-product-card[data-inventory-status="out-of-stock"] .product-card-inventory {
-    color: var(--color-legacy-red);
   }
 
   .storefront-product-card .product-card-actions {
     margin-top: 0.15rem;
   }
 
-  .storefront-product-card .product-card-primary-action button {
+  .storefront-product-card .product-card-primary-action .add-to-cart-submit {
     min-height: 2.75rem;
     border: 1px solid var(--color-legacy-blue);
     border-radius: 4px;
-    background: white;
+    background: var(--color-legacy-blue);
     padding: 0.55rem 0.35rem;
-    color: var(--color-legacy-blue);
+    color: white;
     font-size: 0.78rem;
     line-height: 1.1;
   }
 
-  .storefront-product-card .product-card-primary-action button:hover {
-    background: var(--color-legacy-blue);
+  .storefront-product-card .product-card-primary-action .add-to-cart-stepper {
+    min-height: 2.75rem;
+    border-radius: 4px;
+  }
+
+  .storefront-product-card .product-card-primary-action .add-to-cart-submit:hover {
+    background: #104a9e;
     color: white;
   }
 
-  .storefront-product-card .product-card-primary-action button:disabled {
-    border-color: #a9a9a9;
-    background: white;
-    color: #8b8b8b;
+  .storefront-product-card .product-card-primary-action .add-to-cart-submit:disabled {
+    border-color: var(--color-legacy-blue);
+    background: var(--color-legacy-blue);
+    color: white;
+    opacity: 0.45;
   }
 
-  .storefront-product-card .product-card-primary-action button svg {
+  .storefront-product-card .product-card-primary-action .add-to-cart-submit svg {
     display: none;
   }
 
-  .storefront-product-card .product-card-wishlist {
-    position: absolute;
-    top: 0.2rem;
-    right: 0.2rem;
-    z-index: 2;
-    min-height: 2.75rem;
-    width: 2.75rem;
-    border: 0;
-    background: rgba(255, 255, 255, 0.86);
-    color: #111;
-    backdrop-filter: blur(3px);
-  }
+}
 
-  .storefront-product-card .product-card-wishlist[aria-pressed="true"] {
-    background: rgba(255, 255, 255, 0.92);
-    color: var(--color-legacy-red);
+.department-product-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+@media (max-width: 639px) {
+  .department-product-grid .product-card-title-wrap h3 {
+    -webkit-line-clamp: 2;
+  }
+}
+
+@media (min-width: 640px) and (max-width: 1023px) {
+  .department-product-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 1024px) and (max-width: 1279px) {
+  .department-product-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 1280px) {
+  .department-product-grid {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
   }
 }
 

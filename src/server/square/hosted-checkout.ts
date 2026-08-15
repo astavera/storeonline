@@ -1,3 +1,7 @@
+/**
+ * Implements server-side hosted checkout behavior and persistence boundaries.
+ */
+
 import "server-only";
 
 import {

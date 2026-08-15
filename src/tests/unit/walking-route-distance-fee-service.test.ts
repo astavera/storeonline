@@ -1,3 +1,7 @@
+/**
+ * Verifies the isolated behavior of walking route distance fee service.
+ */
+
 import { describe, expect, it } from "vitest";
 import {
   quoteWalkingRouteDistanceFee,

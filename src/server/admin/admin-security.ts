@@ -1,3 +1,7 @@
+/**
+ * Implements server-side admin security behavior and persistence boundaries.
+ */
+
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { NextResponse } from "next/server";
 

@@ -1,3 +1,7 @@
+/**
+ * Renders the holiday product manager interface and its user interactions.
+ */
+
 "use client";
 
 import { useEffect, useState, type FormEvent } from "react";

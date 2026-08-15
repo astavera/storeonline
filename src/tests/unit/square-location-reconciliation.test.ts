@@ -1,3 +1,7 @@
+/**
+ * Verifies the isolated behavior of Square location reconciliation.
+ */
+
 import { describe, expect, it } from "vitest";
 import { rankSquareLocationCandidates } from "@/server/square/location-reconciliation";
 

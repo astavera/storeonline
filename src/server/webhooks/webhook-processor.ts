@@ -1,3 +1,7 @@
+/**
+ * Implements server-side webhook processor behavior and persistence boundaries.
+ */
+
 import "server-only";
 
 import type { WebhookInboxRecord, WebhookInboxRepository } from "@/server/webhooks/webhook-inbox";

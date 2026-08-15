@@ -1,3 +1,7 @@
+/**
+ * Implements server-side webhook worker auth behavior and persistence boundaries.
+ */
+
 import "server-only";
 
 import { timingSafeEqual } from "node:crypto";

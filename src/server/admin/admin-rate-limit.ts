@@ -1,3 +1,7 @@
+/**
+ * Implements server-side admin rate limit behavior and persistence boundaries.
+ */
+
 import "server-only";
 
 import { createHash } from "node:crypto";

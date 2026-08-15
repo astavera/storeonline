@@ -1,3 +1,7 @@
+/**
+ * Verifies the isolated behavior of webhook processor.
+ */
+
 import { describe, expect, it, vi } from "vitest";
 import { InMemoryWebhookInboxRepository } from "@/server/webhooks/webhook-inbox";
 import { processWebhookBatch } from "@/server/webhooks/webhook-processor";

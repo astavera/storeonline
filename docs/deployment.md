@@ -2,6 +2,10 @@
 
 The current application is a scaffold and must not receive unrestricted production traffic. Environment ownership and isolation are defined in [environments.md](environments.md).
 
+Use [vps-canary-runbook.md](vps-canary-runbook.md) to prepare a private VPS
+canary with fail-closed feature flags, verified backups, immutable image tags,
+and an explicit rollback path.
+
 ## Toolchain gate
 
 ```bash

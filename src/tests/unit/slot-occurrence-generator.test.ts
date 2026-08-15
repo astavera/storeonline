@@ -1,3 +1,7 @@
+/**
+ * Verifies the isolated behavior of slot occurrence generator.
+ */
+
 import { describe, expect, it, vi } from "vitest";
 import {
   generateSlotOccurrences,

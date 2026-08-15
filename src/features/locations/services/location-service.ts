@@ -1,3 +1,7 @@
+/**
+ * Implements the location service workflow for the locations feature.
+ */
+
 import { getLocationBySlug, storeLocations } from "@/config/locations.config";
 
 export function listPickupLocations() {

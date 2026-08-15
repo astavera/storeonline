@@ -1,3 +1,7 @@
+/**
+ * Renders the admin balloons page and prepares its route-level data.
+ */
+
 import { AdminPageShell } from "@/components/admin/admin-page-shell";
 
 export default function AdminBalloonsPage() {

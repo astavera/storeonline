@@ -47,6 +47,7 @@ const catalogPublishingLinks = [
   ["Overview", "#overview"],
   ["Brands", "#structure-brands"],
   ["Categories", "#structure-categories"],
+  ["Party", "#structure-party"],
   ["Holidays", "#structure-holidays"],
   ["Products", "#products"],
   ["Bulk & Import", "#bulk"]

@@ -1,3 +1,7 @@
+/*
+ * Defines the default theme theme values used by the storefront design system.
+ */
+
 :root {
   --theme-action: var(--color-legacy-blue);
   --theme-action-foreground: #FFFFFF;

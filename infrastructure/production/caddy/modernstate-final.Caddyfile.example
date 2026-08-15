@@ -1,0 +1,11 @@
+# Do not activate these hosts until the modernstate.com transfer, DNS records,
+# canary checks, and certificate issuance plan are approved.
+
+modernstate.com {
+  encode zstd gzip
+  reverse_proxy storefront:3000
+}
+
+www.modernstate.com {
+  redir https://modernstate.com{uri} permanent
+}

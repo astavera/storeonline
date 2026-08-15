@@ -1,3 +1,7 @@
+/**
+ * Configures the default unit and integration test environment for Vitest.
+ */
+
 import { defineConfig } from "vitest/config";
 import { fileURLToPath } from "node:url";
 

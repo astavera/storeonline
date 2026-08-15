@@ -1,3 +1,7 @@
+/**
+ * Verifies the isolated behavior of catalog postgres sync.
+ */
+
 import { describe, expect, it, vi } from "vitest";
 import type { CatalogObject } from "square";
 import {

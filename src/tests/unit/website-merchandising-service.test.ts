@@ -1,8 +1,13 @@
+/**
+ * Verifies the isolated behavior of website merchandising service.
+ */
+
 import { describe, expect, it } from "vitest";
 import type { StorefrontProduct } from "@/features/catalog/product-catalog";
 import {
   createDefaultWebsiteMerchandising,
   filterWebsiteCatalogProducts,
+  listVisibleWebsiteCategoriesWithImages,
   orderWebsiteCategories,
   reconcileWebsiteMerchandising,
   resolveWebsiteCatalog,
@@ -10,6 +15,7 @@ import {
   websiteCategoryDepth,
   websiteCategoryLabel,
   websitePlacementIssues,
+  websitePlacementReadinessIssues,
   type WebsiteBrand,
   type WebsiteCategory
 } from "@/features/catalog/services/website-merchandising-service";
@@ -24,6 +30,8 @@ const websiteCategory: WebsiteCategory = {
   name: "Birthday gifts",
   slug: "birthday-gifts",
   description: "Customer-facing birthday gifts.",
+  imageUrl: "/uploads/admin/birthday-gifts.webp",
+  imageAlt: "Birthday gifts",
   parentId: null,
   visible: true,
   sortOrder: 0
@@ -68,7 +76,13 @@ describe("website merchandising service", () => {
     const resolved = resolveWebsiteCatalog(products, config);
 
     expect(resolved.products).toHaveLength(1);
-    expect(resolved.products[0]).toMatchObject({ name: "Birthday Balloon", department: "Birthday gifts", ageGroups: ["3-4", "5-7"], fulfillmentModes: ["pickup"] });
+    expect(resolved.products[0]).toMatchObject({
+      name: "Birthday Balloon",
+      department: "Birthday gifts",
+      ageGroups: ["3-4", "5-7"],
+      fulfillmentModes: ["pickup"],
+      websiteCategorySlugs: [websiteCategory.slug]
+    });
     expect(filterWebsiteCatalogProducts(resolved, { surface: "shop", categoryId: websiteCategory.id, ageGroup: "5-7" })).toHaveLength(1);
     expect(products[0].department).toBe("Balloons/Mylars");
   });
@@ -129,6 +143,12 @@ describe("website merchandising service", () => {
     }
     expect(filterWebsiteCatalogProducts(resolved, { categoryId: mainCategory.id, surface: "shop" })).toHaveLength(1);
     expect(resolved.products[0].department).toBe("Strategy Games");
+    expect(resolved.products[0].websiteCategorySlugs).toEqual([
+      mainCategory.slug,
+      subcategory.slug,
+      thirdLevel.slug,
+      fourthLevel.slug
+    ]);
   });
 
   it("keeps deep subcategories and their products private while any ancestor is hidden", () => {
@@ -145,6 +165,17 @@ describe("website merchandising service", () => {
     expect(resolved.products).toEqual([]);
   });
 
+  it("returns only visible, image-ready direct children for an image-led category carousel", () => {
+    const toys: WebsiteCategory = { ...websiteCategory, id: "category-toys", name: "Toys", slug: "toys", imageUrl: "", imageAlt: "", parentId: null, sortOrder: 0 };
+    const vehicles: WebsiteCategory = { ...websiteCategory, id: "category-vehicles", name: "Vehicles", slug: "vehicles", parentId: toys.id, sortOrder: 1 };
+    const dolls: WebsiteCategory = { ...websiteCategory, id: "category-dolls", name: "Dolls", slug: "dolls", imageUrl: "", imageAlt: "", parentId: toys.id, sortOrder: 0 };
+    const hidden: WebsiteCategory = { ...websiteCategory, id: "category-hidden", name: "Hidden", slug: "hidden", parentId: toys.id, visible: false, sortOrder: 2 };
+    const unrelated: WebsiteCategory = { ...websiteCategory, id: "category-gifts", name: "Gifts", slug: "gifts", parentId: null, sortOrder: 1 };
+
+    expect(listVisibleWebsiteCategoriesWithImages([hidden, vehicles, unrelated, dolls, toys], { parentSlug: "toys" })).toEqual([vehicles]);
+    expect(listVisibleWebsiteCategoriesWithImages([hidden, vehicles, unrelated, dolls, toys], { parentSlug: "missing" })).toEqual([]);
+  });
+
   it("filters published products by fulfillment method", () => {
     const config = createDefaultWebsiteMerchandising(products, "2026-07-13T15:00:00.000Z");
     config.categories = [websiteCategory];
@@ -153,6 +184,62 @@ describe("website merchandising service", () => {
 
     expect(filterWebsiteCatalogProducts(resolved, { fulfillmentMode: "pickup", surface: "shop" })).toHaveLength(1);
     expect(filterWebsiteCatalogProducts(resolved, { fulfillmentMode: "shipping", surface: "shop" })).toHaveLength(0);
+  });
+
+  it("enforces pickup and local delivery without shipping for balloon categories", () => {
+    const balloonCategory: WebsiteCategory = {
+      ...websiteCategory,
+      id: "web-category-balloons",
+      name: "Balloons",
+      slug: "balloons"
+    };
+    const config = createDefaultWebsiteMerchandising(products, "2026-07-13T15:00:00.000Z");
+    config.categories = [balloonCategory];
+    config.placements[0] = {
+      ...config.placements[0],
+      categoryIds: [balloonCategory.id],
+      fulfillmentModes: ["pickup", "shipping"],
+      surfaceIds: ["shop"],
+      visible: true
+    };
+
+    expect(resolveWebsiteCatalog(products, config).products[0].fulfillmentModes).toEqual(["pickup", "local-delivery"]);
+    expect(reconcileWebsiteMerchandising(config, products).placements[0].fulfillmentModes).toEqual(["pickup", "local-delivery"]);
+    expect(websitePlacementReadinessIssues(config.placements[0], config.categories, [])).toContain(
+      "Balloon products are available for store pickup or local delivery only."
+    );
+  });
+
+  it("publishes only shop-ready products selected for New & Trending", () => {
+    const config = createDefaultWebsiteMerchandising(products, "2026-07-13T15:00:00.000Z");
+    config.categories = [websiteCategory];
+    config.placements[0] = {
+      ...config.placements[0],
+      categoryIds: [websiteCategory.id],
+      fulfillmentModes: ["pickup"],
+      surfaceIds: ["shop", "new-and-trending"],
+      visible: true
+    };
+    config.placements[1] = {
+      ...config.placements[1],
+      categoryIds: [websiteCategory.id],
+      fulfillmentModes: ["pickup"],
+      surfaceIds: ["shop"],
+      visible: true
+    };
+
+    const resolved = resolveWebsiteCatalog(products, config);
+
+    expect(
+      filterWebsiteCatalogProducts(resolved, { surface: "new-and-trending" })
+        .map((product) => product.squareVariationId)
+    ).toEqual(["variation-balloon"]);
+    expect(
+      websitePlacementIssues({
+        ...config.placements[0],
+        surfaceIds: ["new-and-trending"]
+      })
+    ).toContain("New & Trending products must also appear in the Shop catalog.");
   });
 
   it("applies holiday and product assignment date windows", () => {

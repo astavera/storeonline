@@ -1,3 +1,7 @@
+/**
+ * Implements server-side website merchandising store behavior and persistence boundaries.
+ */
+
 import "server-only";
 
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
@@ -12,6 +16,7 @@ import {
   MAX_WEBSITE_CATEGORY_DEPTH,
   createDefaultWebsiteMerchandising,
   reconcileWebsiteMerchandising,
+  websiteCategoryKindIds,
   websitePlacementReadinessIssues,
   websiteSurfaceIds,
   type WebsiteMerchandisingConfig
@@ -26,9 +31,14 @@ const websiteCategorySchema = z.object({
   name: z.string().trim().min(1).max(80),
   slug: z.string().trim().min(1).max(80).regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/),
   description: z.string().trim().max(240),
+  imageUrl: z.string().trim().max(500).default(""),
+  imageAlt: z.string().trim().max(160).default(""),
   parentId: z.string().min(1).max(120).nullable().default(null),
   visible: z.boolean(),
-  sortOrder: z.number().int().min(0).max(10_000)
+  sortOrder: z.number().int().min(0).max(10_000),
+  kind: z.enum(websiteCategoryKindIds).default("standard"),
+  recommendationTerms: z.array(z.string().trim().min(1).max(80)).max(20).default([]),
+  swatchColor: z.string().trim().regex(/^$|^#[0-9A-Fa-f]{6}$/, "Use a six-digit hexadecimal color.").default("")
 });
 
 const websiteBrandSchema = z.object({
@@ -189,6 +199,14 @@ export async function readWebsiteMerchandisingSnapshot(): Promise<WebsiteMerchan
   return await readSavedWebsiteMerchandising() ?? createDefaultWebsiteMerchandising([]);
 }
 
+export async function readDevelopmentLocalWebsiteMerchandisingSnapshot(): Promise<WebsiteMerchandisingConfig> {
+  if (!isDevelopmentLocalPersistenceEnabled()) {
+    throw new PersistenceUnavailableError("Local website merchandising");
+  }
+
+  return await readLocalWebsiteMerchandising() ?? createDefaultWebsiteMerchandising([]);
+}
+
 export async function saveWebsiteMerchandising(input: unknown, products: StorefrontProduct[]) {
   const parsed = websiteMerchandisingSchema.parse(input);
   const updatedAt = new Date().toISOString();
@@ -204,6 +222,16 @@ export async function saveWebsiteMerchandising(input: unknown, products: Storefr
   await writeWebsiteMerchandising(config);
 
   return reconcileWebsiteMerchandising(config, products, updatedAt);
+}
+
+export async function saveWebsiteMerchandisingSnapshot(input: unknown) {
+  const parsed = websiteMerchandisingSchema.parse(input);
+  const updatedAt = new Date().toISOString();
+  const config = normalizeWebsiteMerchandisingReferences(parsed, updatedAt);
+
+  await writeWebsiteMerchandising(config);
+
+  return config;
 }
 
 export async function applyBulkWebsiteMerchandisingToVariationIds(
@@ -352,6 +380,10 @@ async function readSavedWebsiteMerchandising() {
     }
   }
 
+  return readLocalWebsiteMerchandising();
+}
+
+async function readLocalWebsiteMerchandising() {
   try {
     const raw = await readFile(merchandisingFile, "utf8");
     return parseWebsiteMerchandising(JSON.parse(raw));

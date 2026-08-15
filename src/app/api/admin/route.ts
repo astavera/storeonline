@@ -1,8 +1,13 @@
+/**
+ * Handles HTTP requests for the API admin endpoint.
+ */
+
 import { NextRequest, NextResponse } from "next/server";
 import { revalidatePath } from "next/cache";
 import { adminModules, externallyManagedAdminModuleIds } from "@/config/admin-control-plane";
 import { buildAdminControlOperation, getAdminControlReadiness, persistAdminControlOperation } from "@/server/admin/admin-control-plane-service";
 import { adminAuthorizationResponse, adminCapabilities, authorizeAdminRequest } from "@/server/admin/admin-security";
+import { getAdminRateLimiter } from "@/server/admin/admin-rate-limit";
 
 export async function GET(request: NextRequest) {
   const authorization = await authorizeAdminRequest(request, adminCapabilities.read);
@@ -34,11 +39,38 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json();
+    const moduleId = String(body.moduleId ?? "");
+    const requestedOperation = String(body.operation ?? "");
+
+    if (moduleId === "homepage" && requestedOperation === "publish") {
+      const rateLimit = await getAdminRateLimiter().consume({
+        key: `${authorization.session.subject}:${String(body.entityId ?? "homepage")}`,
+        scope: "admin-homepage-publish",
+        limit: 3,
+        windowMs: 60_000
+      });
+
+      if (!rateLimit.allowed) {
+        return NextResponse.json(
+          {
+            ok: false,
+            errors: [`Too many publish attempts. Try again in ${rateLimit.retryAfterSeconds} seconds.`],
+            retryAfterSeconds: rateLimit.retryAfterSeconds
+          },
+          {
+            status: 429,
+            headers: { "Retry-After": String(rateLimit.retryAfterSeconds) }
+          }
+        );
+      }
+    }
+
     const operation = buildAdminControlOperation({
-      moduleId: String(body.moduleId ?? ""),
+      moduleId,
       operation: body.operation,
       values: body.values && typeof body.values === "object" ? body.values : {},
-      actorId: authorization.session.subject
+      actorId: authorization.session.subject,
+      entityId: typeof body.entityId === "string" ? body.entityId : undefined
     });
 
     if (!operation.ok) {

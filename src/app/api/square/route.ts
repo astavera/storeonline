@@ -1,3 +1,7 @@
+/**
+ * Handles HTTP requests for the API Square endpoint.
+ */
+
 import { NextResponse } from "next/server";
 import { getSquareRuntimeConfig } from "@/server/square/client";
 

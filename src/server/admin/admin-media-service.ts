@@ -1,3 +1,7 @@
+/**
+ * Implements server-side admin media service behavior and persistence boundaries.
+ */
+
 import { randomUUID } from "node:crypto";
 import path from "node:path";
 

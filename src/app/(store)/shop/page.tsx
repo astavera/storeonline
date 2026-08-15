@@ -1,3 +1,7 @@
+/**
+ * Renders the shop page and prepares its route-level data.
+ */
+
 import { ChevronDown } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
@@ -36,8 +40,14 @@ export default async function ShopPage({ searchParams }: ShopPageProps) {
   const selectedCollection = getBalloonCatalogCollection(paramValue(params?.collection));
   const selectedBrandSlug = paramValue(params?.brand);
   const selectedAge = validAgeGroup(paramValue(params?.age));
-  const selectedFulfillment = validFulfillmentMode(paramValue(params?.fulfillment));
+  const requestedFulfillment = validFulfillmentMode(paramValue(params?.fulfillment));
+  const selectedFulfillment = selectedCollection
+    ? requestedFulfillment === "pickup" ? "pickup" : "local-delivery"
+    : requestedFulfillment;
   const selectedLocation = paramValue(params?.location);
+  const selectedFeature = paramValue(params?.feature) === "new-and-trending"
+    ? "new-and-trending"
+    : undefined;
   const selectedPostalCode = paramValue(params?.postalCode)?.replace(/\D/g, "").slice(0, 5);
   const selectedPickupDate = paramValue(params?.pickupDate);
   const selectedPickupSlotLabel = paramValue(params?.pickupSlotLabel)?.slice(0, 80);
@@ -56,9 +66,18 @@ export default async function ShopPage({ searchParams }: ShopPageProps) {
         const matchesFulfillment = !selectedFulfillment || product.fulfillmentModes.includes(selectedFulfillment);
         return matchesCategory && matchesAge && matchesFulfillment;
       });
-  const filteredProducts = selectedCollection
-    ? categoryFilteredProducts.filter((product) => matchesBalloonCatalogCollection(product, selectedCollection))
+  const featureFilteredProducts = selectedFeature
+    ? resolvedCatalog
+      ? categoryFilteredProducts.filter((product) =>
+          resolvedCatalog.productVariationIdsBySurface["new-and-trending"].includes(
+            product.squareVariationId
+          )
+        )
+      : []
     : categoryFilteredProducts;
+  const filteredProducts = selectedCollection
+    ? featureFilteredProducts.filter((product) => matchesBalloonCatalogCollection(product, selectedCollection))
+    : featureFilteredProducts;
   const products = sortProducts(filteredProducts, selectedSort);
   const shopProductsForCounts = resolvedCatalog ? filterWebsiteCatalogProducts(resolvedCatalog, { surface: "shop" }) : catalogProducts;
   const ageCounts = Object.fromEntries(productAgeGroupIds.map((age) => [age, shopProductsForCounts.filter((product) => product.ageGroups?.includes(age)).length]));
@@ -90,7 +109,7 @@ export default async function ShopPage({ searchParams }: ShopPageProps) {
           <BalloonOrderExperience
             addOns={isLatexCollection ? { ...(hiFloat ? { hiFloat } : {}), weights } : undefined}
             collection={selectedCollection}
-            fulfillment={selectedFulfillment === "local-delivery" ? "local-delivery" : "pickup"}
+            fulfillment={selectedFulfillment === "pickup" ? "pickup" : "local-delivery"}
             location={selectedLocation}
             postalCode={selectedPostalCode}
             products={collectionProducts}
@@ -110,26 +129,21 @@ export default async function ShopPage({ searchParams }: ShopPageProps) {
     <main className="bg-surface">
       <SectionFrame area="Shop" className="py-8 md:py-12" component="ShopPageSection" sectionId="shop.index" variant="product-grid">
         <div className="mx-auto w-[calc(100%_-_2rem)] max-w-[1720px]">
-          <nav aria-label="Breadcrumb" className="mb-5 text-sm font-black text-primary [&_*]:text-primary">
-            <Link className="text-primary hover:underline" href="/">
-              Home
-            </Link>
-            <span className="mx-2 text-secondary">›</span>
-            <span className="text-primary">Shop</span>
-          </nav>
           <h1 className="sr-only">Shop Modern State</h1>
           <div className="grid gap-8 lg:grid-cols-[260px_minmax(0,1fr)]">
             <ShopFilterPanel ageCounts={ageCounts} brands={brands} categories={categories} fulfillmentCounts={fulfillmentCounts} selectedAge={selectedAge} selectedBrand={selectedBrandSlug} selectedCategory={selectedDepartment} selectedFulfillment={selectedFulfillment} selectedSort={selectedSort} />
 
             <section aria-label="Products">
-              {selectedCategory ? (
+              {selectedFeature ? (
+                <h2 className="mb-6 font-display text-2xl font-black text-primary">New &amp; Trending</h2>
+              ) : selectedCategory ? (
                 <h2 className="mb-6 font-display text-2xl font-black text-primary">{selectedCategory.name}</h2>
               ) : null}
               {selectedBrand ? <div className="mb-6 flex items-center gap-4 rounded-md border border-border bg-surface-muted p-5">{selectedBrand.logoUrl ? <Image alt={selectedBrand.imageAlt || `${selectedBrand.name} logo`} className="h-16 w-24 rounded-md bg-white object-contain p-2" height={64} src={selectedBrand.logoUrl} unoptimized width={96} /> : null}<div><p className="text-xs font-black uppercase tracking-[0.12em] text-blue">Website brand</p><h2 className="mt-1 font-display text-2xl font-black">{selectedBrand.name}</h2>{selectedBrand.description ? <p className="mt-2 text-sm text-secondary">{selectedBrand.description}</p> : null}</div></div> : null}
               <div className="mb-6 flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
                 <p className="text-lg font-black">{products.length} {products.length === 1 ? "product" : "products"}</p>
                 <div className="flex flex-wrap items-center gap-3">
-                  <SortMenu selectedAge={selectedAge} selectedBrand={selectedBrandSlug} selectedDepartment={selectedDepartment} selectedFulfillment={selectedFulfillment} selectedSort={selectedSort} />
+                  <SortMenu selectedAge={selectedAge} selectedBrand={selectedBrandSlug} selectedDepartment={selectedDepartment} selectedFeature={selectedFeature} selectedFulfillment={selectedFulfillment} selectedSort={selectedSort} />
                 </div>
               </div>
               {products.length ? (
@@ -140,7 +154,9 @@ export default async function ShopPage({ searchParams }: ShopPageProps) {
                 </div>
               ) : (
                 <div className="rounded-md border border-dashed border-border bg-surface-muted px-6 py-12 text-center">
-                  <h3 className="font-display text-2xl font-black">No products are published here yet.</h3>
+                  <h3 className="font-display text-2xl font-black">
+                    {selectedFeature ? "No New & Trending products are published yet." : "No products are published here yet."}
+                  </h3>
                   <p className="mx-auto mt-3 max-w-lg text-sm text-secondary">
                     This collection is ready for merchandising. Products will appear here as soon as they are published in the online catalog.
                   </p>
@@ -157,7 +173,7 @@ export default async function ShopPage({ searchParams }: ShopPageProps) {
   );
 }
 
-function SortMenu({ selectedAge, selectedBrand, selectedCollection, selectedDepartment, selectedFulfillment, selectedSort }: { selectedAge?: ProductAgeGroup; selectedBrand?: string; selectedCollection?: string; selectedDepartment?: string; selectedFulfillment?: FulfillmentMode; selectedSort: string }) {
+function SortMenu({ selectedAge, selectedBrand, selectedCollection, selectedDepartment, selectedFeature, selectedFulfillment, selectedSort }: { selectedAge?: ProductAgeGroup; selectedBrand?: string; selectedCollection?: string; selectedDepartment?: string; selectedFeature?: string; selectedFulfillment?: FulfillmentMode; selectedSort: string }) {
   const label = sortLabel(selectedSort);
 
   return (
@@ -173,7 +189,7 @@ function SortMenu({ selectedAge, selectedBrand, selectedCollection, selectedDepa
           ["price-low", "Price: low to high"],
           ["price-high", "Price: high to low"]
         ].map(([value, optionLabel]) => (
-          <Link className="rounded-md px-3 py-2 text-sm font-bold hover:bg-surface-muted" href={hrefWithParams({ age: selectedAge, brand: selectedBrand, collection: selectedCollection, department: selectedDepartment, fulfillment: selectedFulfillment, sort: value })} key={value}>
+          <Link className="rounded-md px-3 py-2 text-sm font-bold hover:bg-surface-muted" href={hrefWithParams({ age: selectedAge, brand: selectedBrand, collection: selectedCollection, department: selectedDepartment, feature: selectedFeature, fulfillment: selectedFulfillment, sort: value })} key={value}>
             {optionLabel}
           </Link>
         ))}
@@ -194,7 +210,7 @@ function paramValue(value: string | string[] | undefined) {
   return Array.isArray(value) ? value[0] : value;
 }
 
-function hrefWithParams(input: { age?: ProductAgeGroup; brand?: string; collection?: string; department?: string; fulfillment?: FulfillmentMode; sort?: string }) {
+function hrefWithParams(input: { age?: ProductAgeGroup; brand?: string; collection?: string; department?: string; feature?: string; fulfillment?: FulfillmentMode; sort?: string }) {
   const params = new URLSearchParams();
 
   if (input.department) {
@@ -211,6 +227,10 @@ function hrefWithParams(input: { age?: ProductAgeGroup; brand?: string; collecti
 
   if (input.age) {
     params.set("age", input.age);
+  }
+
+  if (input.feature) {
+    params.set("feature", input.feature);
   }
 
   if (input.fulfillment) {

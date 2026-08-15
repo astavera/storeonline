@@ -1,3 +1,7 @@
+/**
+ * Implements server-side website merchandising draft preparation behavior and persistence boundaries.
+ */
+
 import "server-only";
 
 import { createHash } from "node:crypto";

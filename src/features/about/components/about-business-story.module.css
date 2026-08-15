@@ -1,0 +1,38 @@
+/**
+ * Controls the alternating About story grid and its exact desktop joins.
+ */
+
+.storyGrid {
+  display: grid;
+  row-gap: 3rem;
+}
+
+.storyRow {
+  display: grid;
+  align-items: center;
+  column-gap: 1.75rem;
+  row-gap: 1.75rem;
+}
+
+@media (min-width: 40rem) {
+  .storyGrid {
+    row-gap: 4rem;
+  }
+
+  .storyRow {
+    column-gap: 2.5rem;
+    row-gap: 2.5rem;
+  }
+}
+
+@media (min-width: 64rem) {
+  .storyGrid {
+    row-gap: 0;
+  }
+
+  .storyRow {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    column-gap: 0;
+    row-gap: 0;
+  }
+}

@@ -1,28 +1,15 @@
+/** Renders the store-pickup and local-delivery balloon catalog gate. */
+
 "use client";
 
-import {
-  ArrowLeft,
-  CalendarDays,
-  ChevronLeft,
-  ChevronRight,
-  Clock3,
-  LoaderCircle,
-  MapPin,
-  Phone,
-  Store,
-  Truck,
-  X
-} from "lucide-react";
+import { ArrowLeft, ChevronRight, Clock3, LoaderCircle, MapPin, Phone, Store, Truck, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { createPortal } from "react-dom";
-import { useEffect, useId, useRef, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import { storeLocations } from "@/config/locations.config";
 import type { BalloonDeliveryPostalEligibility } from "@/features/fulfillment/contracts/orderpro-local-delivery";
 import type { OrderProPickupAvailability } from "@/features/fulfillment/contracts/orderpro-pickup";
-import {
-  earliestNewYorkDeliveryDate,
-  latestNewYorkDeliveryDate
-} from "@/features/fulfillment/utils/new-york-delivery-date";
+import { earliestNewYorkDeliveryDate, latestNewYorkDeliveryDate } from "@/features/fulfillment/utils/new-york-delivery-date";
 
 type FulfillmentMode = "delivery" | "pickup";
 
@@ -74,7 +61,6 @@ export function BalloonCatalogGate({ initialCollection }: { initialCollection?: 
   useEffect(() => {
     const item = catalogItems.find((candidate) => candidate.collection === initialCollection);
     if (!item || openedInitialCollectionRef.current === item.collection) return;
-
     openedInitialCollectionRef.current = item.collection;
     deliveryRequestVersionRef.current += 1;
     triggerRef.current = null;
@@ -117,7 +103,6 @@ export function BalloonCatalogGate({ initialCollection }: { initialCollection?: 
 
   useEffect(() => {
     if (!selectedItem) return;
-
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     closeButtonRef.current?.focus();
@@ -190,27 +175,27 @@ export function BalloonCatalogGate({ initialCollection }: { initialCollection?: 
 
   function continueToCatalog(deliveryApproval?: BalloonDeliveryPostalEligibility) {
     if (!selectedItem || !mode) return;
-
     const params = new URLSearchParams({ collection: selectedItem.collection, fulfillment: mode });
 
     if (mode === "delivery") {
-      const approvedEligibility = deliveryApproval ?? postalEligibility;
-      if (!approvedEligibility?.eligible || Date.parse(approvedEligibility.expiresAt) <= Date.now()) return;
+      const approval = deliveryApproval ?? postalEligibility;
+      if (!approval?.eligible || Date.parse(approval.expiresAt) <= Date.now()) return;
       window.sessionStorage.setItem("modern-state-balloon-fulfillment", JSON.stringify({
         version: 1,
         mode,
-        postalCode: approvedEligibility.postalCode,
-        approvalId: approvedEligibility.approvalId,
-        expiresAt: approvedEligibility.expiresAt
+        postalCode: approval.postalCode,
+        approvalId: approval.approvalId,
+        expiresAt: approval.expiresAt
       }));
-      params.set("postalCode", approvedEligibility.postalCode);
+      params.set("postalCode", approval.postalCode);
     }
 
     if (mode === "pickup") {
       const store = pickupStores.find((location) => location.id === pickupStoreId);
-      const slot = pickupAvailability?.available ? pickupAvailability.availableSlots.find((candidate) => candidate.id === pickupSlotId) : undefined;
+      const slot = pickupAvailability?.available
+        ? pickupAvailability.availableSlots.find((candidate) => candidate.id === pickupSlotId)
+        : undefined;
       if (!store || !slot) return;
-
       window.sessionStorage.setItem("modern-state-balloon-fulfillment", JSON.stringify({
         version: 1,
         mode,
@@ -266,9 +251,8 @@ export function BalloonCatalogGate({ initialCollection }: { initialCollection?: 
                 {mode === "delivery" ? (
                   <div className="balloons-gate-panel">
                     <button className="balloons-gate-back" onClick={() => { setMode("pickup"); resetPostalEligibility(); }} type="button"><ArrowLeft aria-hidden="true" size={16} /> Change to pickup</button>
-
                     <form className="balloons-gate-form" onSubmit={checkDeliveryPostalCode}>
-                      <PanelIntro icon="delivery" title="Enter ZIP code" />
+                      <PanelIntro icon="delivery" title={`Local delivery for ${selectedItem.title} balloons`} />
                       <div className="balloons-gate-form__postal">
                         <GateField
                           autoComplete="postal-code"
@@ -286,10 +270,7 @@ export function BalloonCatalogGate({ initialCollection }: { initialCollection?: 
                           <strong>Sorry, we don&apos;t currently deliver to this area.</strong>
                           <span>We may still be able to help. Contact our store:</span>
                           <a className="balloons-gate-error__phone" href={`tel:${deliverySupportStore.phone.replace(/\D/g, "")}`}>{deliverySupportStore.phone}</a>
-                          <a className="balloons-gate-call-action" href={`tel:${deliverySupportStore.phone.replace(/\D/g, "")}`}>
-                            <Phone aria-hidden="true" size={17} />
-                            Call our store
-                          </a>
+                          <a className="balloons-gate-call-action" href={`tel:${deliverySupportStore.phone.replace(/\D/g, "")}`}><Phone aria-hidden="true" size={17} /> Call our store</a>
                         </div>
                       ) : null}
                       <button className="balloons-gate-primary balloons-gate-primary--postal" disabled={isChecking || postalCode.length !== 5} type="submit">
@@ -303,20 +284,20 @@ export function BalloonCatalogGate({ initialCollection }: { initialCollection?: 
                 {mode === "pickup" ? (
                   <div className="balloons-gate-panel">
                     <button className="balloons-gate-back" onClick={() => setMode("delivery")} type="button"><ArrowLeft aria-hidden="true" size={16} /> Change to local delivery</button>
-                    <PanelIntro icon="pickup" title="Choose your pickup store">We’ll use this location to show product availability.</PanelIntro>
-                    <div className="balloons-gate-stores" role="radiogroup" aria-label="Pickup store">
+                    <PanelIntro icon="pickup" title="Choose your pickup store">This store determines product availability and pickup timing.</PanelIntro>
+                    <div aria-label="Pickup store" className="balloons-gate-stores" role="radiogroup">
                       {pickupStores.map((store) => {
                         const selected = store.id === pickupStoreId;
                         return (
                           <button aria-checked={selected} className="balloons-gate-store" data-selected={selected} key={store.id} onClick={() => { setPickupStoreId(store.id); setPickupSlotId(""); setPickupAvailability(null); }} role="radio" type="button">
-                            <span className="balloons-gate-store__radio" aria-hidden="true" />
+                            <span aria-hidden="true" className="balloons-gate-store__radio" />
                             <span><strong>{store.name}</strong><small>{store.address}</small><small>{store.locality}</small></span>
                           </button>
                         );
                       })}
                     </div>
                     <div className="balloons-gate-pickup-schedule">
-                      <FulfillmentDateField label="Pickup date" onChange={(value) => { setRequestedDate(value); setPickupSlotId(""); setPickupAvailability(null); }} value={requestedDate} />
+                      <FulfillmentDateField onChange={(value) => { setRequestedDate(value); setPickupSlotId(""); setPickupAvailability(null); }} value={requestedDate} />
                       <OrderProSlotPicker
                         date={requestedDate}
                         errorMessage={pickupAvailability && !pickupAvailability.available ? pickupAvailability.message : undefined}
@@ -324,7 +305,6 @@ export function BalloonCatalogGate({ initialCollection }: { initialCollection?: 
                         onSelect={setPickupSlotId}
                         selectedSlotId={pickupSlotId}
                         slots={pickupAvailability?.available ? pickupAvailability.availableSlots : []}
-                        title="Pickup time"
                       />
                     </div>
                     <button className="balloons-gate-primary balloons-gate-primary--full" disabled={isPickupSlotsLoading || !pickupSlotId} onClick={() => continueToCatalog()} type="button">Shop {selectedItem.title} balloons <ChevronRight aria-hidden="true" size={18} /></button>
@@ -339,7 +319,7 @@ export function BalloonCatalogGate({ initialCollection }: { initialCollection?: 
   );
 }
 
-function CatalogNavigation({ items, ariaLabel, className, onSelect }: { items: BalloonCatalogItem[]; ariaLabel: string; className?: string; onSelect: (item: BalloonCatalogItem, trigger: HTMLButtonElement) => void; }) {
+function CatalogNavigation({ items, ariaLabel, className, onSelect }: { items: BalloonCatalogItem[]; ariaLabel: string; className?: string; onSelect: (item: BalloonCatalogItem, trigger: HTMLButtonElement) => void }) {
   return (
     <nav aria-label={ariaLabel} className={`balloons-hero-links ${className ?? ""}`.trim()}>
       {items.map((item) => (
@@ -353,207 +333,57 @@ function CatalogNavigation({ items, ariaLabel, className, onSelect }: { items: B
 }
 
 function PanelIntro({ icon, title, children }: { icon: FulfillmentMode; title: string; children?: string }) {
+  return <div className="balloons-gate-panel__intro"><span>{icon === "delivery" ? <MapPin aria-hidden="true" size={20} /> : <Store aria-hidden="true" size={20} />}</span><div><h3>{title}</h3>{children ? <p>{children}</p> : null}</div></div>;
+}
+
+function GateField({ label, placeholder, value, onChange, inputMode, maxLength, autoComplete, pattern }: { label: string; placeholder: string; value: string; onChange: (value: string) => void; inputMode?: "numeric"; maxLength?: number; autoComplete?: string; pattern?: string }) {
+  return <label className="balloons-gate-field"><span className="sr-only">{label}</span><input autoComplete={autoComplete} inputMode={inputMode} maxLength={maxLength} onChange={(event) => onChange(event.target.value)} pattern={pattern} placeholder={placeholder} required value={value} /></label>;
+}
+
+function FulfillmentDateField({ value, onChange }: { value: string; onChange: (value: string) => void }) {
   return (
-    <div className="balloons-gate-panel__intro">
-      <span>{icon === "delivery" ? <MapPin aria-hidden="true" size={20} /> : <Store aria-hidden="true" size={20} />}</span>
-      <div><h3>{title}</h3>{children ? <p>{children}</p> : null}</div>
-    </div>
+    <label className="balloons-gate-date">
+      <span className="balloons-gate-date__heading">Pickup date</span>
+      <input
+        aria-label="Pickup date"
+        className="balloons-gate-date__control"
+        max={latestNewYorkDeliveryDate()}
+        min={earliestNewYorkDeliveryDate()}
+        onChange={(event) => onChange(event.target.value)}
+        type="date"
+        value={value}
+      />
+    </label>
   );
 }
 
-function GateField({ label, placeholder, value, onChange, required = true, inputMode, maxLength, autoComplete, pattern }: { label: string; placeholder: string; value: string; onChange: (value: string) => void; required?: boolean; inputMode?: "numeric"; maxLength?: number; autoComplete?: string; pattern?: string; }) {
-  return (
-    <label className="balloons-gate-field"><span className="sr-only">{label}</span><input autoComplete={autoComplete} inputMode={inputMode} maxLength={maxLength} onChange={(event) => onChange(event.target.value)} pattern={pattern} placeholder={placeholder} required={required} value={value} /></label>
-  );
-}
-
-function OrderProSlotPicker({ date, emptyMessage, errorMessage, isLoading = false, onSelect, selectedSlotId, slots, title }: {
+function OrderProSlotPicker({ date, errorMessage, isLoading, onSelect, selectedSlotId, slots }: {
   date: string;
-  emptyMessage?: string;
   errorMessage?: string;
-  isLoading?: boolean;
+  isLoading: boolean;
   onSelect: (slotId: string) => void;
   selectedSlotId: string;
   slots: Array<{ id: string; label: string }>;
-  title: string;
 }) {
   return (
     <fieldset className="balloons-gate-slots">
-      <legend><Clock3 aria-hidden="true" size={16} /> {title}</legend>
+      <legend><Clock3 aria-hidden="true" size={16} /> Pickup time</legend>
       <div>
         {slots.map((slot) => (
           <button aria-pressed={selectedSlotId === slot.id} data-selected={selectedSlotId === slot.id} key={slot.id} onClick={() => onSelect(slot.id)} type="button">{slot.label}</button>
         ))}
-        {isLoading ? <p className="balloons-gate-slots__status"><LoaderCircle aria-hidden="true" className="animate-spin" size={16} /> Loading times from OrderPro…</p> : null}
+        {isLoading ? <p className="balloons-gate-slots__status"><LoaderCircle aria-hidden="true" className="animate-spin" size={16} /> Loading times from OrderPro...</p> : null}
         {!isLoading && errorMessage ? <p className="balloons-gate-slots__status balloons-gate-slots__status--error">{errorMessage}</p> : null}
-        {!isLoading && !errorMessage && slots.length === 0 ? (
-          <div className="balloons-gate-slots__preview">
-            <div aria-hidden="true">
-              {[0, 1, 2].map((slot) => <span key={slot}><i /><i /></span>)}
-            </div>
-            <p>{emptyMessage ?? `Available times from OrderPro will appear here for ${formatDeliveryDate(date, false)}.`}</p>
-          </div>
-        ) : null}
+        {!isLoading && !errorMessage && slots.length === 0 ? <p className="balloons-gate-slots__status">Available times from OrderPro will appear here for {formatDeliveryDate(date)}.</p> : null}
       </div>
     </fieldset>
   );
 }
 
-function FulfillmentDateField({ value, onChange, label = "Delivery date" }: { value: string; onChange: (value: string) => void; label?: string }) {
-  const minDate = earliestNewYorkDeliveryDate();
-  const maxDate = latestNewYorkDeliveryDate();
-  const calendarId = useId();
-  const triggerRef = useRef<HTMLButtonElement>(null);
-  const selectedDayRef = useRef<HTMLButtonElement>(null);
-  const [isOpen, setIsOpen] = useState(false);
-  const [visibleMonth, setVisibleMonth] = useState(() => monthStartIso(value));
-  const calendarDays = buildCalendarDays(visibleMonth);
-  const canShowPreviousMonth = visibleMonth.slice(0, 7) > minDate.slice(0, 7);
-  const canShowNextMonth = visibleMonth.slice(0, 7) < maxDate.slice(0, 7);
-
-  useEffect(() => {
-    if (!isOpen) return;
-
-    const animationFrame = window.requestAnimationFrame(() => selectedDayRef.current?.focus());
-    function handleKeyDown(event: KeyboardEvent) {
-      if (event.key !== "Escape") return;
-      event.preventDefault();
-      event.stopImmediatePropagation();
-      setIsOpen(false);
-      triggerRef.current?.focus();
-    }
-
-    window.addEventListener("keydown", handleKeyDown, true);
-    return () => {
-      window.cancelAnimationFrame(animationFrame);
-      window.removeEventListener("keydown", handleKeyDown, true);
-    };
-  }, [isOpen]);
-
-  return (
-    <div className="balloons-gate-date">
-      <span className="balloons-gate-date__heading">{label}</span>
-      <button
-        aria-controls={calendarId}
-        aria-expanded={isOpen}
-        aria-label={`${label}, ${formatDeliveryDate(value, true)}`}
-        className="balloons-gate-date__control"
-        onClick={() => {
-          setVisibleMonth(monthStartIso(value));
-          setIsOpen((current) => !current);
-        }}
-        ref={triggerRef}
-        type="button"
-      >
-        <CalendarDays aria-hidden="true" size={19} />
-        <strong>{formatDeliveryDate(value, true)}</strong>
-      </button>
-
-      {isOpen && typeof document !== "undefined"
-        ? createPortal(
-            <div className="balloons-date-picker-backdrop" onMouseDown={(event) => {
-              if (event.target !== event.currentTarget) return;
-              setIsOpen(false);
-              triggerRef.current?.focus();
-            }}>
-              <section aria-label={`Choose ${label.toLowerCase()}`} aria-modal="true" className="balloons-date-picker-dialog" role="dialog">
-                <div aria-label={`${formatCalendarMonth(visibleMonth)} calendar`} className="balloons-gate-calendar" id={calendarId} role="group">
-                  <div className="balloons-gate-calendar__header">
-                    <button aria-label="Previous month" disabled={!canShowPreviousMonth} onClick={() => setVisibleMonth((month) => shiftIsoMonth(month, -1))} type="button">
-                      <ChevronLeft aria-hidden="true" size={18} />
-                    </button>
-                    <strong>{formatCalendarMonth(visibleMonth)}</strong>
-                    <button aria-label="Next month" disabled={!canShowNextMonth} onClick={() => setVisibleMonth((month) => shiftIsoMonth(month, 1))} type="button">
-                      <ChevronRight aria-hidden="true" size={18} />
-                    </button>
-                  </div>
-                  <div aria-hidden="true" className="balloons-gate-calendar__weekdays">
-                    {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((weekday) => <span key={weekday}>{weekday}</span>)}
-                  </div>
-                  <div className="balloons-gate-calendar__days">
-                    {calendarDays.map((day) => {
-                      const isSelected = day.value === value;
-                      const isDisabled = day.value < minDate || day.value > maxDate;
-                      return (
-                        <button
-                          aria-label={formatCalendarDay(day.value)}
-                          aria-pressed={isSelected}
-                          data-outside-month={!day.inVisibleMonth}
-                          data-selected={isSelected}
-                          disabled={isDisabled}
-                          key={day.value}
-                          onClick={() => {
-                            onChange(day.value);
-                            setIsOpen(false);
-                            triggerRef.current?.focus();
-                          }}
-                          ref={isSelected ? selectedDayRef : undefined}
-                          type="button"
-                        >
-                          {day.dayNumber}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-              </section>
-            </div>,
-            document.body
-          )
-        : null}
-    </div>
-  );
-}
-
-function shiftIsoDate(value: string, days: number) {
+function formatDeliveryDate(value: string) {
   const [year, month, day] = value.split("-").map(Number);
-  const date = new Date(Date.UTC(year, month - 1, day + days));
-  return date.toISOString().slice(0, 10);
-}
-
-function monthStartIso(value: string) {
-  return `${value.slice(0, 7)}-01`;
-}
-
-function shiftIsoMonth(value: string, months: number) {
-  const [year, month] = value.split("-").map(Number);
-  const date = new Date(Date.UTC(year, month - 1 + months, 1));
-  return date.toISOString().slice(0, 10);
-}
-
-function buildCalendarDays(visibleMonth: string) {
-  const [year, month] = visibleMonth.split("-").map(Number);
-  const monthStart = new Date(Date.UTC(year, month - 1, 1));
-  const gridStart = shiftIsoDate(visibleMonth, -monthStart.getUTCDay());
-
-  return Array.from({ length: 42 }, (_, index) => {
-    const value = shiftIsoDate(gridStart, index);
-    return {
-      value,
-      dayNumber: Number(value.slice(8, 10)),
-      inVisibleMonth: value.slice(0, 7) === visibleMonth.slice(0, 7)
-    };
-  });
-}
-
-function formatCalendarMonth(value: string) {
-  const [year, month] = value.split("-").map(Number);
-  return new Intl.DateTimeFormat("en-US", { month: "long", year: "numeric", timeZone: "UTC" }).format(new Date(Date.UTC(year, month - 1, 1)));
-}
-
-function formatCalendarDay(value: string) {
-  const [year, month, day] = value.split("-").map(Number);
-  return new Intl.DateTimeFormat("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric", timeZone: "UTC" }).format(new Date(Date.UTC(year, month - 1, day)));
-}
-
-function formatDeliveryDate(value: string, includeWeekday: boolean) {
-  const [year, month, day] = value.split("-").map(Number);
-  return new Intl.DateTimeFormat("en-US", {
-    ...(includeWeekday ? { weekday: "short" as const } : {}),
-    month: "short",
-    day: "numeric",
-    timeZone: "UTC"
-  }).format(new Date(Date.UTC(year, month - 1, day)));
+  return new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", timeZone: "UTC" })
+    .format(new Date(Date.UTC(year, month - 1, day)));
 }
 
 function unavailablePostalEligibility(): BalloonDeliveryPostalEligibility {

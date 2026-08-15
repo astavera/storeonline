@@ -1,3 +1,7 @@
+/**
+ * Verifies the isolated behavior of delivery zone repository.
+ */
+
 import { describe, expect, it, vi } from "vitest";
 import {
   appendDeliveryZoneVersion,

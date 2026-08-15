@@ -1,3 +1,7 @@
+/*
+ * Defines the colors design tokens shared by the storefront interface.
+ */
+
 :root {
   --color-background: #FFFFFF;
   --color-surface: #FFFFFF;

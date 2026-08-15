@@ -1,3 +1,7 @@
+/**
+ * Provides new york delivery date utilities for the fulfillment feature.
+ */
+
 const newYorkTimeZone = "America/New_York";
 
 export function earliestNewYorkDeliveryDate(now = new Date()) {

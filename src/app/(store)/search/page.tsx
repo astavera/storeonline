@@ -1,3 +1,7 @@
+/**
+ * Renders the search page and prepares its route-level data.
+ */
+
 import { Search } from "lucide-react";
 import Link from "next/link";
 import { ProductCard } from "@/components/commerce/product-card";
@@ -30,14 +34,6 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
     <main className="bg-surface">
       <SectionFrame area="Search" className="py-8 md:py-12" component="SearchPageSection" sectionId="search.index" variant="product-grid">
         <div className="container-shell">
-          <nav aria-label="Breadcrumb" className="mb-5 text-sm font-black text-primary">
-            <Link className="hover:underline" href="/">
-              Home
-            </Link>
-            <span className="mx-2 text-secondary">›</span>
-            <span>Search</span>
-          </nav>
-
           <div className="max-w-3xl">
             <h1 className="font-display text-4xl font-black leading-tight md:text-5xl">Search Modern State</h1>
             <p className="mt-3 text-lg text-secondary">Find products by name, category, or description.</p>

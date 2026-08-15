@@ -1,3 +1,7 @@
+/**
+ * Provides shared CMS types types and utilities for the application.
+ */
+
 export const cmsScopes = ["homepage", "department", "holiday", "product", "location", "policy", "landing", "global-header", "global-footer", "theme"] as const;
 
 export type CmsScope = (typeof cmsScopes)[number];

@@ -1,3 +1,7 @@
+/**
+ * Defines Tailwind content discovery and storefront design-system theme extensions.
+ */
+
 import type { Config } from "tailwindcss";
 
 const config: Config = {

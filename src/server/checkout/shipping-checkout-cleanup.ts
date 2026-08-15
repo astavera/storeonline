@@ -1,3 +1,7 @@
+/**
+ * Implements server-side shipping checkout cleanup behavior and persistence boundaries.
+ */
+
 import "server-only";
 
 import { SquareClient, SquareEnvironment } from "square";

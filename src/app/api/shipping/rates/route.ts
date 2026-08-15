@@ -1,3 +1,7 @@
+/**
+ * Handles HTTP requests for the API shipping rates endpoint.
+ */
+
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import {

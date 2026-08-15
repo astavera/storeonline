@@ -1,9 +1,18 @@
+/**
+ * Implements server-side admin CMS document service behavior and persistence boundaries.
+ */
+
 import "server-only";
 
 import type { CmsEntityType, CmsPageDocument, CmsVersionStatus } from "@/lib/cms";
 import { parseCmsPageDocumentPayload, serializeCmsPageDocument, validateCmsPageDocument } from "@/lib/cms";
 import { readLocalCmsVersions, writeLocalCmsVersion, type LocalCmsStatus } from "./admin-local-cms-store";
-import { createDatabaseCmsVersion, readLatestDatabaseCmsVersion } from "@/server/db/cms-version-repository";
+import {
+  createDatabaseCmsVersion,
+  readDatabaseCmsVersion,
+  readDatabaseCmsVersions,
+  readLatestDatabaseCmsVersion
+} from "@/server/db/cms-version-repository";
 import {
   isDevelopmentLocalPersistenceEnabled,
   PersistenceUnavailableError,
@@ -31,6 +40,13 @@ export type ReadCmsDocumentInput = {
   entityType: CmsEntityType;
   entityId: string;
   statuses?: CmsVersionStatus[];
+};
+
+export type CmsDocumentVersionSummary = {
+  status: string;
+  title: string;
+  updatedAt: string;
+  version: number;
 };
 
 const operationStatus: Record<CmsDocumentOperation, CmsVersionStatus> = {
@@ -76,6 +92,74 @@ export async function readLatestCmsDocument(input: ReadCmsDocumentInput): Promis
   return parsed.ok ? parsed.document : null;
 }
 
+export async function listCmsDocumentVersions(input: {
+  entityType: CmsEntityType;
+  entityId: string;
+  limit?: number;
+}): Promise<CmsDocumentVersionSummary[]> {
+  const persistence = requireDatabaseOrDevelopmentFallback("CMS");
+
+  if (persistence === "database") {
+    try {
+      const versions = await readDatabaseCmsVersions({
+        entityType: `CMS_${input.entityType}`,
+        entityId: input.entityId,
+        limit: input.limit
+      });
+      return versions.map((version) => ({
+        status: version.status,
+        title: version.title ?? input.entityId,
+        updatedAt: version.createdAt.toISOString(),
+        version: version.versionNumber
+      }));
+    } catch (error) {
+      if (!isDevelopmentLocalPersistenceEnabled()) throw error;
+      console.warn("[development-local-persistence] CMS history read failed; reading the explicit local fallback.");
+    }
+  }
+
+  const versions = await readLocalCmsVersions(`cms-${input.entityType}-${input.entityId}`);
+  return versions
+    .sort((a, b) => b.versionNumber - a.versionNumber || Date.parse(b.createdAt) - Date.parse(a.createdAt))
+    .slice(0, Math.min(Math.max(input.limit ?? 12, 1), 50))
+    .map((version) => ({
+      status: version.status,
+      title: version.title,
+      updatedAt: version.createdAt,
+      version: version.versionNumber
+    }));
+}
+
+export async function readCmsDocumentVersion(input: {
+  entityType: CmsEntityType;
+  entityId: string;
+  versionNumber: number;
+}): Promise<CmsPageDocument | null> {
+  const persistence = requireDatabaseOrDevelopmentFallback("CMS");
+
+  if (persistence === "database") {
+    try {
+      const version = await readDatabaseCmsVersion({
+        entityType: `CMS_${input.entityType}`,
+        entityId: input.entityId,
+        versionNumber: input.versionNumber
+      });
+      if (!version) return null;
+      const parsed = parseCmsPageDocumentPayload(version.payload);
+      return parsed.ok ? parsed.document : null;
+    } catch (error) {
+      if (!isDevelopmentLocalPersistenceEnabled()) throw error;
+      console.warn("[development-local-persistence] CMS version read failed; reading the explicit local fallback.");
+    }
+  }
+
+  const versions = await readLocalCmsVersions(`cms-${input.entityType}-${input.entityId}`);
+  const version = versions.find((candidate) => candidate.versionNumber === input.versionNumber);
+  if (!version) return null;
+  const parsed = parseCmsPageDocumentPayload(version.payload);
+  return parsed.ok ? parsed.document : null;
+}
+
 export async function persistCmsDocument(input: { document: CmsPageDocument; operation: CmsDocumentOperation }): Promise<PersistCmsDocumentResult> {
   const status = operationStatus[input.operation];
   const now = new Date().toISOString();
@@ -117,7 +201,7 @@ export async function persistCmsDocument(input: { document: CmsPageDocument; ope
           persisted: true,
           id: created.id,
           versionNumber: created.versionNumber,
-          message: `Saved CMS document version ${created.versionNumber}.`
+          message: status === "PUBLISHED" ? "Published successfully" : `Saved CMS document version ${created.versionNumber}.`
         }
       };
     } catch (error) {
@@ -143,7 +227,7 @@ export async function persistCmsDocument(input: { document: CmsPageDocument; ope
       persisted: true,
       id: `${localVersion.entityId}:${localVersion.versionNumber}`,
       versionNumber: localVersion.versionNumber,
-      message: `Saved local CMS document version ${localVersion.versionNumber}.`
+      message: status === "PUBLISHED" ? "Published successfully" : `Saved local CMS document version ${localVersion.versionNumber}.`
     }
   };
 }

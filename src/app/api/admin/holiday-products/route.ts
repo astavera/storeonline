@@ -1,3 +1,7 @@
+/**
+ * Handles HTTP requests for the API admin holiday products endpoint.
+ */
+
 import { NextRequest, NextResponse } from "next/server";
 import { z, ZodError } from "zod";
 import { applyBulkWebsiteMerchandisingToVariationIds, readWebsiteMerchandisingSnapshot } from "@/server/admin/website-merchandising-store";
