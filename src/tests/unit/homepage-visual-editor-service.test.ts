@@ -14,6 +14,7 @@ describe("homepage visual editor service", () => {
     expect(existsSync(join(process.cwd(), "public", halloweenHomepageImage.slice(1)))).toBe(true);
     expect(homepageSections[0]).toMatchObject({
       variant: "seasonal-card",
+      isVisible: true,
       backgroundImage: halloweenHomepageImage,
       textPosition: "left"
     });

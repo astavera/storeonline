@@ -121,7 +121,7 @@ export const homepageSections: HomepageSectionConfig[] = [
     secondaryCtaHref: "/party-supplies",
     variant: "seasonal-card",
     sortOrder: 10,
-    isVisible: false,
+    isVisible: true,
     backgroundImage: halloweenHomepageImage,
     imageAlt: "Glowing carved pumpkins arranged for Halloween",
     textPosition: "left",
