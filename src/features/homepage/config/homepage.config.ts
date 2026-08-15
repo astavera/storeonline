@@ -113,7 +113,7 @@ export const homepageSections: HomepageSectionConfig[] = [
     sectionId: "home.hero",
     sectionType: "hero",
     eyebrow: "Halloween 2026",
-    title: "Halloween starts here.",
+    title: "Halloween Headquarters",
     body: "Costumes, decorations, balloons, party supplies, and last-minute Halloween finds from your neighborhood store.",
     ctaLabel: "Shop Halloween",
     ctaHref: "/holidays/halloween",
