@@ -56,9 +56,17 @@ candidate is being built, migrated, or verified.
 Create the three external Docker networks once:
 
 ```bash
-docker network create storefront-production-database
-docker network create storefront-orderpro-private
-docker network create storefront-public-gateway
+docker network create --driver bridge --internal storefront-production-database
+docker network create --driver bridge --internal storefront-orderpro-private
+docker network create --driver bridge storefront-public-gateway
+```
+
+The first two networks must report `Internal=true`; the public gateway must
+report `Internal=false`. Stop if an existing network has the wrong value:
+
+```bash
+docker network inspect --format '{{.Name}}|internal={{.Internal}}|driver={{.Driver}}' \
+  storefront-production-database storefront-orderpro-private storefront-public-gateway
 ```
 
 In the independent PostgreSQL Compose project, attach PostgreSQL to
@@ -93,9 +101,11 @@ powershell -ExecutionPolicy Bypass -File scripts/create-private-storefront-env.p
   -MigratorTargetPath <private-migrator-output>
 ```
 
-The database password source uses `STOREFRONT_RUNTIME_DB_PASSWORD` and
-`STOREFRONT_MIGRATOR_DB_PASSWORD`. Do not send passwords, private keys, tokens,
-or environment files through chat or commit them to Git.
+The database password source accepts the canonical
+`STOREFRONT_RUNTIME_DB_PASSWORD` and `STOREFRONT_MIGRATOR_DB_PASSWORD` names,
+or the sealed role-split names `STOREFRONT_RUNTIME_PASSWORD` and
+`STOREFRONT_MIGRATOR_PASSWORD`. Do not send passwords, private keys, tokens, or
+environment files through chat or commit them to Git.
 
 During preparation, the runtime environment must keep these values:
 
@@ -133,9 +143,10 @@ overwrite an existing release and do not change `/srv/storefront/current`:
 
 ```bash
 cd /srv/storefront/incoming
-sha256sum --check storefront-<40-character-commit>.tar.gz.sha256
+export STOREFRONT_COMMIT=<40-character-commit>
+sha256sum --check "storefront-${STOREFRONT_COMMIT}.tar.gz.sha256"
 sudo install -d -m 0750 /srv/storefront/releases/<40-character-commit>
-sudo tar -xzf storefront-<40-character-commit>.tar.gz \
+sudo tar -xzf "storefront-${STOREFRONT_COMMIT}.tar.gz" \
   -C /srv/storefront/releases/<40-character-commit>
 export CANDIDATE_RELEASE=/srv/storefront/releases/<40-character-commit>
 cd "$CANDIDATE_RELEASE"
@@ -147,7 +158,7 @@ commit. `STOREFRONT_IMAGE_TAG` has no `canary` or mutable fallback:
 ```bash
 export STOREFRONT_RUNTIME_ENV_FILE=/srv/storefront/secrets/storefront-runtime.env
 export STOREFRONT_MIGRATOR_ENV_FILE=/srv/storefront/secrets/storefront-migrator.env
-export STOREFRONT_IMAGE_TAG=<40-character-commit>
+export STOREFRONT_IMAGE_TAG="$STOREFRONT_COMMIT"
 chmod +x infrastructure/production/*.sh
 ```
 

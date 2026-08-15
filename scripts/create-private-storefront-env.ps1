@@ -31,6 +31,13 @@ foreach ($path in @($SourceEnvPaths + $DatabaseEnvPath)) {
         throw "ENV_FILE_NOT_FOUND: $path"
     }
 }
+$databaseEnvFullPath = [System.IO.Path]::GetFullPath($DatabaseEnvPath)
+foreach ($sourcePath in $SourceEnvPaths) {
+    $sourceFullPath = [System.IO.Path]::GetFullPath($sourcePath)
+    if ([string]::Equals($sourceFullPath, $databaseEnvFullPath, [System.StringComparison]::OrdinalIgnoreCase)) {
+        throw "DATABASE_ENV_MUST_NOT_BE_A_RUNTIME_SOURCE"
+    }
+}
 
 function Read-UnquotedEnvValue([string]$Path, [string]$Name) {
     $line = Get-Content -LiteralPath $Path |
@@ -45,6 +52,18 @@ function Read-UnquotedEnvValue([string]$Path, [string]$Name) {
         $value = $value.Substring(1, $value.Length - 2)
     }
     return $value
+}
+
+function Read-FirstUnquotedEnvValue([string]$Path, [string[]]$Names) {
+    foreach ($name in $Names) {
+        $line = Get-Content -LiteralPath $Path |
+            Where-Object { $_ -match "^\s*$([Regex]::Escape($name))\s*=" } |
+            Select-Object -Last 1
+        if ($line) {
+            return Read-UnquotedEnvValue -Path $Path -Name $name
+        }
+    }
+    throw "ENV_VALUE_NOT_FOUND: $($Names -join '|')"
 }
 
 function New-Secret {
@@ -70,8 +89,14 @@ function Write-PrivateEnvFile([string]$Path, [System.Collections.IDictionary]$Va
     )
 }
 
-$runtimePassword = Read-UnquotedEnvValue -Path $DatabaseEnvPath -Name "STOREFRONT_RUNTIME_DB_PASSWORD"
-$migratorPassword = Read-UnquotedEnvValue -Path $DatabaseEnvPath -Name "STOREFRONT_MIGRATOR_DB_PASSWORD"
+$runtimePassword = Read-FirstUnquotedEnvValue -Path $DatabaseEnvPath -Names @(
+    "STOREFRONT_RUNTIME_DB_PASSWORD",
+    "STOREFRONT_RUNTIME_PASSWORD"
+)
+$migratorPassword = Read-FirstUnquotedEnvValue -Path $DatabaseEnvPath -Names @(
+    "STOREFRONT_MIGRATOR_DB_PASSWORD",
+    "STOREFRONT_MIGRATOR_PASSWORD"
+)
 foreach ($passwordRecord in @(
     @{ Name = "STOREFRONT_RUNTIME_DB_PASSWORD"; Value = $runtimePassword },
     @{ Name = "STOREFRONT_MIGRATOR_DB_PASSWORD"; Value = $migratorPassword }
@@ -98,7 +123,11 @@ foreach ($databaseOnlyName in @(
     "DIRECT_URL",
     "STOREFRONT_DB_PASSWORD",
     "STOREFRONT_RUNTIME_DB_PASSWORD",
-    "STOREFRONT_MIGRATOR_DB_PASSWORD"
+    "STOREFRONT_MIGRATOR_DB_PASSWORD",
+    "STOREFRONT_RUNTIME_PASSWORD",
+    "STOREFRONT_MIGRATOR_PASSWORD",
+    "ORDERPRO_RUNTIME_PASSWORD",
+    "ORDERPRO_MIGRATOR_PASSWORD"
 )) {
     $runtimeValues.Remove($databaseOnlyName)
 }
@@ -130,15 +159,22 @@ if ($runtimeValues.Contains("ADMIN_PASSWORD_HASH")) {
 if (-not $runtimeValues.Contains("WEBHOOK_WORKER_SECRET") -or [string]::IsNullOrWhiteSpace(($runtimeValues["WEBHOOK_WORKER_SECRET"] -replace '["'']', ''))) {
     $runtimeValues["WEBHOOK_WORKER_SECRET"] = New-Secret
 }
+if (-not $runtimeValues.Contains("CUSTOMER_SESSION_SECRET") -or [string]::IsNullOrWhiteSpace(($runtimeValues["CUSTOMER_SESSION_SECRET"] -replace '["'']', ''))) {
+    $runtimeValues["CUSTOMER_SESSION_SECRET"] = New-Secret
+}
 
 foreach ($name in @(
     "DATABASE_URL",
     "DIRECT_URL",
     "SQUARE_ACCESS_TOKEN",
+    "SQUARE_WEBHOOK_SIGNATURE_KEY",
     "ADMIN_SESSION_SECRET",
     "ADMIN_LOGIN_EMAIL",
     "ADMIN_PASSWORD_HASH",
-    "WEBHOOK_WORKER_SECRET"
+    "WEBHOOK_WORKER_SECRET",
+    "CUSTOMER_SESSION_SECRET",
+    "RESEND_API_KEY",
+    "CUSTOMER_AUTH_EMAIL_FROM"
 )) {
     if (-not $runtimeValues.Contains($name) -or [string]::IsNullOrWhiteSpace(($runtimeValues[$name] -replace '^["'']|["'']$', ''))) {
         throw "REQUIRED_RUNTIME_ENV_VALUE_MISSING: $name"

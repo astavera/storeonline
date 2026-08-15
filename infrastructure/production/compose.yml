@@ -13,8 +13,6 @@ services:
       - "${STOREFRONT_MIGRATOR_ENV_FILE:?Set STOREFRONT_MIGRATOR_ENV_FILE to the private migrator environment file}"
     environment:
       NODE_ENV: production
-    networks:
-      - database
     read_only: true
     tmpfs:
       - /tmp:size=32m,mode=1777,noexec,nosuid
@@ -24,6 +22,8 @@ services:
       - no-new-privileges:true
     init: true
     restart: "no"
+    networks:
+      database: {}
 
   storefront:
     build:
@@ -51,9 +51,11 @@ services:
     expose:
       - "3000"
     networks:
-      - database
-      - orderpro-private
-      - gateway
+      database: {}
+      orderpro-private: {}
+      gateway:
+        aliases:
+          - storefront
     read_only: true
     tmpfs:
       - /tmp:size=64m,mode=1777,noexec,nosuid
