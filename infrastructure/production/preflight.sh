@@ -291,7 +291,7 @@ validate_database_url "${runtime_env_file}" "runtime" DIRECT_URL storefront_runt
 validate_database_url "${migrator_env_file}" "migrator" DATABASE_URL storefront_migrator
 validate_database_url "${migrator_env_file}" "migrator" DIRECT_URL storefront_migrator
 
-if grep -Eq '^[[:space:]]*(STOREFRONT_DB_PASSWORD|STOREFRONT_RUNTIME_DB_PASSWORD|STOREFRONT_MIGRATOR_DB_PASSWORD)[[:space:]]*=' \
+if grep -Eq '^[[:space:]]*(STOREFRONT_DB_PASSWORD|STOREFRONT_RUNTIME_DB_PASSWORD|STOREFRONT_MIGRATOR_DB_PASSWORD|STOREFRONT_RUNTIME_PASSWORD|STOREFRONT_MIGRATOR_PASSWORD|ORDERPRO_RUNTIME_PASSWORD|ORDERPRO_MIGRATOR_PASSWORD)[[:space:]]*=' \
   "${runtime_env_file}" "${migrator_env_file}"; then
   fail "private environment files must not expose standalone database password variables"
 else
@@ -386,42 +386,126 @@ database_network="$(env_value "${runtime_env_file}" STOREFRONT_DATABASE_NETWORK)
 orderpro_network="$(env_value "${runtime_env_file}" STOREFRONT_ORDERPRO_NETWORK)"
 gateway_network="$(env_value "${runtime_env_file}" STOREFRONT_GATEWAY_NETWORK)"
 
-for network_name in "${database_network}" "${orderpro_network}" "${gateway_network}"; do
-  if docker network inspect "${network_name}" >/dev/null 2>&1; then
-    pass "Docker network exists: ${network_name}"
-  else
+if [[ "${database_network}" == "storefront-production-database" ]] && \
+   [[ "${orderpro_network}" == "storefront-orderpro-private" ]] && \
+   [[ "${gateway_network}" == "storefront-public-gateway" ]]; then
+  pass "runtime uses the exact Storefront network names"
+else
+  fail "runtime must use the exact Storefront network names"
+fi
+
+validate_network() {
+  local network_name="$1"
+  local expected_internal="$2"
+  local actual_internal driver
+
+  if ! docker network inspect "${network_name}" >/dev/null 2>&1; then
     fail "Docker network missing: ${network_name}"
+    return
   fi
-done
+  pass "Docker network exists: ${network_name}"
 
-if docker network inspect "${orderpro_network}" >/dev/null 2>&1; then
-  private_members="$(docker network inspect --format '{{range .Containers}}{{.Name}}{{"\n"}}{{end}}' "${orderpro_network}")"
-  if grep -Eiq 'caddy' <<<"${private_members}"; then
-    fail "Caddy must not join the Storefront-to-OrderPRO private network"
+  actual_internal="$(docker network inspect --format '{{.Internal}}' "${network_name}")"
+  driver="$(docker network inspect --format '{{.Driver}}' "${network_name}")"
+  if [[ "${actual_internal}" == "${expected_internal}" ]]; then
+    pass "Docker network isolation is exact: ${network_name} internal=${expected_internal}"
   else
-    pass "Caddy is absent from the Storefront-to-OrderPRO private network"
+    fail "Docker network isolation invalid: ${network_name} must have internal=${expected_internal}"
   fi
+  if [[ "${driver}" == "bridge" ]]; then
+    pass "Docker network uses the bridge driver: ${network_name}"
+  else
+    fail "Docker network must use the bridge driver: ${network_name}"
+  fi
+}
+
+validate_network "${database_network}" true
+validate_network "${orderpro_network}" true
+validate_network "${gateway_network}" false
+
+container_attachment() {
+  local container_id="$1"
+  local network_name="$2"
+  docker inspect \
+    --format "{{with index .NetworkSettings.Networks \"${network_name}\"}}{{json .Aliases}}{{end}}" \
+    "${container_id}" 2>/dev/null || true
+}
+
+mapfile -t postgres_ids < <(
+  docker ps \
+    --filter 'label=com.docker.compose.project=orderpro-production-data' \
+    --filter 'label=com.docker.compose.service=postgres' \
+    --format '{{.ID}}'
+)
+if (( ${#postgres_ids[@]} == 1 )); then
+  postgres_database_attachment="$(container_attachment "${postgres_ids[0]}" "${database_network}")"
+  postgres_private_attachment="$(container_attachment "${postgres_ids[0]}" "${orderpro_network}")"
+  postgres_gateway_attachment="$(container_attachment "${postgres_ids[0]}" "${gateway_network}")"
+  if [[ "${postgres_database_attachment}" == *'"storefront-postgres"'* ]]; then
+    pass "PostgreSQL joins the Storefront database network with alias storefront-postgres"
+  else
+    fail "PostgreSQL must join the Storefront database network with alias storefront-postgres"
+  fi
+  if [[ -z "${postgres_private_attachment}" && -z "${postgres_gateway_attachment}" ]]; then
+    pass "PostgreSQL is absent from the private API and public gateway networks"
+  else
+    fail "PostgreSQL must not join the private API or public gateway network"
+  fi
+else
+  fail "exactly one running production PostgreSQL container is required"
 fi
 
-if docker network inspect "${gateway_network}" >/dev/null 2>&1; then
-  gateway_members="$(docker network inspect --format '{{range .Containers}}{{.Name}}{{"\n"}}{{end}}' "${gateway_network}")"
-  if grep -Eiq 'orderpro-api' <<<"${gateway_members}"; then
-    fail "orderpro-api must not join the public Caddy gateway network"
+mapfile -t orderpro_api_ids < <(
+  docker ps \
+    --filter 'label=com.docker.compose.project=orderpro-production-app' \
+    --filter 'label=com.docker.compose.service=orderpro' \
+    --format '{{.ID}}'
+)
+if (( ${#orderpro_api_ids[@]} == 1 )); then
+  orderpro_database_attachment="$(container_attachment "${orderpro_api_ids[0]}" "${database_network}")"
+  orderpro_private_attachment="$(container_attachment "${orderpro_api_ids[0]}" "${orderpro_network}")"
+  orderpro_gateway_attachment="$(container_attachment "${orderpro_api_ids[0]}" "${gateway_network}")"
+  if [[ "${orderpro_private_attachment}" == *'"orderpro-api"'* ]]; then
+    pass "orderpro-api joins only the private integration network with its required alias"
   else
-    pass "orderpro-api is absent from the public Caddy gateway network"
+    fail "orderpro-api must join the private integration network with alias orderpro-api"
   fi
+  if [[ -z "${orderpro_database_attachment}" && -z "${orderpro_gateway_attachment}" ]]; then
+    pass "orderpro-api is absent from the Storefront database and public gateway networks"
+  else
+    fail "orderpro-api must not join the Storefront database or public gateway network"
+  fi
+  port_bindings="$(docker inspect --format '{{json .HostConfig.PortBindings}}' "${orderpro_api_ids[0]}")"
+  if [[ "${port_bindings}" == "{}" || "${port_bindings}" == "null" ]]; then
+    pass "orderpro-api does not publish a host port"
+  else
+    fail "orderpro-api publishes a host port and must be made private"
+  fi
+else
+  fail "exactly one running private OrderPRO container is required"
 fi
 
-orderpro_api_ids="$(docker ps --filter 'name=orderpro-api' --format '{{.ID}}' || true)"
-if [[ -n "${orderpro_api_ids}" ]]; then
-  while IFS= read -r container_id; do
-    port_bindings="$(docker inspect --format '{{json .HostConfig.PortBindings}}' "${container_id}")"
-    if [[ "${port_bindings}" == "{}" || "${port_bindings}" == "null" ]]; then
-      pass "orderpro-api does not publish a host port"
-    else
-      fail "orderpro-api publishes a host port and must be made private"
-    fi
-  done <<<"${orderpro_api_ids}"
+mapfile -t caddy_ids < <(
+  docker ps \
+    --filter 'label=com.docker.compose.service=caddy' \
+    --format '{{.ID}}'
+)
+if (( ${#caddy_ids[@]} == 1 )); then
+  caddy_database_attachment="$(container_attachment "${caddy_ids[0]}" "${database_network}")"
+  caddy_private_attachment="$(container_attachment "${caddy_ids[0]}" "${orderpro_network}")"
+  caddy_gateway_attachment="$(container_attachment "${caddy_ids[0]}" "${gateway_network}")"
+  if [[ -n "${caddy_gateway_attachment}" ]]; then
+    pass "Caddy joins the Storefront public gateway network"
+  else
+    fail "Caddy must join the Storefront public gateway network"
+  fi
+  if [[ -z "${caddy_database_attachment}" && -z "${caddy_private_attachment}" ]]; then
+    pass "Caddy is absent from Storefront private networks"
+  else
+    fail "Caddy must not join a Storefront database or private API network"
+  fi
+else
+  fail "exactly one running Caddy container is required"
 fi
 
 if STOREFRONT_RUNTIME_ENV_FILE="${runtime_env_file}" \

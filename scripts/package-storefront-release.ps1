@@ -30,8 +30,7 @@ if ($LASTEXITCODE -ne 0 -or $commit -notmatch '^[0-9a-f]{40}$') {
     throw "GIT_REF_INVALID: $Ref"
 }
 
-$shortCommit = $commit.Substring(0, 12)
-$releaseName = "storefront-$shortCommit"
+$releaseName = "storefront-$commit"
 [System.IO.Directory]::CreateDirectory($OutputDirectory) | Out-Null
 
 $archivePath = Join-Path $OutputDirectory "$releaseName.tar.gz"

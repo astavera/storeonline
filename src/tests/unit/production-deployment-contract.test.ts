@@ -58,7 +58,8 @@ describe("production deployment contract", () => {
     expect(compose.match(/STOREFRONT_IMAGE_TAG:\?/gu)).toHaveLength(2);
     expect(compose).not.toContain("STOREFRONT_IMAGE_TAG:-");
     expect(compose).not.toContain("STOREFRONT_IMAGE_TAG-canary");
-    expect(compose).toContain("- database\n      - orderpro-private\n      - gateway");
+    expect(compose).toContain("database: {}\n      orderpro-private: {}\n      gateway:");
+    expect(compose).toContain("aliases:\n          - storefront");
     expect(compose).toContain("name: ${STOREFRONT_DATABASE_NETWORK:-storefront-production-database}");
     expect(compose).toContain("name: ${STOREFRONT_ORDERPRO_NETWORK:-storefront-orderpro-private}");
     expect(compose).toContain("name: ${STOREFRONT_GATEWAY_NETWORK:-storefront-public-gateway}");
@@ -108,6 +109,13 @@ describe("production deployment contract", () => {
     expect(preflight).toContain("storefront_migrator");
     expect(preflight).toContain('[[ "${host}" == "storefront-postgres"');
     expect(preflight).toContain('[[ "${database}" == "storefront_prod" ]]');
+    expect(preflight).toContain('validate_network "${database_network}" true');
+    expect(preflight).toContain('validate_network "${orderpro_network}" true');
+    expect(preflight).toContain('validate_network "${gateway_network}" false');
+    expect(preflight).toContain('"storefront-postgres"');
+    expect(preflight).toContain('"orderpro-api"');
+    expect(preflight).toContain("exactly one running private OrderPRO container is required");
+    expect(preflight).toContain("Caddy must not join a Storefront database or private API network");
     expect(preflight).toContain("migrator credentials are absent from the storefront runtime environment");
     expect(preflight).toContain("runtime credentials are absent from the migrator environment");
     expect(preflight).toContain('^[0-9a-f]{40}$');
@@ -121,6 +129,13 @@ describe("production deployment contract", () => {
     expect(generator).toContain("[string]$MigratorTargetPath");
     expect(generator).toContain('"STOREFRONT_RUNTIME_DB_PASSWORD"');
     expect(generator).toContain('"STOREFRONT_MIGRATOR_DB_PASSWORD"');
+    expect(generator).toContain('"STOREFRONT_RUNTIME_PASSWORD"');
+    expect(generator).toContain('"STOREFRONT_MIGRATOR_PASSWORD"');
+    expect(generator).toContain('"CUSTOMER_SESSION_SECRET"');
+    expect(generator).toContain('"RESEND_API_KEY"');
+    expect(generator).toContain('"ORDERPRO_RUNTIME_PASSWORD"');
+    expect(generator).toContain('"ORDERPRO_MIGRATOR_PASSWORD"');
+    expect(generator).toContain("DATABASE_ENV_MUST_NOT_BE_A_RUNTIME_SOURCE");
     expect(generator).toContain("RUNTIME_AND_MIGRATOR_PASSWORDS_MUST_DIFFER");
     expect(generator).toContain("postgresql://storefront_runtime:");
     expect(generator).toContain("postgresql://storefront_migrator:");
@@ -131,7 +146,7 @@ describe("production deployment contract", () => {
 
   it("promotes current only after build, migration, and canary verification", () => {
     const runbook = readRepositoryFile("docs/vps-canary-runbook.md");
-    const buildIndex = runbook.indexOf("  build\n");
+    const buildIndex = runbook.indexOf("  build");
     const migrationIndex = runbook.indexOf("  run --rm migrate");
     const smokeIndex = runbook.indexOf(
       "infrastructure/production/smoke-canary.sh https://shop.srv1849559.hstgr.cloud"
@@ -146,6 +161,16 @@ describe("production deployment contract", () => {
     expect(runbook.split(promoteCommand)).toHaveLength(2);
     expect(runbook).toContain("STOREFRONT_RUNTIME_ENV_FILE=/srv/storefront/secrets/storefront-runtime.env");
     expect(runbook).toContain("STOREFRONT_MIGRATOR_ENV_FILE=/srv/storefront/secrets/storefront-migrator.env");
-    expect(runbook).toContain("STOREFRONT_IMAGE_TAG=<40-character-commit>");
+    expect(runbook).toContain('STOREFRONT_IMAGE_TAG="$STOREFRONT_COMMIT"');
+    expect(runbook).toContain("docker network create --driver bridge --internal storefront-production-database");
+    expect(runbook).toContain("docker network create --driver bridge --internal storefront-orderpro-private");
+    expect(runbook).toContain('storefront-${STOREFRONT_COMMIT}.tar.gz.sha256');
+  });
+
+  it("packages releases with the full immutable commit", () => {
+    const packager = readRepositoryFile("scripts/package-storefront-release.ps1");
+
+    expect(packager).toContain('$releaseName = "storefront-$commit"');
+    expect(packager).not.toContain("Substring(0, 12)");
   });
 });
