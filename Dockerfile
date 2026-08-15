@@ -1,9 +1,7 @@
 # syntax=docker/dockerfile:1.7
 # Builds the production storefront image and its dependency, build, and runtime stages.
 
-ARG NODE_IMAGE=node:24.18.0-bookworm-slim
-
-FROM ${NODE_IMAGE} AS base
+FROM node:24.18.0-bookworm-slim@sha256:6f7b03f7c2c8e2e784dcf9295400527b9b1270fd37b7e9a7285cf83b6951452d AS base
 RUN apt-get update \
   && apt-get install -y --no-install-recommends openssl \
   && rm -rf /var/lib/apt/lists/*

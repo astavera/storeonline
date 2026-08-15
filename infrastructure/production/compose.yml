@@ -8,9 +8,9 @@ services:
       context: ../..
       dockerfile: Dockerfile
       target: migrations
-    image: "storefront/migrations:${STOREFRONT_IMAGE_TAG:-canary}"
+    image: "storefront/migrations:${STOREFRONT_IMAGE_TAG:?Set STOREFRONT_IMAGE_TAG to the immutable 40-character release commit}"
     env_file:
-      - ${STOREFRONT_ENV_FILE:-../../.env.storefront-private}
+      - "${STOREFRONT_MIGRATOR_ENV_FILE:?Set STOREFRONT_MIGRATOR_ENV_FILE to the private migrator environment file}"
     environment:
       NODE_ENV: production
     networks:
@@ -35,9 +35,9 @@ services:
         NEXT_PUBLIC_SITE_INDEXABLE: ${NEXT_PUBLIC_SITE_INDEXABLE:-false}
         NEXT_PUBLIC_SQUARE_APPLICATION_ID: ${NEXT_PUBLIC_SQUARE_APPLICATION_ID:-}
         NEXT_PUBLIC_SQUARE_LOCATION_ID: ${NEXT_PUBLIC_SQUARE_LOCATION_ID:-}
-    image: "storefront/app:${STOREFRONT_IMAGE_TAG:-canary}"
+    image: "storefront/app:${STOREFRONT_IMAGE_TAG:?Set STOREFRONT_IMAGE_TAG to the immutable 40-character release commit}"
     env_file:
-      - ${STOREFRONT_ENV_FILE:-../../.env.storefront-private}
+      - "${STOREFRONT_RUNTIME_ENV_FILE:?Set STOREFRONT_RUNTIME_ENV_FILE to the private runtime environment file}"
     environment:
       NODE_ENV: production
       HOSTNAME: 0.0.0.0
@@ -69,9 +69,6 @@ services:
     cpus: 1.0
     init: true
     restart: unless-stopped
-    depends_on:
-      migrate:
-        condition: service_completed_successfully
     healthcheck:
       test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/api/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
       interval: 30s
