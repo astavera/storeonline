@@ -80,7 +80,10 @@ export function createShippoWebhookHandler(repository: ReturnsRepository): Webho
   };
 }
 
-export const handleShippoWebhookEvent = createShippoWebhookHandler(getReturnsRepository());
+export const handleShippoWebhookEvent: WebhookEventHandler = async (record) => {
+  const handler = createShippoWebhookHandler(getReturnsRepository());
+  return handler(record);
+};
 
 function mapTrackingStatus(value: string): ReturnsStatus | null {
   if (value === "TRANSIT") return "IN_TRANSIT";

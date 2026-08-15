@@ -3,17 +3,37 @@
  * delivery and warehouse receipt, inspection, or refund.
  */
 
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import type { ReturnLineSelection } from "@/features/returns/contracts";
 import {
   InMemoryReturnsRepository,
   type ReturnsRepository
 } from "@/server/returns/return-repository";
 import { evaluateReturnPolicy, type VerifiedOrderSnapshot } from "@/server/returns/return-policy";
-import { createShippoWebhookHandler } from "@/server/webhooks/shippo-webhook-handler";
+
+const originalDatabaseUrl = process.env.DATABASE_URL;
+
+afterEach(() => {
+  if (originalDatabaseUrl === undefined) {
+    delete process.env.DATABASE_URL;
+  } else {
+    process.env.DATABASE_URL = originalDatabaseUrl;
+  }
+  vi.resetModules();
+});
 
 describe("Shippo return tracking webhook", () => {
+  it("does not resolve production persistence while the module is imported", async () => {
+    delete process.env.DATABASE_URL;
+    vi.resetModules();
+
+    const webhookModule = await import("@/server/webhooks/shippo-webhook-handler");
+
+    expect(webhookModule.handleShippoWebhookEvent).toBeTypeOf("function");
+  });
+
   it("applies repeated DELIVERED events once and never marks the RMA refunded", async () => {
+    const { createShippoWebhookHandler } = await import("@/server/webhooks/shippo-webhook-handler");
     const setup = await requestWithTracking();
     const handler = createShippoWebhookHandler(setup.repository);
     const record = {
