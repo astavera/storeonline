@@ -14,11 +14,11 @@ BUSINESS LOGIC FILES: src/features/locations/services/location-service.ts, src/f
 import { notFound } from "next/navigation";
 import { StorefrontCmsPage } from "@/components/cms/storefront-cms-page";
 import { getLocationBySlug, storeLocations } from "@/config/locations.config";
-import { readLatestCmsDocument } from "@/server/admin/admin-cms-document-service";
+import { readPublishedStorefrontCmsDocument } from "@/server/storefront/published-cms-document";
 import { SectionFrame } from "../sections/section-frame";
 
 export async function LocationsIndexTemplate() {
-  const publishedDocument = await readLatestCmsDocument({ entityType: "location", entityId: "index", statuses: ["PUBLISHED"] });
+  const publishedDocument = await readPublishedStorefrontCmsDocument({ entityType: "location", entityId: "index" });
 
   if (publishedDocument) {
     return <StorefrontCmsPage document={publishedDocument} />;
@@ -50,7 +50,7 @@ export async function LocationsIndexTemplate() {
 }
 
 export async function LocationDetailTemplate({ slug }: { slug: string }) {
-  const publishedDocument = await readLatestCmsDocument({ entityType: "location", entityId: slug, statuses: ["PUBLISHED"] });
+  const publishedDocument = await readPublishedStorefrontCmsDocument({ entityType: "location", entityId: slug });
 
   if (publishedDocument) {
     return <StorefrontCmsPage document={publishedDocument} />;

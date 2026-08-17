@@ -10,6 +10,7 @@ import type { CmsVersionStatus } from "@/lib/cms";
 import { readLocalCmsVersions, readLocalCmsVersionsByEntityPrefix, type LocalCmsVersion } from "@/server/admin/admin-local-cms-store";
 import { getPrismaClient } from "@/server/db/prisma";
 import { isDevelopmentLocalPersistenceEnabled, PersistenceUnavailableError, requireDatabaseOrDevelopmentFallback } from "@/server/db/persistence-policy";
+import { isStorefrontDesignPreviewEnabled } from "@/server/storefront/design-preview";
 
 type CmsHomepagePayload = {
   changeSummary?: string;
@@ -167,6 +168,11 @@ export async function getPublishedHomepageState(): Promise<HomepageVisualEditorS
     publishedAt: null
   };
   const fallbackState = fallbackHomepageState(defaultWorkspace, [defaultWorkspace]);
+
+  if (isStorefrontDesignPreviewEnabled()) {
+    return fallbackState;
+  }
+
   const versions = await readHomepageVersionsAcrossWorkspaces("PUBLISHED");
   const publishedVersion = versions[0];
 

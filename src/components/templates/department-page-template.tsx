@@ -18,9 +18,11 @@ import { ProductGrid } from "@/components/commerce/product-grid";
 import { ButtonLink } from "@/components/ui/button";
 import { getDepartmentBySlug } from "@/config/departments.config";
 import { DepartmentLandingPage, type DepartmentLandingSearchParams } from "@/features/departments/components/department-landing-page";
-import { filterWebsiteCatalogProducts } from "@/features/catalog/services/website-merchandising-service";
+import { storefrontProducts } from "@/features/catalog/product-catalog";
+import { filterWebsiteCatalogProducts, slugifyWebsiteCategory } from "@/features/catalog/services/website-merchandising-service";
 import type { CmsPageDocument } from "@/lib/cms";
-import { readLatestCmsDocument } from "@/server/admin/admin-cms-document-service";
+import { readPublishedStorefrontCmsDocument } from "@/server/storefront/published-cms-document";
+import { isStorefrontDesignPreviewEnabled } from "@/server/storefront/design-preview";
 import { readDepartmentBestSellers } from "@/server/commerce/best-seller-store";
 import { readResolvedSquareWebsiteCatalog } from "@/server/square/website-catalog-store";
 import { buildStorefrontMetadata } from "@/lib/seo/storefront-seo";
@@ -37,9 +39,14 @@ function sectionPrefix(slug: string) {
 export async function DepartmentPageTemplate({ slug, searchParams }: { slug: string; searchParams?: DepartmentLandingSearchParams }) {
   const squareCatalog = await readResolvedSquareWebsiteCatalog();
   const resolvedCatalog = squareCatalog?.catalog ?? null;
+  const designPreviewEnabled = isStorefrontDesignPreviewEnabled();
   const websiteCategory = resolvedCatalog?.categories.find((category) => category.slug === slug);
-  const products = resolvedCatalog && websiteCategory ? filterWebsiteCatalogProducts(resolvedCatalog, { categoryId: websiteCategory.id, surface: "shop" }) : [];
-  const publishedDocument = await readLatestCmsDocument({ entityType: "department", entityId: slug, statuses: ["PUBLISHED"] });
+  const products = resolvedCatalog && websiteCategory
+    ? filterWebsiteCatalogProducts(resolvedCatalog, { categoryId: websiteCategory.id, surface: "shop" })
+    : designPreviewEnabled
+      ? storefrontProducts.filter((product) => slugifyWebsiteCategory(product.department) === slug)
+      : [];
+  const publishedDocument = await readPublishedStorefrontCmsDocument({ entityType: "department", entityId: slug });
 
   if (publishedDocument) {
     return <StorefrontCmsPage document={storefrontDepartmentDocument(publishedDocument, slug)} products={products} />;
@@ -51,7 +58,7 @@ export async function DepartmentPageTemplate({ slug, searchParams }: { slug: str
     notFound();
   }
 
-  if (slug === "toys" || slug === "party-supplies") {
+  if ((slug === "toys" || slug === "party-supplies") && !designPreviewEnabled) {
     const bestSellers = await readDepartmentBestSellers(slug);
     const productByVariationId = new Map((resolvedCatalog?.products ?? []).map((product) => [product.squareVariationId, product]));
     const bestSellerProducts = bestSellers.variationIds
@@ -153,7 +160,7 @@ export async function getDepartmentPageMetadata(slug: string): Promise<Metadata>
     });
   }
 
-  const publishedDocument = await readLatestCmsDocument({ entityType: "department", entityId: slug, statuses: ["PUBLISHED"] });
+  const publishedDocument = await readPublishedStorefrontCmsDocument({ entityType: "department", entityId: slug });
   const seo = publishedDocument?.seo;
 
   return buildStorefrontMetadata({

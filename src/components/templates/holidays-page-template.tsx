@@ -17,14 +17,14 @@ import { ProductGrid } from "@/components/commerce/product-grid";
 import { getHolidayBySlug } from "@/config/holidays.config";
 import { filterWebsiteCatalogProducts, type ResolvedWebsiteCatalog, type WebsiteHoliday } from "@/features/catalog/services/website-merchandising-service";
 import { HolidaysLandingPage } from "@/features/holidays/components/holidays-landing-page";
-import { readLatestCmsDocument } from "@/server/admin/admin-cms-document-service";
+import { readPublishedStorefrontCmsDocument } from "@/server/storefront/published-cms-document";
 import { readResolvedSquareWebsiteCatalog } from "@/server/square/website-catalog-store";
 import { SectionFrame } from "../sections/section-frame";
 
 export async function HolidaysIndexTemplate({ searchParams }: { searchParams?: Record<string, string | string[] | undefined> } = {}) {
   const [websiteCatalog, publishedDocument] = await Promise.all([
     readCurrentWebsiteCatalog(),
-    readLatestCmsDocument({ entityType: "holiday", entityId: "index", statuses: ["PUBLISHED"] })
+    readPublishedStorefrontCmsDocument({ entityType: "holiday", entityId: "index" })
   ]);
   const products = websiteCatalog
     ? Array.from(new Map(websiteCatalog.holidays.flatMap((holiday) =>
@@ -41,7 +41,7 @@ export async function HolidaysIndexTemplate({ searchParams }: { searchParams?: R
 
 export async function HolidayDetailTemplate({ slug }: { slug: string }) {
   const websiteCatalog = await readCurrentWebsiteCatalog();
-  const publishedDocument = await readLatestCmsDocument({ entityType: "holiday", entityId: slug, statuses: ["PUBLISHED"] });
+  const publishedDocument = await readPublishedStorefrontCmsDocument({ entityType: "holiday", entityId: slug });
 
   if (websiteCatalog) {
     const holiday = websiteCatalog.holidays.find((current) => current.slug === slug);
