@@ -16,7 +16,7 @@ BUSINESS LOGIC FILES: src/features/catalog/services/website-merchandising-servic
 import Link from "next/link";
 import Image from "next/image";
 import { useMemo, useState, useSyncExternalStore, type ChangeEvent, type ReactNode } from "react";
-import { AlertTriangle, ArrowDown, ArrowUp, Check, ChevronRight, Download, FileSpreadsheet, Folder, FolderTree, Palette, PencilLine, Plus, Save, Search, Trash2, Upload } from "lucide-react";
+import { AlertTriangle, ArrowDown, ArrowUp, Check, ChevronRight, Download, Eye, FileSpreadsheet, Folder, FolderTree, Palette, PencilLine, Plus, Rocket, Save, Search, Trash2, Upload, X } from "lucide-react";
 import { SectionFrame } from "@/components/sections/section-frame";
 import { Button } from "@/components/ui/button";
 import { BrandGtinImporter, type BrandGtinMutation } from "@/components/admin/brand-gtin-importer";
@@ -51,6 +51,10 @@ import {
   type MerchandisingSpreadsheetPatch
 } from "@/features/catalog/services/merchandising-spreadsheet-service";
 import type { SquareVendorReference } from "@/server/square/read-only-catalog";
+import type {
+  CatalogPublishingPublicationPlan,
+  CatalogPublishingWorkspaceInfo
+} from "@/features/admin/services/catalog-publishing-workspace-state";
 
 type ProductPlacementManagerProps = {
   products: StorefrontProduct[];
@@ -61,13 +65,14 @@ type ProductPlacementManagerProps = {
   squareVendors: SquareVendorReference[];
   initialBrandProductCounts: Record<string, number>;
   initialCategoryProductCounts: Record<string, number>;
+  initialWorkspace: CatalogPublishingWorkspaceInfo;
 };
 
 type SaveState = "idle" | "saving" | "saved" | "error";
 type WorkspaceModule = "overview" | "structure" | "products" | "bulk";
 type StructureModule = "brands" | "categories" | "holidays" | "party";
 
-export function ProductPlacementManager({ products, initialConfig, fetchedAt, hasMoreItems, squareInboxCount, initialBrandProductCounts, initialCategoryProductCounts, squareVendors }: ProductPlacementManagerProps) {
+export function ProductPlacementManager({ products, initialConfig, initialWorkspace, fetchedAt, hasMoreItems, squareInboxCount, initialBrandProductCounts, initialCategoryProductCounts, squareVendors }: ProductPlacementManagerProps) {
   const [categories, setCategories] = useState(initialConfig.categories);
   const [brands, setBrands] = useState(initialConfig.brands);
   const [holidays, setHolidays] = useState(initialConfig.holidays);
@@ -91,6 +96,10 @@ export function ProductPlacementManager({ products, initialConfig, fetchedAt, ha
   const [categoryProductCountOverrides, setCategoryProductCountOverrides] = useState(initialCategoryProductCounts);
   const [catalogWebsiteCategoryId, setCatalogWebsiteCategoryId] = useState("");
   const [configUpdatedAt, setConfigUpdatedAt] = useState(initialConfig.updatedAt);
+  const [workspace, setWorkspace] = useState(initialWorkspace);
+  const [publicationPlan, setPublicationPlan] = useState<CatalogPublishingPublicationPlan | null>(null);
+  const [isPlanningPublication, setIsPlanningPublication] = useState(false);
+  const [isPublishing, setIsPublishing] = useState(false);
 
   const selectedCategory = categories.find((category) => category.id === selectedCategoryId) ?? null;
   const selectedBrand = brands.find((brand) => brand.id === selectedBrandId) ?? null;
@@ -309,8 +318,7 @@ export function ProductPlacementManager({ products, initialConfig, fetchedAt, ha
         visible: false
       };
     }));
-    setSaveState("saved");
-    setSaveMessage(`${mutation.variationIds.length} Square variation${mutation.variationIds.length === 1 ? "" : "s"} updated for ${selectedHoliday?.name ?? "holiday"}.`);
+    recordDraftSaved(`${mutation.variationIds.length} Square variation${mutation.variationIds.length === 1 ? "" : "s"} saved to the ${selectedHoliday?.name ?? "holiday"} draft.`);
   }
 
   function syncBrandProducts(mutation: BrandGtinMutation) {
@@ -328,8 +336,7 @@ export function ProductPlacementManager({ products, initialConfig, fetchedAt, ha
       };
     }));
     setBrandProductCountOverrides((current) => ({ ...current, [brandId]: mutation.assignedVariationCount }));
-    setSaveState("saved");
-    setSaveMessage(`${mutation.variationIds.length.toLocaleString()} Square variation${mutation.variationIds.length === 1 ? "" : "s"} updated for ${selectedBrand.name}.`);
+    recordDraftSaved(`${mutation.variationIds.length.toLocaleString()} Square variation${mutation.variationIds.length === 1 ? "" : "s"} saved to the ${selectedBrand.name} draft.`);
   }
 
   function applySpreadsheetEdit(rows: MerchandisingSpreadsheetPatch[]) {
@@ -361,7 +368,7 @@ export function ProductPlacementManager({ products, initialConfig, fetchedAt, ha
           }
         })
       });
-      const result = (await response.json()) as { ok?: boolean; config?: WebsiteMerchandisingConfig; error?: string; issues?: Array<{ message: string }> };
+      const result = (await response.json()) as { ok?: boolean; config?: WebsiteMerchandisingConfig; workspace?: CatalogPublishingWorkspaceInfo; error?: string; issues?: Array<{ message: string }> };
       if (!response.ok || !result.ok || !result.config) throw new Error(result.issues?.[0]?.message ?? result.error ?? "Unable to save merchandising.");
 
       setCategories(result.config.categories);
@@ -369,11 +376,69 @@ export function ProductPlacementManager({ products, initialConfig, fetchedAt, ha
       setHolidays(result.config.holidays);
       setPlacements(result.config.placements);
       setConfigUpdatedAt(result.config.updatedAt);
+      if (result.workspace) setWorkspace(result.workspace);
       setIsDirty(false);
       setSaveState("saved");
-      setSaveMessage("Saved. Only products explicitly marked live can now reach the website.");
+      setSaveMessage("Draft saved. The live website has not changed.");
     } catch (error) {
       showError(error instanceof Error ? error.message : "Unable to save merchandising.");
+    }
+  }
+
+  function recordDraftSaved(message = "Draft saved. The live website has not changed.") {
+    setWorkspace((current) => ({ ...current, status: "DRAFT", versionNumber: null }));
+    setSaveState("saved");
+    setSaveMessage(message);
+  }
+
+  async function requestPublication() {
+    if (isDirty) return showError("Save the current draft before publishing.");
+    setIsPlanningPublication(true);
+    setSaveState("idle");
+    setSaveMessage("Checking the draft before publication…");
+
+    try {
+      const response = await fetch("/api/admin/merchandising", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ action: "plan_publication" })
+      });
+      const result = await response.json() as { ok?: boolean; plan?: CatalogPublishingPublicationPlan; error?: string };
+      if (!response.ok || !result.ok || !result.plan) throw new Error(result.error ?? "Unable to review this draft for publication.");
+      if (result.plan.alreadyPublished) {
+        setSaveState("saved");
+        setSaveMessage("This version is already live. There is nothing new to publish.");
+        return;
+      }
+      setPublicationPlan(result.plan);
+    } catch (error) {
+      showError(error instanceof Error ? error.message : "Unable to review this draft for publication.");
+    } finally {
+      setIsPlanningPublication(false);
+    }
+  }
+
+  async function publishConfiguration() {
+    if (!publicationPlan || !publicationPlan.canPublish) return;
+    setIsPublishing(true);
+
+    try {
+      const response = await fetch("/api/admin/merchandising", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ action: "publish", confirmation: publicationPlan.confirmation })
+      });
+      const result = await response.json() as { ok?: boolean; workspace?: CatalogPublishingWorkspaceInfo; error?: string };
+      if (!response.ok || !result.ok) throw new Error(result.error ?? "Unable to publish this draft.");
+      if (result.workspace) setWorkspace(result.workspace);
+      setPublicationPlan(null);
+      setSaveState("saved");
+      setSaveMessage("Published successfully. The approved catalog is now live.");
+    } catch (error) {
+      setPublicationPlan(null);
+      showError(error instanceof Error ? error.message : "Unable to publish this draft.");
+    } finally {
+      setIsPublishing(false);
     }
   }
 
@@ -467,12 +532,15 @@ export function ProductPlacementManager({ products, initialConfig, fetchedAt, ha
               <div className="flex flex-wrap items-center gap-2">
                 <h1 className="font-display text-2xl font-semibold">Catalog Publishing</h1>
                 <span className="rounded-pill bg-green/15 px-2 py-1 text-[10px] font-black uppercase text-green">Square read only</span>
+                <span className={`rounded-pill px-2 py-1 text-[10px] font-black uppercase ${workspace.status === "PUBLISHED" ? "bg-green/15 text-green" : "bg-yellow/20 text-primary"}`}>{workspaceLabel(workspace)}</span>
               </div>
-              <p className="mt-1 text-xs text-secondary">Snapshot {formatSnapshotDate(fetchedAt)}{hasMoreItems ? " · partial" : ""}</p>
+              <p className="mt-1 text-xs text-secondary">Snapshot {formatSnapshotDate(fetchedAt)}{hasMoreItems ? " · partial" : ""}{workspace.publishedVersionNumber ? ` · Live v${workspace.publishedVersionNumber}` : " · Nothing published yet"}</p>
             </div>
             <div className="flex flex-wrap gap-2">
-              <Link className="inline-flex min-h-10 items-center justify-center rounded-md border border-border px-4 py-2 text-sm font-semibold hover:bg-surface-muted" href="/shop" target="_blank">Preview</Link>
-              <Button disabled={saveState === "saving" || !isDirty} onClick={saveConfiguration} type="button"><Save className="mr-2" size={17} />{saveState === "saving" ? "Saving…" : isDirty ? "Save changes" : "No changes"}</Button>
+              <Link className="inline-flex min-h-10 items-center justify-center rounded-md border border-border px-4 py-2 text-sm font-semibold hover:bg-surface-muted" href="/shop" target="_blank">View live site</Link>
+              {isDirty ? <Button disabled title="Save the draft before previewing it" type="button" variant="secondary"><Eye className="mr-2" size={17} />Preview draft</Button> : <Link className="inline-flex min-h-11 items-center justify-center rounded-md border border-border bg-surface px-5 py-2.5 text-sm font-semibold transition hover:bg-surface-muted" href="/admin/product-placement/preview" target="_blank"><Eye className="mr-2" size={17} />Preview draft</Link>}
+              <Button disabled={saveState === "saving" || !isDirty} onClick={saveConfiguration} type="button" variant="secondary"><Save className="mr-2" size={17} />{saveState === "saving" ? "Saving…" : isDirty ? "Save draft" : "Draft saved"}</Button>
+              <Button disabled={isDirty || saveState === "saving" || isPlanningPublication || isPublishing} onClick={requestPublication} type="button"><Rocket className="mr-2" size={17} />{isPlanningPublication ? "Checking…" : "Publish"}</Button>
             </div>
           </div>
           {isDirty || saveState === "error" || saveState === "saved" ? <p aria-live="polite" className={`mt-3 rounded-md px-3 py-2 text-xs font-semibold ${saveState === "error" ? "bg-red/10 text-red" : saveState === "saved" ? "bg-green/10 text-green" : "bg-surface-muted text-primary"}`}>{saveMessage}</p> : null}
@@ -484,10 +552,10 @@ export function ProductPlacementManager({ products, initialConfig, fetchedAt, ha
             <Metric label="Square inbox" value={squareInboxCount} />
             <Metric emphasis={pendingProductCount > 0} label="Needs setup" value={pendingProductCount} />
             <Metric label="Ready, hidden" value={readyProductCount} />
-            <Metric label="Live on website" value={liveProductCount} />
+            <Metric label="Marked live in draft" value={liveProductCount} />
           </div>
           <div className={`mt-5 rounded-md border p-5 ${liveProductCount === 0 ? "border-dashed border-border bg-surface" : "border-green/30 bg-green/10"}`}>
-            <p className="mt-1 font-display text-2xl font-semibold">{liveProductCount === 0 ? "Blank by design" : `${liveProductCount} products published`}</p>
+            <p className="mt-1 font-display text-2xl font-semibold">{liveProductCount === 0 ? "Blank by design" : `${liveProductCount} products ready in this version`}</p>
           </div>
           <div className="mt-5 grid gap-3 lg:grid-cols-3">
             <ModuleLaunchCard action="Open" body="Brands, categories and holidays" onClick={() => navigateCatalogPublishing("structure-brands")} title="Website structure" />
@@ -506,7 +574,7 @@ export function ProductPlacementManager({ products, initialConfig, fetchedAt, ha
         </section> : null}
 
         {activeModule === "products" ? <>
-          <FullCatalogProductManager brands={brands} categories={categories} disabled={isDirty || saveState === "saving"} holidays={holidays} initialWebsiteCategoryId={catalogWebsiteCategoryId} onCategoryAssignmentsRemoved={recordCategoryAssignmentsRemoved} onWebsiteCategoryChange={setCatalogWebsiteCategoryId} squareVendors={squareVendors} />
+          <FullCatalogProductManager brands={brands} categories={categories} disabled={isDirty || saveState === "saving"} holidays={holidays} initialWebsiteCategoryId={catalogWebsiteCategoryId} onCategoryAssignmentsRemoved={recordCategoryAssignmentsRemoved} onDraftSaved={() => recordDraftSaved("Product changes saved to the draft. The live website has not changed.")} onWebsiteCategoryChange={setCatalogWebsiteCategoryId} squareVendors={squareVendors} />
         </> : null}
 
         {activeModule === "bulk" ? <section className="p-4 md:p-6" aria-labelledby="bulk-publishing-heading">
@@ -522,9 +590,16 @@ export function ProductPlacementManager({ products, initialConfig, fetchedAt, ha
           </div>
         </section> : null}
       </SectionFrame>
-      {isDirty ? <div className="fixed bottom-4 right-4 z-50 flex max-w-[calc(100vw-2rem)] items-center gap-3 rounded-md border border-primary/20 bg-primary p-3 text-white shadow-xl"><div className="hidden min-w-0 sm:block"><p className="text-sm font-semibold">Unsaved changes</p><p className="max-w-sm truncate text-xs text-white/75">Review the draft, then save it to update the website.</p></div><Button className="shrink-0 bg-white text-primary hover:bg-surface-muted" disabled={saveState === "saving"} onClick={saveConfiguration} type="button"><Save className="mr-2" size={16} />{saveState === "saving" ? "Saving…" : "Save changes"}</Button></div> : null}
+      {isDirty ? <div className="fixed bottom-4 right-4 z-50 flex max-w-[calc(100vw-2rem)] items-center gap-3 rounded-md border border-primary/20 bg-primary p-3 text-white shadow-xl"><div className="hidden min-w-0 sm:block"><p className="text-sm font-semibold">Unsaved draft</p><p className="max-w-sm truncate text-xs text-white/75">Save it to keep working. Customers will not see it yet.</p></div><Button className="shrink-0 bg-white text-primary hover:bg-surface-muted" disabled={saveState === "saving"} onClick={saveConfiguration} type="button"><Save className="mr-2" size={16} />{saveState === "saving" ? "Saving…" : "Save draft"}</Button></div> : null}
+      {publicationPlan ? <div aria-labelledby="catalog-publish-title" aria-modal="true" className="fixed inset-0 z-[80] grid place-items-center bg-black/55 p-4" role="dialog"><div className="w-full max-w-lg rounded-md bg-surface p-5 shadow-2xl sm:p-6"><div className="flex items-start justify-between gap-4"><div><p className="text-xs font-black uppercase tracking-[0.14em] text-blue">Final check</p><h2 className="mt-1 font-display text-2xl font-semibold" id="catalog-publish-title">Publish this catalog version?</h2></div><button aria-label="Close publish confirmation" className="grid h-10 w-10 shrink-0 place-items-center rounded-md border border-border text-secondary hover:bg-surface-muted" disabled={isPublishing} onClick={() => setPublicationPlan(null)} type="button"><X size={18} /></button></div><p className="mt-4 text-sm leading-relaxed text-secondary">This will replace the live catalog with draft v{publicationPlan.sourceVersion}. Customers will see the change immediately after publication.</p><div className="mt-5 grid grid-cols-2 gap-3"><Metric label="Products going live" value={publicationPlan.visiblePlacements} /><Metric label="Ready" value={publicationPlan.readyPlacements} /></div>{!publicationPlan.canPublish ? <p className="mt-4 rounded-md border border-red/30 bg-red/10 p-3 text-sm font-semibold text-red">This draft contains products that are not ready. Return to Products and complete their required fields.</p> : null}<div className="mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end"><Button disabled={isPublishing} onClick={() => setPublicationPlan(null)} type="button" variant="secondary">Keep editing</Button><Button disabled={isPublishing || !publicationPlan.canPublish} onClick={publishConfiguration} type="button"><Rocket className="mr-2" size={17} />{isPublishing ? "Publishing…" : `Publish ${publicationPlan.visiblePlacements} products`}</Button></div></div></div> : null}
     </main>
   );
+}
+
+function workspaceLabel(workspace: CatalogPublishingWorkspaceInfo) {
+  if (workspace.status === "NEW") return "New draft";
+  const version = workspace.versionNumber ? ` v${workspace.versionNumber}` : "";
+  return `${workspace.status === "PUBLISHED" ? "Live" : workspace.status.toLowerCase()}${version}`;
 }
 
 function SpreadsheetMerchandisingPanel({

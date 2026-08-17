@@ -120,7 +120,7 @@ export async function auditWebsiteMerchandisingPublication() {
         select: { status: true, versionNumber: true, payload: true }
       })
     ]);
-    const source = candidate ?? published;
+    const source = selectLatestPublicationSource(candidate, published);
     if (!source) throw new WebsiteMerchandisingPublicationError("No merchandising version is available to publish.");
     return planWebsiteMerchandisingPublication(source, published?.payload);
   } catch (error) {
@@ -150,7 +150,7 @@ export async function publishWebsiteMerchandising(confirmation: string) {
           select: { versionNumber: true }
         })
       ]);
-      const source = candidate ?? published;
+      const source = selectLatestPublicationSource(candidate, published);
       if (!source) throw new WebsiteMerchandisingPublicationError("No merchandising version is available to publish.");
       const plan = planWebsiteMerchandisingPublication(source, published?.payload);
       if (confirmation !== plan.confirmation) {
@@ -385,6 +385,12 @@ function objectRecord(value: unknown) {
 
 function integerValue(value: unknown) {
   return typeof value === "number" && Number.isSafeInteger(value) && value > 0 ? value : null;
+}
+
+function selectLatestPublicationSource<T extends { versionNumber: number }>(candidate: T | null, published: T | null) {
+  if (!candidate) return published;
+  if (!published) return candidate;
+  return candidate.versionNumber > published.versionNumber ? candidate : published;
 }
 
 function digestPayload(value: unknown) {

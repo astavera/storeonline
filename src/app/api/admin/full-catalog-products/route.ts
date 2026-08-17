@@ -10,7 +10,7 @@ import type { WebsiteProductPlacement } from "@/features/catalog/services/websit
 import { websitePlacementReadinessIssues, websiteSurfaceIds } from "@/features/catalog/services/website-merchandising-service";
 import {
   applyBulkWebsiteMerchandisingToVariationIds,
-  readWebsiteMerchandisingSnapshot,
+  readAdminWebsiteMerchandisingSnapshot,
   saveWebsiteProductPlacement
 } from "@/server/admin/website-merchandising-store";
 import {
@@ -85,7 +85,7 @@ export async function GET(request: NextRequest) {
     (surfaceId) => surfaceId === requestedWebsiteSurfaceId
   );
   const imageFilter = readImageFilter(request.nextUrl.searchParams.get("images"));
-  const config = await readWebsiteMerchandisingSnapshot();
+  const config = await readAdminWebsiteMerchandisingSnapshot();
 
   if (websiteCategoryId && !config.categories.some((category) => category.id === websiteCategoryId)) {
     return NextResponse.json({ ok: false, error: "The selected website category no longer exists. Refresh Products and try again." }, { status: 400 });
@@ -152,7 +152,7 @@ export async function POST(request: NextRequest) {
       }
 
       if (bulkRequest.edit.categoryMode === "add" || bulkRequest.edit.categoryMode === "replace") {
-        const config = await readWebsiteMerchandisingSnapshot();
+        const config = await readAdminWebsiteMerchandisingSnapshot();
         const issues = matchedProducts.flatMap((product) => partyAssignmentIssues(product, bulkRequest.edit.categoryIds, config.categories));
         if (issues.length > 0) {
           return NextResponse.json({ ok: false, error: issues[0], issues: issues.slice(0, 20).map((message) => ({ message })) }, { status: 400 });
@@ -174,14 +174,14 @@ export async function POST(request: NextRequest) {
     const requestedCategoryIds = Array.isArray(candidate?.categoryIds)
       ? candidate.categoryIds.filter((value): value is string => typeof value === "string")
       : [];
-    const configBeforeSave = await readWebsiteMerchandisingSnapshot();
+    const configBeforeSave = await readAdminWebsiteMerchandisingSnapshot();
     const assignmentIssues = partyAssignmentIssues(matchedProducts[0], requestedCategoryIds, configBeforeSave.categories);
     if (assignmentIssues.length > 0) {
       return NextResponse.json({ ok: false, error: assignmentIssues[0] }, { status: 400 });
     }
 
     const result = await saveWebsiteProductPlacement(body.placement);
-    const config = await readWebsiteMerchandisingSnapshot();
+    const config = await readAdminWebsiteMerchandisingSnapshot();
     const issues = websitePlacementReadinessIssues(result.placement, config.categories, config.holidays);
 
     return NextResponse.json({ ok: true, ...result, issues });

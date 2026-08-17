@@ -8,6 +8,7 @@ import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { z } from "zod";
 import { productAgeGroupIds, type StorefrontProduct } from "@/features/catalog/product-catalog";
+import type { CatalogPublishingWorkspaceInfo } from "@/features/admin/services/catalog-publishing-workspace-state";
 import {
   applyWebsiteBulkEditToVariationIds,
   type WebsiteBulkEdit
@@ -187,8 +188,13 @@ const legacyMerchandisingSchema = z.object({
 
 const dataDirectory = path.join(process.cwd(), "data");
 const merchandisingFile = path.join(dataDirectory, "admin-merchandising.json");
+const merchandisingDraftFile = path.join(dataDirectory, "admin-merchandising-draft.json");
 const merchandisingEntityType = "WEBSITE_MERCHANDISING";
 const merchandisingEntityId = "global";
+
+export type WebsiteMerchandisingAdminWorkspace = CatalogPublishingWorkspaceInfo & {
+  config: WebsiteMerchandisingConfig;
+};
 
 export async function readWebsiteMerchandising(products: StorefrontProduct[]): Promise<WebsiteMerchandisingConfig> {
   const parsed = await readSavedWebsiteMerchandising();
@@ -197,6 +203,58 @@ export async function readWebsiteMerchandising(products: StorefrontProduct[]): P
 
 export async function readWebsiteMerchandisingSnapshot(): Promise<WebsiteMerchandisingConfig> {
   return await readSavedWebsiteMerchandising() ?? createDefaultWebsiteMerchandising([]);
+}
+
+export async function readAdminWebsiteMerchandisingSnapshot(): Promise<WebsiteMerchandisingConfig> {
+  return (await readAdminWebsiteMerchandisingWorkspace()).config;
+}
+
+export async function readAdminWebsiteMerchandisingWorkspace(): Promise<WebsiteMerchandisingAdminWorkspace> {
+  const persistence = requireDatabaseOrDevelopmentFallback("Website merchandising");
+
+  if (persistence === "database") {
+    try {
+      const [candidate, published] = await Promise.all([
+        readLatestDatabaseCmsVersion({
+          entityType: merchandisingEntityType,
+          entityId: merchandisingEntityId,
+          statuses: ["DRAFT", "PREVIEW"]
+        }),
+        readLatestDatabaseCmsVersion({
+          entityType: merchandisingEntityType,
+          entityId: merchandisingEntityId,
+          statuses: ["PUBLISHED"]
+        })
+      ]);
+      const source = selectLatestEditableVersion(candidate, published);
+      const config = source ? parseWebsiteMerchandising(source.payload) : null;
+      if (source && !config) throw new PersistenceUnavailableError("Website merchandising content");
+
+      return {
+        config: config ?? createDefaultWebsiteMerchandising([]),
+        status: source ? normalizeWorkspaceStatus(source.status) : "NEW",
+        versionNumber: source?.versionNumber ?? null,
+        publishedVersionNumber: published?.versionNumber ?? null,
+        publishedUpdatedAt: published ? dateValue(published.publishedAt ?? published.createdAt) : null
+      };
+    } catch (error) {
+      if (!isDevelopmentLocalPersistenceEnabled()) throw error;
+      console.warn("[development-local-persistence] Website merchandising database read failed; reading the explicit local draft fallback.");
+    }
+  }
+
+  const [draft, published] = await Promise.all([
+    readLocalWebsiteMerchandising(merchandisingDraftFile),
+    readLocalWebsiteMerchandising(merchandisingFile)
+  ]);
+  const source = draft ?? published;
+  return {
+    config: source ?? createDefaultWebsiteMerchandising([]),
+    status: draft ? "DRAFT" : published ? "PUBLISHED" : "NEW",
+    versionNumber: null,
+    publishedVersionNumber: null,
+    publishedUpdatedAt: published?.updatedAt ?? null
+  };
 }
 
 export async function readDevelopmentLocalWebsiteMerchandisingSnapshot(): Promise<WebsiteMerchandisingConfig> {
@@ -211,7 +269,7 @@ export async function saveWebsiteMerchandising(input: unknown, products: Storefr
   const parsed = websiteMerchandisingSchema.parse(input);
   const updatedAt = new Date().toISOString();
   const subset = reconcileWebsiteMerchandising(parsed, products, updatedAt);
-  const existing = await readSavedWebsiteMerchandising() ?? createDefaultWebsiteMerchandising([]);
+  const existing = await readAdminEditableWebsiteMerchandising();
   const config = mergeWebsiteMerchandisingProductSubset(
     existing,
     subset,
@@ -219,7 +277,7 @@ export async function saveWebsiteMerchandising(input: unknown, products: Storefr
     updatedAt
   );
 
-  await writeWebsiteMerchandising(config);
+  await writeWebsiteMerchandisingDraft(config);
 
   return reconcileWebsiteMerchandising(config, products, updatedAt);
 }
@@ -229,7 +287,7 @@ export async function saveWebsiteMerchandisingSnapshot(input: unknown) {
   const updatedAt = new Date().toISOString();
   const config = normalizeWebsiteMerchandisingReferences(parsed, updatedAt);
 
-  await writeWebsiteMerchandising(config);
+  await writeWebsiteMerchandisingDraft(config);
 
   return config;
 }
@@ -238,7 +296,7 @@ export async function applyBulkWebsiteMerchandisingToVariationIds(
   variationIds: Iterable<string>,
   edit: WebsiteBulkEdit
 ) {
-  const config = await readSavedWebsiteMerchandising() ?? createDefaultWebsiteMerchandising([]);
+  const config = await readAdminEditableWebsiteMerchandising();
   assertBulkReferencesExist(config, edit);
   const result = applyWebsiteBulkEditToVariationIds(
     config.placements,
@@ -253,7 +311,7 @@ export async function applyBulkWebsiteMerchandisingToVariationIds(
     updatedAt
   );
 
-  await writeWebsiteMerchandising(nextConfig);
+  await writeWebsiteMerchandisingDraft(nextConfig);
 
   return {
     createdPlacementCount: result.createdPlacementCount,
@@ -266,7 +324,7 @@ export async function applyBulkWebsiteMerchandisingToVariationIds(
 
 export async function saveWebsiteProductPlacement(input: unknown) {
   const placement = websitePlacementSchema.parse(input);
-  const config = await readSavedWebsiteMerchandising() ?? createDefaultWebsiteMerchandising([]);
+  const config = await readAdminEditableWebsiteMerchandising();
   const updatedAt = new Date().toISOString();
   const nextConfig = normalizeWebsiteMerchandisingReferences(
     {
@@ -279,7 +337,7 @@ export async function saveWebsiteProductPlacement(input: unknown) {
     updatedAt
   );
 
-  await writeWebsiteMerchandising(nextConfig);
+  await writeWebsiteMerchandisingDraft(nextConfig);
 
   return {
     placement: nextConfig.placements.find((current) => current.squareVariationId === placement.squareVariationId)!,
@@ -383,16 +441,20 @@ async function readSavedWebsiteMerchandising() {
   return readLocalWebsiteMerchandising();
 }
 
-async function readLocalWebsiteMerchandising() {
+async function readLocalWebsiteMerchandising(filePath = merchandisingFile) {
   try {
-    const raw = await readFile(merchandisingFile, "utf8");
+    const raw = await readFile(filePath, "utf8");
     return parseWebsiteMerchandising(JSON.parse(raw));
   } catch {
     return null;
   }
 }
 
-async function writeWebsiteMerchandising(config: WebsiteMerchandisingConfig) {
+async function readAdminEditableWebsiteMerchandising() {
+  return (await readAdminWebsiteMerchandisingWorkspace()).config;
+}
+
+async function writeWebsiteMerchandisingDraft(config: WebsiteMerchandisingConfig) {
   const parsed = websiteMerchandisingSchema.parse(config);
   const persistence = requireDatabaseOrDevelopmentFallback("Website merchandising");
 
@@ -401,10 +463,10 @@ async function writeWebsiteMerchandising(config: WebsiteMerchandisingConfig) {
       await createDatabaseCmsVersion({
         entityType: merchandisingEntityType,
         entityId: merchandisingEntityId,
-        status: "PUBLISHED",
-        title: "Website merchandising",
+        status: "DRAFT",
+        title: "Website merchandising draft",
         payload: parsed,
-        publishedAt: new Date()
+        publishedAt: null
       });
       return;
     } catch (error) {
@@ -413,11 +475,26 @@ async function writeWebsiteMerchandising(config: WebsiteMerchandisingConfig) {
     }
   }
 
-  const temporaryFile = `${merchandisingFile}.${process.pid}-${Date.now()}.tmp`;
+  const temporaryFile = `${merchandisingDraftFile}.${process.pid}-${Date.now()}.tmp`;
 
   await mkdir(dataDirectory, { recursive: true });
   await writeFile(temporaryFile, JSON.stringify(parsed, null, 2), "utf8");
-  await rename(temporaryFile, merchandisingFile);
+  await rename(temporaryFile, merchandisingDraftFile);
+}
+
+function normalizeWorkspaceStatus(status: string): WebsiteMerchandisingAdminWorkspace["status"] {
+  return status === "DRAFT" || status === "PREVIEW" || status === "PUBLISHED" ? status : "NEW";
+}
+
+function selectLatestEditableVersion<T extends { versionNumber: number }>(candidate: T | null, published: T | null) {
+  if (!candidate) return published;
+  if (!published) return candidate;
+  return candidate.versionNumber > published.versionNumber ? candidate : published;
+}
+
+function dateValue(value: unknown) {
+  if (value instanceof Date) return value.toISOString();
+  return typeof value === "string" ? value : null;
 }
 
 function normalizeWebsiteMerchandisingReferences(

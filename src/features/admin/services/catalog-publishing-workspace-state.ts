@@ -4,6 +4,26 @@
 
 import type { WebsiteProductPlacement } from "@/features/catalog/services/website-merchandising-service";
 
+export type CatalogPublishingVersionStatus = "NEW" | "DRAFT" | "PREVIEW" | "PUBLISHED";
+
+export type CatalogPublishingWorkspaceInfo = {
+  status: CatalogPublishingVersionStatus;
+  versionNumber: number | null;
+  publishedVersionNumber: number | null;
+  publishedUpdatedAt: string | null;
+};
+
+export type CatalogPublishingPublicationPlan = {
+  sourceStatus: string;
+  sourceVersion: number;
+  digest: string;
+  confirmation: string;
+  visiblePlacements: number;
+  readyPlacements: number;
+  canPublish: boolean;
+  alreadyPublished: boolean;
+};
+
 export const catalogPublishingWorkspaceStorageKey = "modern-state:admin:catalog-publishing-workspace:v1";
 
 const workspaceVersion = 1;

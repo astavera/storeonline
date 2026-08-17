@@ -12,7 +12,8 @@ export const adminCapabilities = {
   read: "admin:read",
   write: "admin:write",
   mediaWrite: "admin:media:write",
-  merchandisingWrite: "admin:merchandising:write"
+  merchandisingWrite: "admin:merchandising:write",
+  merchandisingPublish: "admin:merchandising:publish"
 } as const;
 
 export type AdminCapability = (typeof adminCapabilities)[keyof typeof adminCapabilities];
