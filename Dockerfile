@@ -17,6 +17,34 @@ FROM dependencies AS migrations
 USER node
 CMD ["npx", "prisma", "migrate", "deploy"]
 
+FROM base AS square-sync-dependencies
+WORKDIR /app
+ENV NEXT_TELEMETRY_DISABLED=1
+COPY package.json package-lock.json ./
+RUN npm ci --omit=dev --ignore-scripts
+COPY --from=dependencies /app/node_modules/.prisma ./node_modules/.prisma
+
+FROM base AS square-sync
+ARG STOREFRONT_RELEASE_ID
+RUN test -n "${STOREFRONT_RELEASE_ID}" \
+  && test "${STOREFRONT_RELEASE_ID}" != "CHANGE_ME_IMMUTABLE_RELEASE"
+LABEL com.modernstate.storefront.square-sync.contract="1" \
+  com.modernstate.storefront.square-sync.release="${STOREFRONT_RELEASE_ID}"
+WORKDIR /app
+ENV NODE_ENV=production
+ENV NEXT_TELEMETRY_DISABLED=1
+ENV SQUARE_SYNC_EXTERNAL_ENV_ONLY=true
+
+COPY --from=square-sync-dependencies --chown=node:node /app/node_modules ./node_modules
+COPY --chown=node:node package.json ./
+COPY --chown=node:node prisma ./prisma
+COPY --chown=node:node scripts/register-typescript-alias.mjs scripts/sync-square-postgres-read-only.ts ./scripts/
+COPY --chown=node:node src ./src
+
+USER node
+ENTRYPOINT ["node", "--disable-warning=ExperimentalWarning", "--disable-warning=MODULE_TYPELESS_PACKAGE_JSON", "--conditions=react-server", "--experimental-transform-types", "--import", "./scripts/register-typescript-alias.mjs", "./scripts/sync-square-postgres-read-only.ts"]
+CMD ["--sync"]
+
 FROM dependencies AS builder
 ARG NEXT_PUBLIC_SITE_URL
 ARG NEXT_PUBLIC_SITE_INDEXABLE=false

@@ -16,8 +16,8 @@ Never reuse production tokens in local, CI, or preview environments. Variables p
 ### Application
 
 - `NEXT_PUBLIC_SITE_URL`: canonical URL for metadata and webhook URL construction.
-- `DATABASE_URL`: pooled PostgreSQL runtime connection. For a serverless Supabase deployment, use the transaction pooler URL on port `6543` and append `?pgbouncer=true` (or `&pgbouncer=true` when the URL already has query parameters).
-- `DIRECT_URL`: PostgreSQL connection for Prisma migrations and administrative commands. With Supabase, use the session pooler URL on port `5432`, or the direct connection when IPv6 or the IPv4 add-on is available.
+- `DATABASE_URL`: pooled PostgreSQL runtime connection. For a serverless Supabase deployment, use the transaction pooler URL on port `6543`, append `pgbouncer=true`, and require `sslmode=require&sslaccept=strict`.
+- `DIRECT_URL`: PostgreSQL connection for Prisma migrations and administrative commands. With Supabase, use the session pooler URL on port `5432`, or the direct connection when IPv6 or the IPv4 add-on is available, and require `sslmode=require&sslaccept=strict`.
 
 ### Square
 
