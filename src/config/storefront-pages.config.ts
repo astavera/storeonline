@@ -140,7 +140,7 @@ const locationPages: StorefrontEditablePage[] = [
     }))
 ];
 
-const productPages: StorefrontEditablePage[] = storefrontProducts.map((product) => ({
+const productPages: StorefrontEditablePage[] = (process.env.E2E_CATALOG_FIXTURE === "true" ? storefrontProducts : []).map((product) => ({
   title: product.name,
   route: `/products/${product.slug}`,
   scope: "product",

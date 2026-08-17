@@ -4,7 +4,13 @@
 
 import "server-only";
 
-import { resolveWebsiteCatalog, type ResolvedWebsiteCatalog } from "@/features/catalog/services/website-merchandising-service";
+import { storefrontProducts } from "@/features/catalog/product-catalog";
+import {
+  resolveWebsiteCatalog,
+  slugifyWebsiteCategory,
+  type ResolvedWebsiteCatalog,
+  type WebsiteMerchandisingConfig
+} from "@/features/catalog/services/website-merchandising-service";
 import {
   readDevelopmentLocalWebsiteMerchandisingSnapshot,
   readWebsiteMerchandising,
@@ -15,15 +21,19 @@ import { readPostgresCatalogSummary, readPostgresStorefrontProductsByVariationId
 
 export type SquareWebsiteCatalogSource = {
   catalog: ResolvedWebsiteCatalog;
-  source: "postgres" | "legacy-sqlite" | "preview";
+  source: "postgres" | "legacy-sqlite" | "preview" | "static-preview";
   sourceVariationCount: number;
   fetchedAt: string;
 };
 
+const e2eFixtureUpdatedAt = "2026-01-01T00:00:00.000Z";
+
 export async function readResolvedSquareWebsiteCatalog(
   options: { squareLocationIds?: string[] } = {}
 ): Promise<SquareWebsiteCatalogSource | null> {
-  if (process.env.E2E_CATALOG_FIXTURE === "true") return null;
+  if (process.env.E2E_CATALOG_FIXTURE === "true") {
+    return readE2eWebsiteCatalogFixture();
+  }
   const preferLocalCatalog =
     process.env.NODE_ENV === "development" &&
     process.env.ALLOW_LOCAL_PERSISTENCE_FALLBACK === "true" &&
@@ -115,5 +125,47 @@ export async function readResolvedSquareWebsiteCatalog(
     source: "preview",
     sourceVariationCount: preview.products.length,
     fetchedAt: preview.fetchedAt
+  };
+}
+
+function readE2eWebsiteCatalogFixture(): SquareWebsiteCatalogSource {
+  const departments = Array.from(new Set(storefrontProducts.map((product) => product.department)));
+  const categoryIdByDepartment = new Map(
+    departments.map((department) => [department, `e2e-${slugifyWebsiteCategory(department)}`])
+  );
+  const config = {
+    version: 3,
+    updatedAt: e2eFixtureUpdatedAt,
+    categories: departments.map((department, index) => ({
+      id: categoryIdByDepartment.get(department)!,
+      name: department,
+      slug: slugifyWebsiteCategory(department),
+      description: "",
+      imageUrl: "",
+      imageAlt: "",
+      parentId: null,
+      visible: true,
+      sortOrder: index
+    })),
+    brands: [],
+    holidays: [],
+    placements: storefrontProducts.map((product, index) => ({
+      squareVariationId: product.squareVariationId,
+      categoryIds: [categoryIdByDepartment.get(product.department)!],
+      brandIds: [],
+      holidayAssignments: [],
+      ageGroups: product.ageGroups ?? [],
+      fulfillmentModes: product.fulfillmentModes,
+      surfaceIds: ["shop", "search", "category-pages"],
+      visible: true,
+      sortOrder: index
+    }))
+  } satisfies WebsiteMerchandisingConfig;
+
+  return {
+    catalog: resolveWebsiteCatalog(storefrontProducts, config),
+    source: "static-preview",
+    sourceVariationCount: storefrontProducts.length,
+    fetchedAt: config.updatedAt
   };
 }

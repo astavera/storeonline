@@ -3,7 +3,13 @@
  */
 
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { hashAdminPassword, isAdminLoginConfigured, verifyAdminCredentials, verifyAdminPassword } from "@/server/admin/admin-login";
+import {
+  hashAdminPassword,
+  isAdminLoginConfigured,
+  isValidAdminPasswordHash,
+  verifyAdminCredentials,
+  verifyAdminPassword
+} from "@/server/admin/admin-login";
 
 afterEach(() => vi.unstubAllEnvs());
 
@@ -14,8 +20,11 @@ describe("Admin login credentials", () => {
 
     expect(encoded).toMatch(/^scrypt-v1\$/);
     expect(encoded).not.toContain(password);
+    expect(isValidAdminPasswordHash(encoded)).toBe(true);
     expect(verifyAdminPassword(password, encoded)).toBe(true);
     expect(verifyAdminPassword("wrong-admin-password", encoded)).toBe(false);
+    expect(isValidAdminPasswordHash("scrypt-v1$short$short")).toBe(false);
+    expect(isValidAdminPasswordHash("scrypt-v1$not+base64url$not+base64url")).toBe(false);
   });
 
   it("requires a complete configuration and matches email case-insensitively", () => {

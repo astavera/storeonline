@@ -27,6 +27,8 @@ All three GitHub checks documented in [engineering-workflow.md](engineering-work
 - `NEXT_PUBLIC_SITE_INDEXABLE=false` until the final public launch approval
 - `SQUARE_ENVIRONMENT`
 - `SQUARE_ALLOW_PRODUCTION_READONLY_SYNC`
+- `SQUARE_CATALOG_SYNC_MAX_AGE_SECONDS` (default `86400`, maximum `86400`)
+- `SQUARE_INVENTORY_SYNC_MAX_AGE_SECONDS` (default `1800`, maximum `86400`)
 - `SQUARE_CHECKOUT_ENABLED=true` only in the approved checkout environment
 - `SQUARE_ACCESS_TOKEN`
 - `SQUARE_APPLICATION_ID`

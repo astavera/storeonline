@@ -8,6 +8,7 @@ import { safeAdminReturnTo } from "@/lib/security/admin-return-to";
 import { getAdminRateLimiter } from "@/server/admin/admin-rate-limit";
 import { isAdminLoginConfigured, verifyAdminCredentials } from "@/server/admin/admin-login";
 import { adminSessionCookieName, createAdminSessionToken, isTrustedMutationOrigin } from "@/server/admin/admin-security";
+import { storefrontAdminPreviewRouteResponse } from "@/server/storefront/admin-preview-response";
 
 const loginSchema = z.object({
   email: z.string().trim().email().max(254),
@@ -16,13 +17,49 @@ const loginSchema = z.object({
 });
 
 const sessionLifetimeSeconds = 8 * 60 * 60;
+const maximumLoginBodyBytes = 16 * 1024;
+
+type LoginBodyResult =
+  | { ok: true; value: unknown }
+  | { ok: false; error: string; status: 400 | 413 };
 
 export async function POST(request: Request) {
+  const previewResponse = storefrontAdminPreviewRouteResponse(request);
+  if (previewResponse) return previewResponse;
+
   if (!isTrustedMutationOrigin(request)) {
     return loginError("This login request could not be verified.", 403);
   }
 
-  const parsed = loginSchema.safeParse(await request.json().catch(() => null));
+  let attemptRateLimit;
+  try {
+    attemptRateLimit = await getAdminRateLimiter().consume({
+      key: clientAddress(request),
+      scope: "admin-login-attempt",
+      limit: 20,
+      windowMs: 60_000
+    });
+  } catch {
+    return loginError("Admin login is temporarily unavailable.", 503);
+  }
+
+  if (!attemptRateLimit.allowed) {
+    return NextResponse.json(
+      { ok: false, error: "Too many login attempts. Try again later." },
+      {
+        status: 429,
+        headers: {
+          "Cache-Control": "private, no-store",
+          "Retry-After": String(attemptRateLimit.retryAfterSeconds)
+        }
+      }
+    );
+  }
+
+  const body = await readLoginBody(request);
+  if (!body.ok) return loginError(body.error, body.status);
+
+  const parsed = loginSchema.safeParse(body.value);
   if (!parsed.success) {
     return loginError("Enter a valid email and password.", 400);
   }
@@ -93,4 +130,54 @@ function clientAddress(request: Request) {
   return request.headers.get("x-forwarded-for")?.split(",")[0]?.trim()
     || request.headers.get("x-real-ip")?.trim()
     || "unknown";
+}
+
+async function readLoginBody(request: Request): Promise<LoginBodyResult> {
+  const declaredLength = request.headers.get("content-length");
+  if (declaredLength !== null) {
+    const parsedLength = Number(declaredLength);
+    if (!Number.isSafeInteger(parsedLength) || parsedLength < 0) {
+      return { ok: false, error: "Enter a valid email and password.", status: 400 };
+    }
+    if (parsedLength > maximumLoginBodyBytes) {
+      return { ok: false, error: "This login request is too large.", status: 413 };
+    }
+  }
+
+  if (!request.body) return { ok: true, value: null };
+
+  const reader = request.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let totalBytes = 0;
+
+  try {
+    while (true) {
+      const chunk = await reader.read();
+      if (chunk.done) break;
+
+      totalBytes += chunk.value.byteLength;
+      if (totalBytes > maximumLoginBodyBytes) {
+        await reader.cancel().catch(() => undefined);
+        return { ok: false, error: "This login request is too large.", status: 413 };
+      }
+      chunks.push(chunk.value);
+    }
+  } catch {
+    return { ok: false, error: "Enter a valid email and password.", status: 400 };
+  } finally {
+    reader.releaseLock();
+  }
+
+  const bytes = new Uint8Array(totalBytes);
+  let offset = 0;
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+
+  try {
+    return { ok: true, value: JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(bytes)) as unknown };
+  } catch {
+    return { ok: true, value: null };
+  }
 }

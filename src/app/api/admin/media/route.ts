@@ -9,10 +9,14 @@ import { adminMediaUploadMaxBytes, buildAdminMediaUploadMetadata, validateAdminI
 import { getAdminRateLimiter } from "@/server/admin/admin-rate-limit";
 import { adminAuthorizationResponse, adminCapabilities, authorizeAdminRequest } from "@/server/admin/admin-security";
 import { PersistenceUnavailableError } from "@/server/db/persistence-policy";
+import { storefrontAdminPreviewRouteResponse } from "@/server/storefront/admin-preview-response";
 
 export const runtime = "nodejs";
 
 export async function POST(request: NextRequest) {
+  const previewResponse = storefrontAdminPreviewRouteResponse(request);
+  if (previewResponse) return previewResponse;
+
   const authorization = await authorizeAdminRequest(request, adminCapabilities.mediaWrite);
   if (!authorization.ok) return adminAuthorizationResponse(authorization);
 

@@ -64,7 +64,7 @@ import {
   defaultHomepageSeo,
   type HomepageSeoConfig
 } from "@/features/homepage";
-import { storefrontProducts, type StorefrontProduct } from "@/features/catalog/product-catalog";
+import type { StorefrontProduct } from "@/features/catalog/product-catalog";
 import type { WebsiteCategory } from "@/features/catalog/services/website-merchandising-service";
 import { cn } from "@/lib/utils";
 import { commitEditingHistory, createEditingHistory, redoEditingHistory, undoEditingHistory } from "@/components/admin/builder/editing-history";
@@ -3306,54 +3306,34 @@ function withSequentialSortOrder(sections: HomepageSectionConfig[]) {
 function defaultEditableItemsForSection(section: HomepageSectionConfig): HomepageSectionItem[] {
   if (section.sectionId === "home.departments" || sectionTypeFromSection(section) === "departments") {
     return [
-      productItemFallback("premium-building-set", {
+      {
         id: "toys",
         title: "Toys",
         body: "Classic favorites, games, plush, puzzles, and creative play.",
         href: "/toys"
-      }),
-      productItemFallback("celebration-tableware-kit", {
+      },
+      {
         id: "party-supplies",
         title: "Party",
         body: "Tableware, decorations, invitations, gift wrap, and event essentials.",
         href: "/party-supplies"
-      }),
-      productItemFallback("mylar-balloon-pick", {
+      },
+      {
         id: "balloons",
         title: "Balloons",
         body: "Latex, mylar, numbers, bouquets, pickup, and local delivery.",
         href: "/balloons"
-      }),
-      productItemFallback("gift-wrap-pack", {
+      },
+      {
         id: "gifts",
         title: "Gifts",
         body: "Neighborhood-ready gifts, wrap, frames, albums, and small finds.",
         href: "/gifts"
-      })
+      }
     ];
   }
 
   return [];
-}
-
-function productItemFallback(productSlug: string, fallback: HomepageSectionItem): HomepageSectionItem {
-  const product = storefrontProducts.find((candidate) => candidate.slug === productSlug);
-
-  if (!product) {
-    return fallback;
-  }
-
-  return {
-    ...fallback,
-    title: product.name,
-    body: product.shortDescription,
-    href: `/products/${product.slug}`,
-    image: product.imageUrl,
-    imageAlt: product.name,
-    badge: product.badge,
-    productSlug: product.slug,
-    squareVariationId: product.squareVariationId
-  };
 }
 
 function sectionTypeFromSection(section: HomepageSectionConfig): NonNullable<HomepageSectionConfig["sectionType"]> {

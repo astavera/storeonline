@@ -168,6 +168,23 @@ require_flag() {
   fi
 }
 
+require_boolean_flag() {
+  local name="$1"
+  local count actual
+  count="$(grep -Ec "^[[:space:]]*${name}[[:space:]]*=" "${runtime_env_file}" || true)"
+  if [[ "${count}" != "1" ]]; then
+    fail "runtime environment must define ${name} exactly once"
+    return
+  fi
+
+  actual="$(env_value "${runtime_env_file}" "${name}")"
+  if [[ "${actual}" == "true" || "${actual}" == "false" ]]; then
+    pass "explicit boolean flag: ${name}=${actual}"
+  else
+    fail "runtime environment must set ${name} to exactly true or false"
+  fi
+}
+
 validate_database_url() {
   local file="$1"
   local label="$2"
@@ -265,6 +282,7 @@ fi
 
 require_flag NEXT_PUBLIC_SITE_INDEXABLE false
 require_flag STOREFRONT_DESIGN_PREVIEW false
+require_boolean_flag STOREFRONT_ADMIN_PREVIEW
 require_flag E2E_CATALOG_FIXTURE false
 require_flag SQUARE_ALLOW_PRODUCTION_READONLY_SYNC true
 require_flag SQUARE_CHECKOUT_ENABLED false

@@ -17,6 +17,7 @@ import { SeoInspector } from "@/components/admin/inspector/seo-inspector";
 import { ThemeInspector } from "@/components/admin/inspector/theme-inspector";
 import { VisibilityInspector } from "@/components/admin/inspector/visibility-inspector";
 import type { CmsPageDocument, CmsSection, SectionPreset, ThemePreset, ThemeTokenOverrides } from "@/lib/cms";
+import type { StorefrontProduct } from "@/features/catalog/product-catalog";
 import { cn } from "@/lib/utils";
 import { BuilderHistoryPanel } from "./builder-history-panel";
 import type { BuilderDocumentHistoryEntry, BuilderInspectorTab } from "./types";
@@ -37,6 +38,7 @@ const tabs: Array<{ id: BuilderInspectorTab; label: string; icon: typeof PanelRi
 
 export function BuilderInspector({
   activeTab,
+  catalogProducts = [],
   document,
   history,
   onApplySectionPreset,
@@ -50,6 +52,7 @@ export function BuilderInspector({
   updateTheme
 }: {
   activeTab: BuilderInspectorTab;
+  catalogProducts?: StorefrontProduct[];
   document: CmsPageDocument;
   history: BuilderDocumentHistoryEntry[];
   onApplySectionPreset: (preset: SectionPreset) => void;
@@ -91,7 +94,7 @@ export function BuilderInspector({
       {activeTab === "design" ? <DesignInspector section={selectedSection} updateSection={updateSection} /> : null}
       {activeTab === "media" ? <MediaInspector section={selectedSection} updateSection={updateSection} /> : null}
       {activeTab === "layout" ? <LayoutInspector section={selectedSection} updateSection={updateSection} /> : null}
-      {activeTab === "data" ? <DataSourceInspector section={selectedSection} updateSection={updateSection} /> : null}
+      {activeTab === "data" ? <DataSourceInspector products={catalogProducts} section={selectedSection} updateSection={updateSection} /> : null}
       {activeTab === "theme" ? <ThemeInspector document={document} updateTheme={updateTheme} /> : null}
       {activeTab === "presets" ? <PresetInspector applySectionPreset={onApplySectionPreset} applyThemePreset={onApplyThemePreset} selectedSection={selectedSection} /> : null}
       {activeTab === "seo" ? <SeoInspector document={document} updateSeo={updateSeo} /> : null}

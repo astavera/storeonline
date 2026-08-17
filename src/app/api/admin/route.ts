@@ -8,8 +8,13 @@ import { adminModules, externallyManagedAdminModuleIds } from "@/config/admin-co
 import { buildAdminControlOperation, getAdminControlReadiness, persistAdminControlOperation } from "@/server/admin/admin-control-plane-service";
 import { adminAuthorizationResponse, adminCapabilities, authorizeAdminRequest } from "@/server/admin/admin-security";
 import { getAdminRateLimiter } from "@/server/admin/admin-rate-limit";
+import { isStorefrontAdminPreviewModuleAllowed } from "@/server/storefront/admin-preview";
+import { storefrontAdminPreviewRouteResponse } from "@/server/storefront/admin-preview-response";
 
 export async function GET(request: NextRequest) {
+  const previewResponse = storefrontAdminPreviewRouteResponse(request);
+  if (previewResponse) return previewResponse;
+
   const authorization = await authorizeAdminRequest(request, adminCapabilities.read);
   if (!authorization.ok) return adminAuthorizationResponse(authorization);
 
@@ -34,6 +39,9 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
+  const previewResponse = storefrontAdminPreviewRouteResponse(request);
+  if (previewResponse) return previewResponse;
+
   const authorization = await authorizeAdminRequest(request, adminCapabilities.write);
   if (!authorization.ok) return adminAuthorizationResponse(authorization);
 
@@ -41,6 +49,13 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const moduleId = String(body.moduleId ?? "");
     const requestedOperation = String(body.operation ?? "");
+
+    if (!isStorefrontAdminPreviewModuleAllowed(moduleId)) {
+      return NextResponse.json(
+        { ok: false, errors: ["This admin preview currently permits homepage changes only."] },
+        { status: 503, headers: { "Cache-Control": "private, no-store" } }
+      );
+    }
 
     if (moduleId === "homepage" && requestedOperation === "publish") {
       const rateLimit = await getAdminRateLimiter().consume({
