@@ -3,10 +3,10 @@
  */
 
 import Image from "next/image";
+import Link from "next/link";
+import { ArrowRight } from "lucide-react";
 
 import { SectionFrame } from "@/components/sections/section-frame";
-import { ButtonLink } from "@/components/ui/button";
-import { cn } from "@/lib/utils";
 import type { HomepageSectionConfig } from "@/features/homepage/config/homepage.config";
 
 type HomepagePromoTile = {
@@ -14,42 +14,32 @@ type HomepagePromoTile = {
   href: string;
   image: string;
   imageAlt: string;
-  imageClassName?: string;
-  backgroundColor?: string;
 };
 
 const PROMO_TILES: HomepagePromoTile[] = [
   {
     cta: "Costumes",
     href: "/shop",
-    image:
-      "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRARUJ5P6KooB1Y2umV3lgboOLbFqw7BsBt79Q229OmVw&s=10",
-    imageAlt: "Children wearing Halloween costumes",
-    backgroundColor: "bg-blue"
+    image: "/images/homepage/promo-posters/costumes-poster-v1.png",
+    imageAlt: "Children wearing Halloween costumes"
   },
   {
-    cta: "Plan a party",
+    cta: "Plan a Party",
     href: "/party-supplies",
-    image: "/images/homepage/halloween-party-card.jpg",
-    imageAlt: "Halloween party decorations",
-    imageClassName:
-      "object-[center_34%] sm:object-[center_38%] lg:object-center",
-    backgroundColor: "bg-primary"
+    image: "/images/homepage/promo-posters/party-poster-v1.png",
+    imageAlt: "Halloween party decorations"
   },
   {
-    cta: "Shop Accessories",
+    cta: "Accessories",
     href: "/halloween-accessories",
-    image:
-      "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTMnGgsR0pz39Uq4yYj-62DX88i-yMAW9uhbAiB_13zow&s=10",
-    imageAlt: "Halloween costume accessories",
-    backgroundColor: "bg-red"
+    image: "/images/homepage/promo-posters/accessories-poster-v1.png",
+    imageAlt: "Halloween costume accessories"
   },
   {
     cta: "Home Decor",
     href: "/halloween-home-decor",
-    image:"https://media.istockphoto.com/id/1178228622/photo/a-house-with-halloween-pumpkins-and-halloween-decorations-at-halloween-night-on-a-city-street.jpg?b=1&s=612x612&w=0&k=20&c=PoDOq8w_kY3pXOFbkD3QXb2FmW_O2OWU2UViMkLdjBU=",
-    imageAlt: "Halloween home decorations",
-    backgroundColor: "bg-purple"
+    image: "/images/homepage/promo-posters/decor-poster-v1.png",
+    imageAlt: "Halloween home decorations"
   }
 ];
 
@@ -61,21 +51,29 @@ export function HomepagePromoTiles({ section }: { section?: HomepageSectionConfi
         cta: item.title || `Promotion ${index + 1}`,
         href: item.href || "/shop",
         image: item.image || PROMO_TILES[index % PROMO_TILES.length].image,
-        imageAlt: item.imageAlt || item.title || `Promotion ${index + 1}`,
-        backgroundColor: toneClassName(item.tone) ?? PROMO_TILES[index % PROMO_TILES.length].backgroundColor
+        imageAlt: item.imageAlt || item.title || `Promotion ${index + 1}`
       }))
     : PROMO_TILES;
 
   return (
     <SectionFrame
       area="Homepage"
-      className="bg-surface py-4 sm:py-5"
+      className="bg-surface pb-6 pt-2 sm:pb-8 sm:pt-3"
       component="HomepagePromoTiles"
       sectionId="home.retail-promos"
       variant="promo-tiles"
     >
       <div className="container-shell homepage-wide-shell">
-        <div className="-mx-4 grid snap-x snap-mandatory grid-flow-col auto-cols-[82%] gap-3 overflow-x-auto px-4 pb-2 sm:mx-0 sm:grid-flow-row sm:auto-cols-auto sm:grid-cols-2 sm:gap-5 sm:overflow-visible sm:px-0 sm:pb-0 lg:grid-cols-4">
+        <div className="mb-5 flex justify-end sm:mb-6">
+          <Link
+            className="inline-flex shrink-0 items-center gap-2 rounded-pill border border-ink/15 bg-white px-5 py-3 text-sm font-black text-primary transition hover:border-primary hover:bg-surface-muted"
+            href="/holidays/halloween"
+          >
+            View all Halloween
+            <ArrowRight aria-hidden="true" className="size-4" strokeWidth={2.5} />
+          </Link>
+        </div>
+        <div className="-mx-4 grid snap-x snap-mandatory grid-flow-col auto-cols-[82%] gap-4 overflow-x-auto px-4 pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:mx-0 sm:grid-flow-row sm:auto-cols-auto sm:grid-cols-2 sm:gap-5 sm:overflow-visible sm:px-0 sm:pb-0 xl:grid-cols-4">
           {tiles.map((tile, index) => (
             <HomepagePromoCard key={`${tile.href}-${index}`} tile={tile} />
           ))}
@@ -85,40 +83,31 @@ export function HomepagePromoTiles({ section }: { section?: HomepageSectionConfi
   );
 }
 
-function toneClassName(tone?: string) {
-  if (tone === "cyan") return "bg-blue";
-  if (tone === "red") return "bg-red";
-  if (tone === "green") return "bg-green";
-  if (tone === "yellow") return "bg-yellow";
-  return undefined;
-}
-
 function HomepagePromoCard({ tile }: { tile: HomepagePromoTile }) {
   return (
-    <article
-      className={cn(
-        "relative min-h-[250px] snap-center overflow-hidden rounded-[18px] first:snap-start sm:min-h-[360px] sm:snap-align-none sm:rounded-md lg:min-h-[520px]",
-        tile.backgroundColor ?? "bg-blue",
-        "text-white"
-      )}
-    >
-      <Image
-        alt={tile.imageAlt}
-        className={cn("object-cover", tile.imageClassName)}
-        fill
-        sizes="(max-width: 640px) 82vw, (max-width: 1024px) 50vw, 25vw"
-        src={tile.image}
-        unoptimized
-      />
-      <div className="absolute inset-0 bg-gradient-to-t from-black/55 via-transparent to-black/5" />
-      <div className="relative flex min-h-[250px] flex-col justify-center p-5 sm:min-h-[360px] sm:p-8 lg:min-h-[520px] lg:p-6">
-        <ButtonLink
-          className="absolute bottom-4 left-1/2 min-h-11 max-w-[calc(100%_-_2rem)] -translate-x-1/2 justify-center whitespace-nowrap rounded-pill bg-white px-6 py-3 text-sm font-black text-primary shadow-lg hover:bg-yellow sm:bottom-6 sm:px-8"
-          href={tile.href}
-        >
-          {tile.cta}
-        </ButtonLink>
-      </div>
+    <article className="homepage-card group relative aspect-[4/5] min-w-0 snap-center overflow-hidden bg-white first:snap-start sm:snap-align-none">
+      <Link
+        aria-label={tile.cta}
+        className="absolute inset-0 block outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-inset"
+        href={tile.href}
+      >
+        <Image
+          alt={tile.imageAlt}
+          className="object-cover transition duration-500 ease-out group-hover:scale-[1.025]"
+          fill
+          sizes="(max-width: 640px) 82vw, (max-width: 1279px) 50vw, 25vw"
+          src={tile.image}
+        />
+        <div
+          aria-hidden="true"
+          className="absolute inset-0 bg-gradient-to-t from-black/75 via-black/10 to-transparent"
+        />
+        <div className="absolute inset-x-0 bottom-0 px-5 pb-5 pt-20 sm:px-6 sm:pb-6">
+          <h3 className="inline-flex min-h-11 items-center rounded-pill bg-white px-5 py-2.5 text-base font-black leading-tight tracking-[-0.02em] text-ink shadow-md transition-transform duration-200 group-hover:-translate-y-0.5 sm:text-lg">
+            {tile.cta}
+          </h3>
+        </div>
+      </Link>
     </article>
   );
 }

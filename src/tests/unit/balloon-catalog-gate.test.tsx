@@ -26,6 +26,22 @@ describe("BalloonCatalogGate", () => {
     vi.unstubAllGlobals();
   });
 
+  it("opens a four-step ordering guide on entry", () => {
+    render(<BalloonCatalogGate />);
+
+    expect(screen.getByRole("dialog", { name: "Ordering balloons is easy" })).toBeTruthy();
+    expect(screen.getByText("Pick your balloons")).toBeTruthy();
+    expect(screen.getByText("Delivery or pickup")).toBeTruthy();
+    expect(screen.getByText("Add to your cart")).toBeTruthy();
+    expect(screen.getByText("Checkout")).toBeTruthy();
+    expect(screen.queryByText("Local delivery")).toBeNull();
+    expect(screen.queryByText("Store pickup")).toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: "Start shopping" }));
+    expect(screen.queryByRole("dialog", { name: "Ordering balloons is easy" })).toBeNull();
+    expect(screen.getByRole("button", { name: "How balloon ordering works" })).toBeTruthy();
+  });
+
   it("offers store pickup and local delivery without shipping", () => {
     render(<BalloonCatalogGate />);
     fireEvent.click(screen.getByRole("button", { name: "Shop latex balloons" }));

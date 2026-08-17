@@ -78,7 +78,7 @@ export function HomepageToysAgeInterestCard({ section }: { section?: HomepageSec
 
   return (
     <article
-      className="min-w-0 overflow-hidden rounded-[24px] bg-white shadow-[0_18px_45px_rgba(6,44,104,0.08)] sm:rounded-[30px]"
+      className="homepage-card min-w-0 overflow-hidden bg-white"
       data-revealed={isRevealed ? "true" : "false"}
       data-store-section="home.toys-age-interest"
       ref={sectionRef}

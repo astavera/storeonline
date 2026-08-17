@@ -4,19 +4,27 @@
 
 "use client";
 
-import { Menu, X } from "lucide-react";
+import { ChevronDown, Menu, X } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useId, useRef, useState } from "react";
 import type { HeaderNavigationLink } from "@/config/header-navigation.config";
+import type { DepartmentMenuContent } from "./department-mega-menu";
+import type { HolidayMenuItem } from "./holiday-mega-menu";
 
 export function MobileSiteNavigation({
+  departmentMenus,
+  holidayLinks,
   primaryLinks,
   utilityLinks
 }: {
+  departmentMenus: Record<string, DepartmentMenuContent>;
+  holidayLinks: HolidayMenuItem[];
   primaryLinks: HeaderNavigationLink[];
   utilityLinks: HeaderNavigationLink[];
 }) {
   const [isOpen, setIsOpen] = useState(false);
+  const [expandedDepartmentGroup, setExpandedDepartmentGroup] = useState<string | null>(null);
+  const [expandedPrimaryId, setExpandedPrimaryId] = useState<string | null>(null);
   const menuId = useId();
   const rootRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
@@ -187,11 +195,77 @@ export function MobileSiteNavigation({
               <Link className="rounded-md px-4 py-3 text-base font-black hover:bg-surface-muted hover:text-blue" href="/" onClick={() => setIsOpen(false)}>
                 Home
               </Link>
-              {primaryLinks.map((link) => (
-                <Link className="rounded-md px-4 py-3 text-base font-black hover:bg-surface-muted hover:text-blue" data-header-nav-id={link.id} href={link.href} key={link.id} onClick={() => setIsOpen(false)}>
-                  {link.label}
-                </Link>
-              ))}
+              {primaryLinks.map((link) => {
+                const departmentMenu = departmentMenus[link.id];
+                const expandable = link.id === "holidays" || Boolean(departmentMenu);
+
+                if (!expandable) {
+                  return <Link className="rounded-md px-4 py-3 text-base font-black hover:bg-surface-muted hover:text-blue" data-header-nav-id={link.id} href={link.href} key={link.id} onClick={() => setIsOpen(false)}>{link.label}</Link>;
+                }
+
+                const expanded = expandedPrimaryId === link.id;
+
+                return (
+                  <div className="overflow-hidden rounded-md" key={link.id}>
+                    <button aria-expanded={expanded} className="flex min-h-12 w-full items-center justify-between rounded-md px-4 text-left text-base font-black hover:bg-surface-muted hover:text-blue" data-header-nav-id={link.id} onClick={() => setExpandedPrimaryId((current) => current === link.id ? null : link.id)} type="button">
+                      <span>{link.label}</span>
+                      <ChevronDown aria-hidden="true" className={`transition-transform ${expanded ? "rotate-180" : ""}`} size={18} />
+                    </button>
+
+                    {expanded && link.id === "holidays" ? (
+                      <div aria-label="Holiday collections" className="grid border-y border-slate-200 bg-white py-1.5" role="group">
+                        {holidayLinks.map((holiday) => (
+                          <Link className="px-4 py-2.5 text-sm font-bold text-primary hover:bg-slate-50 hover:text-blue" href={`/holidays/${holiday.slug}`} key={holiday.slug} onClick={() => setIsOpen(false)}>
+                            {holiday.label}
+                          </Link>
+                        ))}
+                      </div>
+                    ) : null}
+
+                    {expanded && departmentMenu ? (
+                      <div aria-label={departmentMenu.ariaLabel} className="border-y border-slate-200 bg-white py-1.5" role="group">
+                        <Link className="block px-4 py-2.5 text-sm font-black text-blue hover:bg-slate-50 hover:text-navy" href={departmentMenu.shopAllHref} onClick={() => setIsOpen(false)}>
+                          {departmentMenu.shopAllLabel}
+                        </Link>
+
+                        {departmentMenu.items?.map((item) => (
+                          <Link className="block px-4 py-2.5 text-sm font-bold text-primary hover:bg-slate-50 hover:text-blue" href={item.href} key={item.href} onClick={() => setIsOpen(false)}>
+                            {item.label}
+                          </Link>
+                        ))}
+
+                        {departmentMenu.groups?.map((group) => {
+                          const groupKey = `${link.id}:${group.label}`;
+                          const groupExpanded = expandedDepartmentGroup === groupKey;
+
+                          return (
+                            <section className="px-4" key={group.label}>
+                              <button aria-expanded={groupExpanded} className="flex min-h-10 w-full items-center justify-between py-2 text-left text-sm font-black text-primary hover:text-blue" onClick={() => setExpandedDepartmentGroup((current) => current === groupKey ? null : groupKey)} type="button">
+                                <span>{group.label}</span>
+                                <ChevronDown aria-hidden="true" className={`transition-transform ${groupExpanded ? "rotate-180" : ""}`} size={16} />
+                              </button>
+                              {groupExpanded ? (
+                                <div className="grid pb-2 pl-3">
+                                  {group.href ? (
+                                    <Link className="py-2 text-sm font-black text-blue hover:text-navy" href={group.href} onClick={() => setIsOpen(false)}>
+                                      Shop All {group.label}
+                                    </Link>
+                                  ) : null}
+                                  {group.items.map((item) => (
+                                    <Link className="py-2 text-sm font-semibold text-primary hover:text-blue" href={item.href} key={item.href} onClick={() => setIsOpen(false)}>
+                                      {item.label}
+                                    </Link>
+                                  ))}
+                                </div>
+                              ) : null}
+                            </section>
+                          );
+                        })}
+                      </div>
+                    ) : null}
+                  </div>
+                );
+              })}
             </div>
             {utilityLinks.length > 0 ? (
               <div className="mt-3 flex flex-wrap gap-2 border-t border-border pt-3">

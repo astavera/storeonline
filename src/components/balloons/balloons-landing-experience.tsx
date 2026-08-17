@@ -22,8 +22,6 @@ export function BalloonsLandingExperience({ title, body, initialCollection }: Ba
         variant="balloon-links"
       >
         <div className="container-shell balloons-playful-hero__inner">
-          <p className="balloons-eyebrow">Balloons</p>
-
           <BalloonCatalogGate initialCollection={initialCollection} />
 
           <h1 className="sr-only">{title}</h1>

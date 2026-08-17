@@ -45,13 +45,13 @@ export function HomepageCalloutCards({
   return (
     <SectionFrame
       area="Homepage"
-      className="bg-surface py-4 sm:py-6"
+      className="bg-surface pb-12 pt-1 sm:pb-16 sm:pt-2"
       component="HomepageCalloutCards"
       sectionId="home.callouts"
       variant="feature-callouts"
     >
       <div className="container-shell homepage-wide-shell">
-        <div className={`grid gap-4 sm:gap-5 lg:items-stretch ${showNewTrending ? "lg:grid-cols-2" : ""}`}>
+        <div className={`grid gap-6 sm:gap-8 lg:items-stretch ${showNewTrending ? "lg:grid-cols-2" : ""}`}>
           {balloonSection?.isVisible !== false ? <HomepageBalloonOrderCard section={balloonSection} /> : null}
           {showNewTrending ? (
             <HomepageNewTrendingCard

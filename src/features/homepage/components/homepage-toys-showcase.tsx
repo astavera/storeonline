@@ -18,8 +18,8 @@ export function HomepageToysShowcase({
   toyCategoriesSection?: HomepageSectionConfig;
 }) {
   return (
-    <section className="mt-5" data-store-section="home.toys-showcase">
-      <div className="mx-auto 2xl:max-w-[94.75rem]">
+    <section className="mt-8 sm:mt-10" data-store-section="home.toys-showcase">
+      <div>
         <HomepageToysAgeInterestCard section={section} />
       </div>
       <HomepageToyCategoryCarousel
