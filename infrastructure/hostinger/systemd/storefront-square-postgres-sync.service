@@ -1,0 +1,40 @@
+# Runs the immutable Square catalog and inventory CLI with the VPS-only secret.
+
+[Unit]
+Description=Refresh Storefront Square catalog and inventory in PostgreSQL
+After=docker.service network-online.target
+Wants=network-online.target
+Requires=docker.service
+
+[Service]
+Type=oneshot
+User=root
+Group=root
+Environment=PATH=/usr/bin:/bin
+Environment=DOCKER_HOST=unix:///run/docker.sock
+ExecStart=/srv/storefront/operations/square-sync/run-square-postgres-sync-v1.sh /srv/storefront/secrets/storefront-square-sync.env /srv/storefront/operations/square-sync/current-release
+ExecStopPost=-/srv/storefront/operations/square-sync/run-square-postgres-sync-v1.sh --cleanup
+TimeoutStartSec=10min
+TimeoutStopSec=45s
+UMask=0077
+RuntimeDirectory=storefront-square-sync
+RuntimeDirectoryMode=0700
+Nice=10
+NoNewPrivileges=true
+PrivateDevices=true
+PrivateTmp=true
+ProtectClock=true
+ProtectControlGroups=true
+ProtectHome=true
+ProtectKernelLogs=true
+ProtectKernelModules=true
+ProtectKernelTunables=true
+ProtectSystem=strict
+LockPersonality=true
+RestrictAddressFamilies=AF_UNIX
+RestrictNamespaces=true
+RestrictRealtime=true
+RestrictSUIDSGID=true
+CapabilityBoundingSet=
+ReadOnlyPaths=/srv/storefront/releases /srv/storefront/operations/square-sync /srv/storefront/secrets/storefront-square-sync.env
+ReadWritePaths=/run/storefront-square-sync /run/docker.sock

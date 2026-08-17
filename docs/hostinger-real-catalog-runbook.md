@@ -41,6 +41,9 @@ Use a separate random password for each database role. The Supabase `postgres`
 owner credential is not an application credential and must not be installed in
 Hostinger. For Supavisor, the pooler username is
 `ROLE_NAME.PROJECT_REF`; percent-encode special characters in URL passwords.
+Require `sslmode=require&sslaccept=strict` in every Prisma Supabase URL and
+enable **Enforce SSL on incoming connections** in the Supabase database SSL
+settings before installing either application credential.
 
 ## 1. Choose one authoritative PostgreSQL database
 
@@ -57,17 +60,21 @@ new project must be created and the schema plus data migrated deliberately.
 
 Required database identities:
 
-- `storefront_runtime`: only application reads and the exact preview mutations
-  permitted by the route allowlist (for example, homepage CMS state and cart
-  persistence; never schema changes or Square synchronization).
+- `storefront_runtime`: `SELECT` only on the exact catalog, inventory, location,
+  and published merchandising tables used by this preview, plus the narrow
+  insert/column-update grant required for admin-login rate limiting. It cannot
+  change catalog, CMS, cart, customer, order, or checkout data.
 - `storefront_sync`: only the tables/sequences required by the Square catalog,
   inventory, sync-state, and reviewed location reconciliation code.
 - `storefront_migrator`: schema migration authority, used only by a one-shot
   operator job.
 
-The repository currently does not contain a Supabase-specific, reviewed ACL
-provisioning migration for these three roles. Do not approximate grants from
-chat. Capture and review the exact grants before installing the credentials.
+Install and verify these roles only with the reviewed, credential-free SQL in
+`infrastructure/postgres/bootstrap-storefront-roles.sql` and
+`infrastructure/postgres/verify-storefront-roles.sql`. Follow
+`docs/postgres-role-bootstrap.md` for the owner connection, private password
+setup, post-migration rerun, verification, and recovery procedure. Do not add
+ad hoc grants in the Supabase dashboard.
 
 ## 2. Bring the schema up to the release
 
@@ -78,38 +85,82 @@ migration environment on the VPS or another trusted operator host:
 npm ci
 npm run prisma:migrate:deploy
 npm run audit:constraints
+npm run bootstrap:locations
+npm run bootstrap:locations -- --apply --confirm modern-state-store-locations-v1
 ```
 
 The migration job uses `storefront_migrator`; Hostinger never runs migrations.
 Do not use `prisma db push` and do not place the migrator URL in the Hostinger
-environment.
+environment. The location bootstrap is also an operator action under the
+migrator credential; the narrower `storefront_sync` role cannot create stores.
+After migrations and the location bootstrap, rerun the ACL bootstrap and its
+read-only verifier exactly as documented in `docs/postgres-role-bootstrap.md`.
 
-## 3. Prove or refresh the real Square projection on the VPS
+## 3. Install the private Square projection runner on the VPS
 
-Create a populated copy of
-`infrastructure/hostinger/env.vps-square-sync.example` outside every release,
-owned by root with mode `0600`. Use the same immutable Storefront source as the
-Hostinger deployment.
-
-Run the configuration and mapping audits first:
-
-```bash
-npm run sync:square:postgres:readonly -- --check
-npm run sync:square:postgres:readonly -- --locations
-```
-
-If location mappings are already exact, do not reapply them. If they are not,
-review the audit before using the repository's exact confirmation command.
-Then run the read-only Square import and verify its persisted evidence:
+Use the same immutable Storefront release that Hostinger runs. Build the
+dedicated `square-sync` target on the VPS, give it the release directory name
+as `STOREFRONT_RELEASE_ID`, and record the resulting local `sha256:` image ID.
+Do not use `latest`, a mutable registry tag, or the normal web-server image.
 
 ```bash
-npm run sync:square:postgres:readonly
-npm run sync:square:postgres:readonly -- --status
+release=/srv/storefront/releases/CHANGE_ME_IMMUTABLE_RELEASE
+release_id="$(basename -- "$release")"
+docker build --pull=false --target square-sync \
+  --build-arg "STOREFRONT_RELEASE_ID=$release_id" \
+  --tag "storefront/square-sync:$release_id" \
+  "$release"
+docker image inspect --format '{{.Id}}' "storefront/square-sync:$release_id"
 ```
 
-These commands read Square and write the PostgreSQL projection; they do not
-write to Square and do not create orders or payments. The first import is large
-and belongs in the VPS job, not in an HTTP request or Hostinger build.
+Install these versioned files from that release:
+
+| Repository file | Root-owned VPS target | Mode |
+| --- | --- | --- |
+| `infrastructure/hostinger/run-square-postgres-sync-v1.sh` | `/srv/storefront/operations/square-sync/run-square-postgres-sync-v1.sh` | `0755` |
+| populated `infrastructure/hostinger/env.vps-square-sync.example` | `/srv/storefront/secrets/storefront-square-sync.env` | `0600` |
+| populated `infrastructure/hostinger/current-release.example` | `/srv/storefront/operations/square-sync/current-release` | `0600` |
+| `infrastructure/hostinger/systemd/storefront-square-postgres-sync.service` | `/etc/systemd/system/storefront-square-postgres-sync.service` | `0644` |
+| `infrastructure/hostinger/systemd/storefront-square-postgres-sync.timer` | `/etc/systemd/system/storefront-square-postgres-sync.timer` | `0644` |
+
+Create the operations directory before installing either root-owned control
+file. This prevents an unprivileged pre-creation or symlink from becoming the
+systemd execution path:
+
+```bash
+install -d -o root -g root -m 0750 \
+  /srv/storefront/operations \
+  /srv/storefront/operations/square-sync
+```
+
+The two-line `current-release` file must contain the exact immutable release
+path and the exact local image ID. Never put a tag there. Create the populated
+environment through a private root editor or secret-transfer procedure; do not
+print its database password or Square token into a shell transcript.
+
+The wrapper validates the release, image labels, entrypoint, secret metadata,
+all disabled commerce gates, and a dedicated egress network. It then runs
+three ephemeral containers in order: configuration check, direct Square read
+and PostgreSQL projection write, and persisted-state verification. The
+containers expose no ports, mount no host paths, and never write to Square.
+The wrapper creates `storefront-square-sync-egress` on its first successful run
+and refuses to share that network with another container.
+
+After `systemctl daemon-reload`, start the service once and inspect its result
+before enabling the timer:
+
+```bash
+systemctl start storefront-square-postgres-sync.service
+systemctl status --no-pager storefront-square-postgres-sync.service
+journalctl -u storefront-square-postgres-sync.service --since today --no-pager
+systemctl enable --now storefront-square-postgres-sync.timer
+systemctl list-timers storefront-square-postgres-sync.timer --no-pager
+```
+
+The timer runs every eight minutes with up to fifteen seconds of randomized delay,
+comfortably inside the thirty-minute inventory freshness limit. A failed check,
+sync, or status command makes the service fail visibly and does not publish
+stale data as healthy.
 
 Require all of the following before Hostinger uses the database:
 
@@ -137,8 +188,8 @@ real products while every commerce gate remains off.
 Product reads include inventory quantities, so they require both the fresh
 catalog state and the stricter fresh inventory state. When either maximum age
 is exceeded, reads fail closed instead of showing old quantities. With the
-manual procedure in this runbook, rerun the VPS sync before those windows
-expire; do not increase either value beyond the enforced 86400-second ceiling.
+versioned timer, investigate any failed unit before those windows expire; do
+not increase either value beyond the enforced 86400-second ceiling.
 
 ## 4. Configure Hostinger without Square credentials
 
@@ -157,7 +208,8 @@ Important details:
 1. Use Node.js `24.x`, the repository root, and the `main` release commit.
 2. Use the Supabase transaction pooler (`6543`, `pgbouncer=true`) for
    `DATABASE_URL` and the session pooler (`5432`) for `DIRECT_URL`; both use the
-   least-privilege `storefront_runtime` role.
+   least-privilege `storefront_runtime` role and both require
+   `sslmode=require&sslaccept=strict`.
 3. Set the current HTTPS Hostinger origin in both `NEXT_PUBLIC_SITE_URL` and
    `ADMIN_ALLOWED_ORIGINS`.
 4. Generate the admin hash with `npm run admin:hash-password -- "..."` on a
@@ -191,18 +243,12 @@ Do not use `/api/health` alone to certify the catalog; that endpoint only proves
 the Next.js process is alive. The VPS status command is the source of sync
 freshness evidence.
 
-## Missing automation before continuous freshness
+## Operational boundary
 
-The repository has the sync CLI, but this external-Hostinger topology does not
-yet have a production, immutable VPS runner and systemd service/timer that run
-the CLI directly with the VPS-only credential file. The existing HTTP catalog
-worker expects the Storefront runtime to hold the Square token, which this
-topology intentionally forbids.
-
-Until a dedicated runner is reviewed and versioned, refresh the catalog only
-through the explicit VPS CLI procedure above. Do not schedule unauthenticated
-HTTP calls, expose a token to Hostinger, or copy a populated environment file
-into a release directory.
+The timer is the only supported continuous sync path for this topology. Do not
+schedule unauthenticated HTTP calls, expose the Square token to Hostinger, copy
+a populated environment into a release directory, or attach the sync container
+to Storefront, OrderPRO, database, or public-gateway Docker networks.
 
 ## Platform references
 

@@ -34,49 +34,7 @@ if (checkOnly) {
 }
 
 if (statusOnly) {
-  try {
-    const [{ getPrismaClient }, { readPostgresCatalogSummary, readPostgresInventorySyncSummary }] = await Promise.all([
-      import("@/server/db/prisma"),
-      import("@/server/square/postgres-catalog-store")
-    ]);
-    const prisma = getPrismaClient();
-    const [catalog, inventory, inventoryRows, states, locations] = await Promise.all([
-      readPostgresCatalogSummary(),
-      readPostgresInventorySyncSummary(),
-      prisma.squareInventoryCount.count(),
-      prisma.squareCatalogSyncState.findMany({
-        orderBy: { environment: "asc" },
-        select: {
-          environment: true,
-          latestTime: true,
-          lastStartedAt: true,
-          lastCompletedAt: true,
-          lastError: true,
-          lockedAt: true
-        }
-      }),
-      prisma.storeLocation.findMany({
-        orderBy: { slug: "asc" },
-        select: { id: true, name: true, squareLocationId: true }
-      })
-    ]);
-    console.log(JSON.stringify({
-      mode: "square-postgres-read-only-status",
-      environment,
-      squareWritesEnabled: false,
-      catalog,
-      inventory: { ...inventory, rows: inventoryRows },
-      states,
-      locations
-    }, null, 2));
-  } catch (error) {
-    console.error(JSON.stringify({
-      mode: "square-postgres-read-only-status",
-      ok: false,
-      error: sanitize(describeError(error, "Square PostgreSQL status failed."))
-    }, null, 2));
-    process.exitCode = 1;
-  }
+  await reportStatus(environment);
   process.exit();
 }
 
@@ -245,6 +203,7 @@ if (applyLocations) {
   process.exit();
 }
 
+let synchronizationSucceeded = false;
 try {
   const { syncConfiguredSquareCatalogChanges } = await import("@/server/square/catalog-postgres-sync");
   const { syncConfiguredSquareInventoryCounts } = await import("@/server/square/inventory-postgres-sync");
@@ -266,6 +225,7 @@ try {
     catalog,
     inventory
   }, null, 2));
+  synchronizationSucceeded = true;
 } catch (error) {
   const message = describeError(error, "Square read-only synchronization failed.");
   console.error(JSON.stringify({
@@ -277,7 +237,75 @@ try {
   process.exitCode = 1;
 }
 
+if (synchronizationSucceeded) await reportStatus(environment);
+
+async function reportStatus(activeEnvironment: string) {
+  try {
+    const [
+      { getPrismaClient },
+      { readPostgresCatalogSummary, readPostgresInventorySyncSummary },
+      { assessSquarePostgresSyncStatus },
+      { env }
+    ] = await Promise.all([
+      import("@/server/db/prisma"),
+      import("@/server/square/postgres-catalog-store"),
+      import("@/server/square/postgres-sync-status"),
+      import("@/lib/validation/env")
+    ]);
+    const prisma = getPrismaClient();
+    const [catalog, inventory, inventoryRows, states, locations] = await Promise.all([
+      readPostgresCatalogSummary(),
+      readPostgresInventorySyncSummary(),
+      prisma.squareInventoryCount.count(),
+      prisma.squareCatalogSyncState.findMany({
+        orderBy: { environment: "asc" },
+        select: {
+          environment: true,
+          latestTime: true,
+          lastStartedAt: true,
+          lastCompletedAt: true,
+          lastError: true,
+          lockedAt: true,
+          lockToken: true
+        }
+      }),
+      prisma.storeLocation.findMany({
+        orderBy: { slug: "asc" },
+        select: { id: true, name: true, squareLocationId: true }
+      })
+    ]);
+    const status = assessSquarePostgresSyncStatus({
+      environment: env.SQUARE_ENVIRONMENT,
+      catalogMaximumAgeSeconds: env.SQUARE_CATALOG_SYNC_MAX_AGE_SECONDS,
+      inventoryMaximumAgeSeconds: env.SQUARE_INVENTORY_SYNC_MAX_AGE_SECONDS,
+      catalog,
+      inventory: { ...inventory, rows: inventoryRows },
+      states
+    });
+    console.log(JSON.stringify({
+      mode: "square-postgres-read-only-status",
+      environment: activeEnvironment,
+      ok: status.ok,
+      failures: status.failures,
+      squareWritesEnabled: false,
+      catalog,
+      inventory: { ...inventory, rows: inventoryRows },
+      states,
+      locations
+    }, null, 2));
+    if (!status.ok) process.exitCode = 1;
+  } catch (error) {
+    console.error(JSON.stringify({
+      mode: "square-postgres-read-only-status",
+      ok: false,
+      error: sanitize(describeError(error, "Square PostgreSQL status failed."))
+    }, null, 2));
+    process.exitCode = 1;
+  }
+}
+
 function loadEnvironment() {
+  if (process.env.SQUARE_SYNC_EXTERNAL_ENV_ONLY === "true") return;
   for (const name of [".env.local", ".env"]) {
     const path = resolve(process.cwd(), name);
     if (existsSync(path)) process.loadEnvFile(path);
@@ -300,6 +328,7 @@ function describeError(error: unknown, fallback: string) {
 
 function validateCliArguments(values: string[]) {
   const modeFlags = [
+    "--sync",
     "--check",
     "--status",
     "--recover-catalog-lease",

@@ -11,7 +11,8 @@ afterEach(() => {
 
 describe("admin catalog browser", () => {
   it("searches and paginates the real catalog using GET requests only", async () => {
-    const fetchMock = vi.fn(async (input: string | URL | Request) => {
+    const fetchMock = vi.fn(async (...args: [string | URL | Request, RequestInit?]) => {
+      const input = args[0];
       const url = String(input);
       const page = url.includes("page=2") ? 2 : 1;
       const name = url.includes("q=foil+balloon") ? "Foil Balloon" : `Catalog Item Page ${page}`;

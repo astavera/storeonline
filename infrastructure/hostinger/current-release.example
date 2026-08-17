@@ -1,0 +1,2 @@
+release=/srv/storefront/releases/CHANGE_ME_IMMUTABLE_RELEASE
+image=sha256:CHANGE_ME_64_LOWERCASE_HEX_IMAGE_ID

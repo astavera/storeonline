@@ -1,0 +1,15 @@
+# Keeps the 30-minute inventory freshness contract with comfortable headroom.
+
+[Unit]
+Description=Refresh Storefront Square catalog and inventory every 8 minutes
+
+[Timer]
+OnBootSec=2min
+OnUnitInactiveSec=8min
+AccuracySec=15s
+RandomizedDelaySec=15s
+Persistent=true
+Unit=storefront-square-postgres-sync.service
+
+[Install]
+WantedBy=timers.target
