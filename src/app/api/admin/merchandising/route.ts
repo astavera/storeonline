@@ -7,8 +7,12 @@ import { ZodError } from "zod";
 import { readWebsiteMerchandisingSnapshot, saveWebsiteMerchandisingSnapshot } from "@/server/admin/website-merchandising-store";
 import { adminAuthorizationResponse, adminCapabilities, authorizeAdminRequest } from "@/server/admin/admin-security";
 import { readPostgresAdminCatalogSummary } from "@/server/square/postgres-admin-catalog-store";
+import { storefrontAdminPreviewRouteResponse } from "@/server/storefront/admin-preview-response";
 
 export async function GET(request: NextRequest) {
+  const previewResponse = storefrontAdminPreviewRouteResponse(request);
+  if (previewResponse) return previewResponse;
+
   const authorization = await authorizeAdminRequest(request, adminCapabilities.read);
   if (!authorization.ok) return adminAuthorizationResponse(authorization);
 
@@ -29,6 +33,9 @@ export async function GET(request: NextRequest) {
 }
 
 export async function PUT(request: NextRequest) {
+  const previewResponse = storefrontAdminPreviewRouteResponse(request);
+  if (previewResponse) return previewResponse;
+
   const authorization = await authorizeAdminRequest(request, adminCapabilities.merchandisingWrite);
   if (!authorization.ok) return adminAuthorizationResponse(authorization);
 

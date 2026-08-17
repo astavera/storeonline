@@ -21,6 +21,7 @@ import {
   ChevronDown,
   LayoutDashboard,
   LogOut,
+  PackageSearch,
   PencilRuler,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
@@ -40,8 +41,19 @@ const adminLinkGroups = [
 const adminLinkIcons: Record<string, LucideIcon> = {
   Dashboard: LayoutDashboard,
   "Website Editor": PencilRuler,
-  "Catalog Publishing": BarChart3
+  "Catalog Publishing": BarChart3,
+  "Catalog Browser": PackageSearch
 };
+
+const adminPreviewLinkGroups = [
+  {
+    label: "Preview tools",
+    links: [
+      ["Website Editor", "/admin/homepage"],
+      ["Catalog Browser", "/admin/catalog"]
+    ]
+  }
+] as const;
 
 const catalogPublishingLinks = [
   ["Overview", "#overview"],
@@ -53,13 +65,14 @@ const catalogPublishingLinks = [
   ["Bulk & Import", "#bulk"]
 ] as const;
 
-export function AdminShell({ children }: { children: ReactNode }) {
+export function AdminShell({ adminPreview = false, children }: { adminPreview?: boolean; children: ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
   const currentHash = useSyncExternalStore(subscribeToHashChange, readCurrentHash, () => "#overview");
   const [catalogPublishingMenuOpen, setCatalogPublishingMenuOpen] = useState(true);
   const [isSigningOut, setIsSigningOut] = useState(false);
-  const flatLinks: Array<readonly [string, string]> = adminLinkGroups.flatMap((group) => group.links.map(([label, href]) => [label, href] as const));
+  const visibleLinkGroups = adminPreview ? adminPreviewLinkGroups : adminLinkGroups;
+  const flatLinks: Array<readonly [string, string]> = visibleLinkGroups.flatMap((group) => group.links.map(([label, href]) => [label, href] as const));
   const isEditorPath = pathname?.startsWith("/admin/homepage") ?? false;
   const isCatalogPublishingPath = pathname?.startsWith("/admin/product-placement") ?? false;
 
@@ -156,7 +169,7 @@ export function AdminShell({ children }: { children: ReactNode }) {
                   </Link>
                 );
               })
-            : adminLinkGroups.map((group) => (
+            : visibleLinkGroups.map((group) => (
                 <div key={group.label}>
                   <p className="px-3 text-xs font-semibold uppercase tracking-[0.12em] text-secondary">{group.label}</p>
                   <div className="mt-2 grid gap-1">

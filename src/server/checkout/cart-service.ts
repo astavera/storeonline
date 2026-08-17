@@ -17,7 +17,6 @@ import {
   type OperationalStoreLocation
 } from "@/server/square/postgres-catalog-store";
 import { readResolvedSquareWebsiteCatalog } from "@/server/square/website-catalog-store";
-import { isStorefrontDesignPreviewEnabled } from "@/server/storefront/design-preview";
 
 export const cartItemInputSchema = z.object({
   squareVariationId: z.string().min(1),
@@ -93,7 +92,7 @@ export async function quoteCartFromOperationalCatalog(input: z.infer<typeof cart
       : operationalLocations.map((location) => location.squareLocationId)
   });
   if (!source) {
-    if (process.env.NODE_ENV === "development" || isStorefrontDesignPreviewEnabled()) {
+    if (process.env.E2E_CATALOG_FIXTURE === "true") {
       return quoteCartWithProducts(parsed, storefrontProducts, {
         catalogSource: "static-preview",
         inventoryAsOf: null,

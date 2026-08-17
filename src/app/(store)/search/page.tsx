@@ -27,7 +27,11 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
   const query = paramValue(params?.q).trim().slice(0, 100);
   const squareCatalog = await readResolvedSquareWebsiteCatalog();
   const resolvedCatalog = squareCatalog?.catalog ?? null;
-  const searchableProducts = resolvedCatalog ? filterWebsiteCatalogProducts(resolvedCatalog, { surface: "search" }) : storefrontProducts;
+  const searchableProducts = resolvedCatalog
+    ? filterWebsiteCatalogProducts(resolvedCatalog, { surface: "search" })
+    : process.env.E2E_CATALOG_FIXTURE === "true"
+      ? storefrontProducts
+      : [];
   const products = query ? searchProducts(searchableProducts, query) : [];
 
   return (

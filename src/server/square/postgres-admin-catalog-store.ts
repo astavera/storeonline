@@ -14,7 +14,8 @@ import { getPrismaClient } from "@/server/db/prisma";
 import { PersistenceUnavailableError } from "@/server/db/persistence-policy";
 import {
   readPostgresCatalogSummary,
-  readPostgresStorefrontProductsByVariationIds
+  readPostgresStorefrontProductsByVariationIds,
+  type PostgresCatalogSummary
 } from "@/server/square/postgres-catalog-store";
 
 export type PostgresCatalogImageFilter = "all" | "with" | "without";
@@ -69,9 +70,10 @@ export async function readPostgresAdminCatalogPage(options: CatalogQuery = {}): 
   const fromWhere = catalogFromWhere(normalized);
 
   try {
+    const catalog = await requireCompletedPostgresCatalog();
     const [countRows, summary] = await Promise.all([
       prisma.$queryRaw<CountRow[]>(Prisma.sql`SELECT COUNT(*)::bigint AS total ${fromWhere}`),
-      readPostgresAdminCatalogSummary()
+      buildPostgresAdminCatalogSummary(catalog)
     ]);
     const total = safeCount(countRows[0]?.total);
     const pageCount = Math.max(1, Math.ceil(total / normalized.pageSize));
@@ -118,6 +120,7 @@ export async function readPostgresAdminVariationSelection(
   const fromWhere = catalogFromWhere(normalized);
 
   try {
+    await requireCompletedPostgresCatalog();
     const [countRows, idRows] = await Promise.all([
       prisma.$queryRaw<CountRow[]>(Prisma.sql`SELECT COUNT(*)::bigint AS total ${fromWhere}`),
       prisma.$queryRaw<IdRow[]>(Prisma.sql`
@@ -148,6 +151,7 @@ export async function readPostgresAdminCatalogCategories(): Promise<SquareCatalo
   if (usesE2eCatalogFixture()) return readE2eAdminCatalogCategories();
 
   try {
+    await requireCompletedPostgresCatalog();
     const rows = await getPrismaClient().$queryRaw<CategoryRow[]>(Prisma.sql`
       WITH item_categories AS (
         SELECT item."id" AS item_id, unnest(item."categoryIds") AS category_id
@@ -192,29 +196,7 @@ export async function readPostgresAdminCatalogSummary(): Promise<SquareCatalogCa
   if (usesE2eCatalogFixture()) return e2eAdminCatalogSummary();
 
   try {
-    const [catalog, objectCounts] = await Promise.all([
-      readPostgresCatalogSummary(),
-      getPrismaClient().squareCatalogObject.groupBy({
-        by: ["type"],
-        where: { deletedAt: null, type: { in: ["IMAGE", "CATEGORY"] } },
-        _count: { _all: true }
-      })
-    ]);
-    const countByType = new Map(objectCounts.map((entry) => [entry.type, entry._count._all]));
-
-    return {
-      available: catalog.available,
-      environment: catalog.environment === "production" || catalog.environment === "sandbox" ? catalog.environment : null,
-      status: catalog.available ? "completed" : "unavailable",
-      hasMore: false,
-      pagesCompleted: 0,
-      itemCount: catalog.itemCount,
-      variationCount: catalog.variationCount,
-      imageCount: countByType.get("IMAGE") ?? 0,
-      categoryCount: countByType.get("CATEGORY") ?? 0,
-      vendorCount: 0,
-      updatedAt: catalog.updatedAt
-    };
+    return buildPostgresAdminCatalogSummary(await requireCompletedPostgresCatalog());
   } catch (error) {
     if (error instanceof PersistenceUnavailableError) throw error;
     throw new PersistenceUnavailableError("PostgreSQL admin catalog summary", { cause: error });
@@ -228,6 +210,38 @@ export async function readPostgresAdminProductsByVariationIds(variationIds: stri
   }
 
   return readPostgresStorefrontProductsByVariationIds(variationIds);
+}
+
+async function requireCompletedPostgresCatalog(): Promise<PostgresCatalogSummary> {
+  const catalog = await readPostgresCatalogSummary();
+  if (!catalog.available || !catalog.environment || !catalog.updatedAt) {
+    throw new PersistenceUnavailableError("Completed Square catalog synchronization for the active environment");
+  }
+
+  return catalog;
+}
+
+async function buildPostgresAdminCatalogSummary(catalog: PostgresCatalogSummary): Promise<SquareCatalogCacheSummary> {
+  const objectCounts = await getPrismaClient().squareCatalogObject.groupBy({
+    by: ["type"],
+    where: { deletedAt: null, type: { in: ["IMAGE", "CATEGORY"] } },
+    _count: { _all: true }
+  });
+  const countByType = new Map(objectCounts.map((entry) => [entry.type, entry._count._all]));
+
+  return {
+    available: true,
+    environment: catalog.environment === "production" || catalog.environment === "sandbox" ? catalog.environment : null,
+    status: "completed",
+    hasMore: false,
+    pagesCompleted: 0,
+    itemCount: catalog.itemCount,
+    variationCount: catalog.variationCount,
+    imageCount: countByType.get("IMAGE") ?? 0,
+    categoryCount: countByType.get("CATEGORY") ?? 0,
+    vendorCount: 0,
+    updatedAt: catalog.updatedAt
+  };
 }
 
 function readE2eAdminCatalogPage(options: CatalogQuery = {}): PostgresAdminCatalogPage {

@@ -4,8 +4,12 @@
 
 import { NextResponse } from "next/server";
 import { adminSessionCookieName, isTrustedMutationOrigin } from "@/server/admin/admin-security";
+import { storefrontAdminPreviewRouteResponse } from "@/server/storefront/admin-preview-response";
 
 export async function POST(request: Request) {
+  const previewResponse = storefrontAdminPreviewRouteResponse(request);
+  if (previewResponse) return previewResponse;
+
   if (!isTrustedMutationOrigin(request)) {
     return NextResponse.json({ ok: false, error: "This logout request could not be verified." }, { status: 403 });
   }

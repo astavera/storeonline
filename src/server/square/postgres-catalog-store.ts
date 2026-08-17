@@ -4,7 +4,7 @@
 
 import "server-only";
 
-import type { Prisma } from "@prisma/client";
+import type { Prisma, SquareCatalogSyncState } from "@prisma/client";
 import type { StorefrontProduct } from "@/features/catalog/product-catalog";
 import { env } from "@/lib/validation/env";
 import { getPrismaClient } from "@/server/db/prisma";
@@ -36,15 +36,31 @@ export type OperationalStoreLocation = {
   shippingFulfillmentEnabled: boolean;
 };
 
+type CatalogSyncEvidence = Pick<
+  SquareCatalogSyncState,
+  | "environment"
+  | "latestTime"
+  | "lastStartedAt"
+  | "lastCompletedAt"
+  | "lastError"
+  | "lockedAt"
+  | "lockToken"
+>;
+
+const catalogSyncEnvironments = ["sandbox", "production"] as const;
+const inventorySyncEnvironments = ["sandbox:inventory", "production:inventory"] as const;
+
 export async function readPostgresCatalogSummary(): Promise<PostgresCatalogSummary> {
   try {
-    const [state, itemCount, variationCount] = await Promise.all([
-      getPrismaClient().squareCatalogSyncState.findUnique({ where: { environment: env.SQUARE_ENVIRONMENT } }),
-      getPrismaClient().squareCatalogObject.count({ where: { type: "ITEM", deletedAt: null } }),
-      getPrismaClient().squareItemVariation.count({ where: { deletedAt: null, item: { deletedAt: null } } })
+    const prisma = getPrismaClient();
+    const [states, itemCount, variationCount] = await Promise.all([
+      readCatalogSyncEvidence(prisma),
+      prisma.squareCatalogObject.count({ where: { type: "ITEM", deletedAt: null } }),
+      prisma.squareItemVariation.count({ where: { deletedAt: null, item: { deletedAt: null } } })
     ]);
+    const state = exactCompletedCatalogSync(states, env.SQUARE_ENVIRONMENT);
     return {
-      available: variationCount > 0,
+      available: Boolean(state && itemCount > 0 && variationCount > 0),
       environment: state?.environment ?? null,
       itemCount,
       variationCount,
@@ -57,17 +73,17 @@ export async function readPostgresCatalogSummary(): Promise<PostgresCatalogSumma
 
 export async function readPostgresInventorySyncSummary(): Promise<PostgresInventorySyncSummary> {
   try {
-    const [state, locations] = await Promise.all([
-      getPrismaClient().squareCatalogSyncState.findUnique({
-        where: { environment: `${env.SQUARE_ENVIRONMENT}:inventory` }
-      }),
-      getPrismaClient().storeLocation.findMany({
+    const prisma = getPrismaClient();
+    const [states, locations] = await Promise.all([
+      readInventorySyncEvidence(prisma),
+      prisma.storeLocation.findMany({
         where: { OR: [{ pickupEnabled: true }, { localDeliveryEnabled: true }, { shippingFulfillmentEnabled: true }] },
         select: { squareLocationId: true }
       })
     ]);
+    const state = exactCompletedInventorySync(states, env.SQUARE_ENVIRONMENT);
     return {
-      available: Boolean(state?.lastCompletedAt && !state.lastError),
+      available: Boolean(state),
       lastCompletedAt: state?.lastCompletedAt?.toISOString() ?? null,
       latestTime: state?.latestTime ?? null,
       totalOperationalLocations: locations.length,
@@ -132,11 +148,18 @@ export async function readPostgresStorefrontProductsByVariationIds(
   if (normalizedIds.length === 0) return [];
 
   try {
+    const prisma = getPrismaClient();
+    const [catalogState, inventoryState] = await Promise.all([
+      readCatalogSyncEvidence(prisma).then((states) => exactCompletedCatalogSync(states, env.SQUARE_ENVIRONMENT)),
+      readInventorySyncEvidence(prisma).then((states) => exactCompletedInventorySync(states, env.SQUARE_ENVIRONMENT))
+    ]);
+    if (!catalogState || !inventoryState) return [];
+
     const mappedLocations = await readMappedOperationalStoreLocations();
     const squareLocationIds = options.squareLocationIds ?? mappedLocations.map((location) => location.squareLocationId);
     const requestedLocationIds = new Set(squareLocationIds);
     const pickupLocations = mappedLocations.filter((location) => location.pickupEnabled && requestedLocationIds.has(location.squareLocationId));
-    const variations = await getPrismaClient().squareItemVariation.findMany({
+    const variations = await prisma.squareItemVariation.findMany({
       where: { id: { in: normalizedIds }, deletedAt: null, item: { deletedAt: null } },
       include: {
         item: true,
@@ -151,7 +174,7 @@ export async function readPostgresStorefrontProductsByVariationIds(
       ...jsonStringArray(jsonObject(variation.item.raw)?.itemData, "imageIds")
     ]));
     const categoryIds = uniqueStrings(variations.flatMap((variation) => variation.item.categoryIds));
-    const related = await getPrismaClient().squareCatalogObject.findMany({
+    const related = await prisma.squareCatalogObject.findMany({
       where: { id: { in: [...imageIds, ...categoryIds] }, deletedAt: null }
     });
     const relatedById = new Map(related.map((object) => [object.id, object]));
@@ -213,6 +236,95 @@ export async function readPostgresStorefrontProductsByVariationIds(
   } catch (error) {
     throw new PersistenceUnavailableError("PostgreSQL Square catalog", { cause: error });
   }
+}
+
+async function readCatalogSyncEvidence(prisma = getPrismaClient()): Promise<CatalogSyncEvidence[]> {
+  return prisma.squareCatalogSyncState.findMany({
+    where: { environment: { in: [...catalogSyncEnvironments] } },
+    select: {
+      environment: true,
+      latestTime: true,
+      lastStartedAt: true,
+      lastCompletedAt: true,
+      lastError: true,
+      lockedAt: true,
+      lockToken: true
+    }
+  });
+}
+
+function exactCompletedCatalogSync(
+  states: CatalogSyncEvidence[],
+  expectedEnvironment: "sandbox" | "production"
+): CatalogSyncEvidence | null {
+  return exactCompletedSync(
+    states,
+    expectedEnvironment,
+    env.SQUARE_CATALOG_SYNC_MAX_AGE_SECONDS,
+    false
+  );
+}
+
+async function readInventorySyncEvidence(prisma = getPrismaClient()): Promise<CatalogSyncEvidence[]> {
+  return prisma.squareCatalogSyncState.findMany({
+    where: { environment: { in: [...inventorySyncEnvironments] } },
+    select: {
+      environment: true,
+      latestTime: true,
+      lastStartedAt: true,
+      lastCompletedAt: true,
+      lastError: true,
+      lockedAt: true,
+      lockToken: true
+    }
+  });
+}
+
+function exactCompletedInventorySync(
+  states: CatalogSyncEvidence[],
+  expectedEnvironment: "sandbox" | "production"
+): CatalogSyncEvidence | null {
+  return exactCompletedSync(
+    states,
+    `${expectedEnvironment}:inventory`,
+    env.SQUARE_INVENTORY_SYNC_MAX_AGE_SECONDS,
+    true
+  );
+}
+
+function exactCompletedSync(
+  states: CatalogSyncEvidence[],
+  expectedEnvironment: string,
+  maximumAgeSeconds: number,
+  requireWatermarkAtOrAfterStart: boolean
+): CatalogSyncEvidence | null {
+  if (states.length !== 1) return null;
+
+  const state = states[0];
+  const latestTime = state.latestTime?.trim() ?? "";
+  const startedAtMilliseconds = state.lastStartedAt?.getTime() ?? Number.NaN;
+  const completedAtMilliseconds = state.lastCompletedAt?.getTime() ?? Number.NaN;
+  const latestTimeMilliseconds = Date.parse(latestTime);
+  const nowMilliseconds = Date.now();
+  if (
+    state.environment !== expectedEnvironment ||
+    !latestTime ||
+    !Number.isFinite(latestTimeMilliseconds) ||
+    !Number.isFinite(startedAtMilliseconds) ||
+    !Number.isFinite(completedAtMilliseconds) ||
+    completedAtMilliseconds < startedAtMilliseconds ||
+    latestTimeMilliseconds > completedAtMilliseconds ||
+    (requireWatermarkAtOrAfterStart && latestTimeMilliseconds < startedAtMilliseconds) ||
+    completedAtMilliseconds > nowMilliseconds ||
+    nowMilliseconds - completedAtMilliseconds > maximumAgeSeconds * 1_000 ||
+    state.lastError !== null ||
+    state.lockedAt !== null ||
+    state.lockToken !== null
+  ) {
+    return null;
+  }
+
+  return state;
 }
 
 function jsonObject(value: Prisma.JsonValue | undefined): Record<string, Prisma.JsonValue> | null {

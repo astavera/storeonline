@@ -20,13 +20,13 @@ export async function resolveHomepageStorefrontContent(): Promise<HomepageStoref
   try {
     squareCatalog = await readResolvedSquareWebsiteCatalog();
   } catch {
-    console.warn("[homepage-cms] Catalog destinations are temporarily unavailable; using safe local options.");
-    return fallbackHomepageStorefrontContent();
+    console.warn("[homepage-cms] Catalog destinations are temporarily unavailable.");
+    return unavailableHomepageStorefrontContent();
   }
   const catalog = squareCatalog?.catalog ?? null;
 
   if (!catalog) {
-    return fallbackHomepageStorefrontContent();
+    return unavailableHomepageStorefrontContent();
   }
 
   const homepageProducts = filterWebsiteCatalogProducts(catalog, {
@@ -121,6 +121,19 @@ function fallbackHomepageStorefrontContent(): HomepageStorefrontContent {
     categories: fallbackCategories(),
     itemLinkOptions: createHomepageItemLinkOptions({ brands: [], categories: fallbackCategories(), products: storefrontProducts }),
     products: storefrontProducts,
+    trendingProducts: []
+  };
+}
+
+function unavailableHomepageStorefrontContent(): HomepageStorefrontContent {
+  if (process.env.E2E_CATALOG_FIXTURE === "true") {
+    return fallbackHomepageStorefrontContent();
+  }
+
+  return {
+    categories: [],
+    itemLinkOptions: createHomepageItemLinkOptions({ brands: [], categories: [], products: [] }),
+    products: [],
     trendingProducts: []
   };
 }

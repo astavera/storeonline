@@ -3,6 +3,7 @@
  */
 
 import { BuilderShell } from "@/components/admin/builder";
+import { redirect } from "next/navigation";
 import { HomepageStudioEditor } from "@/features/homepage/components/admin/homepage-studio-editor";
 import { storefrontEditablePages, websiteHolidayEditorPages } from "@/config/storefront-pages.config";
 import { storefrontProducts, type StorefrontProduct } from "@/features/catalog/product-catalog";
@@ -19,12 +20,19 @@ import { readLatestCmsDocument } from "@/server/admin/admin-cms-document-service
 import { readWebsiteMerchandisingSnapshot } from "@/server/admin/website-merchandising-store";
 import { readSquareCatalogPreview } from "@/server/square/catalog-preview-store";
 import { readPostgresAdminCatalogPage } from "@/server/square/postgres-admin-catalog-store";
+import { adminCapabilities } from "@/server/admin/admin-security";
+import { requireAdminSession } from "@/server/admin/admin-session";
+import { isStorefrontAdminPreviewEnabled } from "@/server/storefront/admin-preview";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
 export default async function AdminHomepagePage({ searchParams }: { searchParams?: Promise<{ scope?: string; id?: string; homepage?: string }> }) {
+  await requireAdminSession({ capability: adminCapabilities.read, returnTo: "/admin/homepage" });
   const params = await searchParams;
+  if (isStorefrontAdminPreviewEnabled() && (params?.scope || params?.id)) {
+    redirect("/admin/homepage");
+  }
   const scope = params?.scope ? normalizeCmsScope(params.scope) : null;
   const id = params?.id;
   const merchandisingPromise = readWebsiteMerchandisingSnapshot();
@@ -32,11 +40,12 @@ export default async function AdminHomepagePage({ searchParams }: { searchParams
   if (scope && id) {
     const staticPage = storefrontEditablePages.find((page) => page.scope === scope && page.entityId === id);
     const staticFallback = staticPage ? createStorefrontEditorFallbackDocument({ editablePage: staticPage, entityId: id, scope }) : null;
-    const [merchandising, staticStoredDocument] = await Promise.all([
+    const [merchandising, staticStoredDocument, catalogProducts] = await Promise.all([
       merchandisingPromise,
       staticFallback
         ? readLatestCmsDocument({ entityType: staticFallback.entityType, entityId: staticFallback.entityId, statuses: ["DRAFT", "PREVIEW", "PUBLISHED"] })
-        : Promise.resolve(null)
+        : Promise.resolve(null),
+      readHomepageEditorCatalogProducts()
     ]);
     const additionalPages = websiteHolidayEditorPages(merchandising.holidays);
     const editablePage = staticPage ?? additionalPages.find((page) => page.scope === scope && page.entityId === id);
@@ -46,7 +55,7 @@ export default async function AdminHomepagePage({ searchParams }: { searchParams
       : await readLatestCmsDocument({ entityType: fallbackDocument.entityType, entityId: fallbackDocument.entityId, statuses: ["DRAFT", "PREVIEW", "PUBLISHED"] });
     const document = shouldUseStorefrontEditorFallbackDocument({ document: storedDocument, editablePage }) ? fallbackDocument : storedDocument ?? fallbackDocument;
 
-    return <BuilderShell additionalPages={additionalPages} initialDocument={document} key={`${scope}:${document.entityId}`} publicPreviewRoute={editablePage?.route} scope={scope} />;
+    return <BuilderShell additionalPages={additionalPages} catalogProducts={catalogProducts} initialDocument={document} key={`${scope}:${document.entityId}`} publicPreviewRoute={editablePage?.route} scope={scope} />;
   }
 
   const [merchandising, homepageState, adminCatalogProducts] = await Promise.all([
@@ -70,7 +79,10 @@ export default async function AdminHomepagePage({ searchParams }: { searchParams
   const previewProducts = enrichHomepageEditorProducts(
     Array.from(
       new Map(
-        [...adminCatalogProducts, ...storefrontProducts].map((product) => [
+        [
+          ...adminCatalogProducts,
+          ...(process.env.E2E_CATALOG_FIXTURE === "true" ? storefrontProducts : [])
+        ].map((product) => [
           product.squareVariationId,
           product
         ])
@@ -207,6 +219,7 @@ export default async function AdminHomepagePage({ searchParams }: { searchParams
 }
 
 async function readHomepageEditorCatalogProducts() {
+  const adminPreviewEnabled = isStorefrontAdminPreviewEnabled();
   const preferLocalCatalog =
     process.env.NODE_ENV === "development" &&
     process.env.ALLOW_LOCAL_PERSISTENCE_FALLBACK === "true" &&
@@ -219,12 +232,19 @@ async function readHomepageEditorCatalogProducts() {
         pageSize: 100
       });
 
-      if (catalogPage.products.length > 0) {
+      if (catalogPage.products.length > 0 || adminPreviewEnabled) {
         return catalogPage.products;
       }
-    } catch {
+    } catch (error) {
+      if (adminPreviewEnabled) {
+        throw error;
+      }
       // Development can use the read-only Square preview when PostgreSQL is unavailable.
     }
+  }
+
+  if (adminPreviewEnabled) {
+    return [];
   }
 
   const preview = await readSquareCatalogPreview();

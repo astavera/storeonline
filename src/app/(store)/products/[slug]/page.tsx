@@ -44,7 +44,11 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
 export default async function ProductPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
   const squareCatalog = await readResolvedSquareWebsiteCatalog();
-  const product = squareCatalog ? squareCatalog.catalog.products.find((candidate) => candidate.slug === slug) : getProductBySlug(slug);
+  const product = squareCatalog
+    ? squareCatalog.catalog.products.find((candidate) => candidate.slug === slug)
+    : process.env.E2E_CATALOG_FIXTURE === "true"
+      ? getProductBySlug(slug)
+      : null;
   const publishedDocument = await readPublishedStorefrontCmsDocument({ entityType: "product", entityId: slug });
 
   if (!product) {
@@ -90,5 +94,9 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
 
 async function readPublicProduct(slug: string) {
   const squareCatalog = await readResolvedSquareWebsiteCatalog();
-  return squareCatalog ? squareCatalog.catalog.products.find((product) => product.slug === slug) : getProductBySlug(slug);
+  return squareCatalog
+    ? squareCatalog.catalog.products.find((product) => product.slug === slug)
+    : process.env.E2E_CATALOG_FIXTURE === "true"
+      ? getProductBySlug(slug)
+      : null;
 }

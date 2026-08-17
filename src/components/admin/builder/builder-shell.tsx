@@ -31,6 +31,7 @@ import { BuilderTopbar } from "./builder-topbar";
 import { commitEditingHistory, createEditingHistory, redoEditingHistory, undoEditingHistory } from "./editing-history";
 import type { BuilderDevice, BuilderDocumentHistoryEntry, BuilderInspectorTab, BuilderSaveState } from "./types";
 import type { StorefrontEditablePage } from "@/config/storefront-pages.config";
+import type { StorefrontProduct } from "@/features/catalog/product-catalog";
 
 type CmsSaveResponse = {
   document?: CmsPageDocument;
@@ -45,7 +46,7 @@ type CmsSaveResponse = {
   versions?: BuilderDocumentHistoryEntry[];
 };
 
-export function BuilderShell({ additionalPages = [], initialDocument, publicPreviewRoute, scope }: { additionalPages?: StorefrontEditablePage[]; initialDocument: CmsPageDocument; publicPreviewRoute?: string; scope: CmsScope }) {
+export function BuilderShell({ additionalPages = [], catalogProducts = [], initialDocument, publicPreviewRoute, scope }: { additionalPages?: StorefrontEditablePage[]; catalogProducts?: StorefrontProduct[]; initialDocument: CmsPageDocument; publicPreviewRoute?: string; scope: CmsScope }) {
   const normalizedInitialDocument = useMemo(() => {
     if (initialDocument.sections.length > 0) {
       return initialDocument;
@@ -306,6 +307,7 @@ export function BuilderShell({ additionalPages = [], initialDocument, publicPrev
             ) : (
               <BuilderInspector
                 activeTab={activeTab}
+                catalogProducts={catalogProducts}
                 document={documentState}
                 history={versionHistory}
                 onApplySectionPreset={(preset) => commit(applySectionPresetToSection(documentState, selectedSection.id, preset))}

@@ -12,10 +12,14 @@ import {
 } from "@/server/admin/admin-cms-document-service";
 import { getAdminRateLimiter } from "@/server/admin/admin-rate-limit";
 import { adminAuthorizationResponse, adminCapabilities, authorizeAdminRequest } from "@/server/admin/admin-security";
+import { storefrontAdminPreviewRouteResponse } from "@/server/storefront/admin-preview-response";
 
 const allowedOperations = new Set<CmsDocumentOperation>(["save_draft", "preview", "publish"]);
 
 export async function GET(request: NextRequest) {
+  const previewResponse = storefrontAdminPreviewRouteResponse(request);
+  if (previewResponse) return previewResponse;
+
   const authorization = await authorizeAdminRequest(request, adminCapabilities.read);
   if (!authorization.ok) return adminAuthorizationResponse(authorization);
 
@@ -37,6 +41,9 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
+  const previewResponse = storefrontAdminPreviewRouteResponse(request);
+  if (previewResponse) return previewResponse;
+
   const authorization = await authorizeAdminRequest(request, adminCapabilities.write);
   if (!authorization.ok) return adminAuthorizationResponse(authorization);
 

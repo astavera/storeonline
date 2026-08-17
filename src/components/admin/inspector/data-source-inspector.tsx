@@ -6,11 +6,11 @@
 
 import { ArrowDown, ArrowUp, Link2, Plus, Trash2 } from "lucide-react";
 import type { ReactNode } from "react";
-import { storefrontProducts } from "@/features/catalog/product-catalog";
+import type { StorefrontProduct } from "@/features/catalog/product-catalog";
 import { cmsDataSourceTypes, type CmsSection, type CmsDataSourceType } from "@/lib/cms";
 import { InspectorField, InspectorInput, InspectorSelect } from "./inspector-fields";
 
-export function DataSourceInspector({ section, updateSection }: { section: CmsSection; updateSection: (patch: Partial<CmsSection>) => void }) {
+export function DataSourceInspector({ products, section, updateSection }: { products: StorefrontProduct[]; section: CmsSection; updateSection: (patch: Partial<CmsSection>) => void }) {
   const linkedProductSlugs = Array.isArray(section.dataSource.manualIds) ? section.dataSource.manualIds : [];
   const linkedProductSet = new Set(linkedProductSlugs);
 
@@ -56,7 +56,7 @@ export function DataSourceInspector({ section, updateSection }: { section: CmsSe
 
   function seedManualProducts() {
     updateDataSource({
-      manualIds: storefrontProducts.slice(0, Number(section.dataSource.limit ?? 4)).map((product) => product.slug)
+      manualIds: products.slice(0, Number(section.dataSource.limit ?? 4)).map((product) => product.slug)
     });
   }
 
@@ -96,7 +96,7 @@ export function DataSourceInspector({ section, updateSection }: { section: CmsSe
 
         <div className="grid gap-2">
           {linkedProductSlugs.map((slug, index) => {
-            const product = storefrontProducts.find((candidate) => candidate.slug === slug);
+            const product = products.find((candidate) => candidate.slug === slug);
 
             if (!product) {
               return null;
@@ -132,7 +132,7 @@ export function DataSourceInspector({ section, updateSection }: { section: CmsSe
 
         <div className="mt-3 grid gap-2 border-t border-border pt-3">
           <p className="text-xs font-semibold uppercase tracking-[0.12em] text-secondary">Add product</p>
-          {storefrontProducts
+          {products
             .filter((product) => !linkedProductSet.has(product.slug))
             .map((product) => (
               <button className="flex items-center gap-2 rounded-md border border-border bg-surface px-2 py-2 text-left text-xs transition hover:border-primary hover:text-primary" key={product.slug} onClick={() => addProduct(product.slug)} type="button">

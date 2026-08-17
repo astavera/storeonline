@@ -4,6 +4,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { adminAuthorizationResponse, authorizeAdminRequest } from "@/server/admin/admin-security";
+import { isStorefrontAdminPreviewRequestAllowed } from "@/server/storefront/admin-preview";
 import { isStorefrontDesignPreviewRequestAllowed } from "@/server/storefront/design-preview";
 
 export async function proxy(request: NextRequest) {
@@ -17,6 +18,20 @@ export async function proxy(request: NextRequest) {
   } catch {
     return NextResponse.json(
       { ok: false, error: "STOREFRONT_DESIGN_PREVIEW_UNAVAILABLE" },
+      { status: 503, headers: { "Cache-Control": "private, no-store" } }
+    );
+  }
+
+  try {
+    if (!isStorefrontAdminPreviewRequestAllowed(request)) {
+      return NextResponse.json(
+        { ok: false, error: "STOREFRONT_ADMIN_PREVIEW_READ_ONLY" },
+        { status: 503, headers: { "Cache-Control": "private, no-store" } }
+      );
+    }
+  } catch {
+    return NextResponse.json(
+      { ok: false, error: "STOREFRONT_ADMIN_PREVIEW_UNAVAILABLE" },
       { status: 503, headers: { "Cache-Control": "private, no-store" } }
     );
   }

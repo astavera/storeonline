@@ -11,6 +11,7 @@ import {
 import { websiteCategoryKindIds, type WebsiteCategory } from "@/features/catalog/services/website-merchandising-service";
 import { adminAuthorizationResponse, adminCapabilities, authorizeAdminRequest } from "@/server/admin/admin-security";
 import { readPartyRecommendationCandidates } from "@/server/admin/party-merchandising-recommendation-store";
+import { storefrontAdminPreviewRouteResponse } from "@/server/storefront/admin-preview-response";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -36,6 +37,9 @@ const requestSchema = z.object({
 });
 
 export async function POST(request: NextRequest) {
+  const previewResponse = storefrontAdminPreviewRouteResponse(request);
+  if (previewResponse) return previewResponse;
+
   const authorization = await authorizeAdminRequest(request, adminCapabilities.read);
   if (!authorization.ok) return adminAuthorizationResponse(authorization);
 

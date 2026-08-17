@@ -22,10 +22,23 @@ export function hashAdminPassword(password: string, salt = randomBytes(16)) {
   return `${passwordHashPrefix}$${salt.toString("base64url")}$${derivedKey.toString("base64url")}`;
 }
 
+export function isValidAdminPasswordHash(encodedHash: string) {
+  try {
+    const [prefix, encodedSalt, encodedKey, extra] = encodedHash.trim().split("$");
+    if (prefix !== passwordHashPrefix || !encodedSalt || !encodedKey || extra) return false;
+    if (!/^[A-Za-z0-9_-]+$/.test(encodedSalt) || !/^[A-Za-z0-9_-]+$/.test(encodedKey)) return false;
+
+    return Buffer.from(encodedSalt, "base64url").length >= 16
+      && Buffer.from(encodedKey, "base64url").length === passwordKeyLength;
+  } catch {
+    return false;
+  }
+}
+
 export function verifyAdminPassword(password: string, encodedHash: string) {
   try {
-    const [prefix, encodedSalt, encodedKey, extra] = encodedHash.split("$");
-    if (prefix !== passwordHashPrefix || !encodedSalt || !encodedKey || extra) return false;
+    if (!isValidAdminPasswordHash(encodedHash)) return false;
+    const [, encodedSalt, encodedKey] = encodedHash.trim().split("$");
 
     const salt = Buffer.from(encodedSalt, "base64url");
     const expectedKey = Buffer.from(encodedKey, "base64url");

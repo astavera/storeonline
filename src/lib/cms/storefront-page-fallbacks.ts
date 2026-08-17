@@ -539,7 +539,9 @@ function createLocationPageSections(page: StorefrontEditablePage): CmsSection[] 
 }
 
 function createProductPageSections(page: StorefrontEditablePage): CmsSection[] {
-  const product = getProductBySlug(page.entityId);
+  const product = process.env.E2E_CATALOG_FIXTURE === "true"
+    ? getProductBySlug(page.entityId)
+    : null;
 
   return [
     createCmsSection("productDescription", {

@@ -28,7 +28,8 @@ export function ProductGrid({
   limit?: number;
   products?: StorefrontProduct[];
 }) {
-  const visibleProducts = products ?? getVisibleProducts(limit);
+  const visibleProducts = products
+    ?? (process.env.E2E_CATALOG_FIXTURE === "true" ? getVisibleProducts(limit) : []);
 
   return (
     <div className={cn("storefront-product-grid grid", productGridPresets[preset])}>

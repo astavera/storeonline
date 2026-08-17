@@ -244,7 +244,7 @@ function EditableHeroSection({ isPrimaryHeading, section }: { isPrimaryHeading: 
 }
 
 function EditableProductDetailSection({ isPrimaryHeading, product: providedProduct, section }: { isPrimaryHeading: boolean; product?: StorefrontProduct; section: CmsSection }) {
-  const product = providedProduct ?? (section.dataSource.id ? getProductBySlug(section.dataSource.id) : null);
+  const product = providedProduct ?? fixtureProductBySlug(section.dataSource.id);
   const title = String(section.content.title || product?.name || section.label);
   const body = String(section.content.body || product?.description || "");
   const image = section.media.image || product?.imageUrl || "";
@@ -298,7 +298,7 @@ function EditableProductDetailSection({ isPrimaryHeading, product: providedProdu
 }
 
 function EditableProductModuleSection({ isPrimaryHeading, product: providedProduct, section }: { isPrimaryHeading: boolean; product?: StorefrontProduct; section: CmsSection }) {
-  const product = providedProduct ?? (section.dataSource.id ? getProductBySlug(section.dataSource.id) : null);
+  const product = providedProduct ?? fixtureProductBySlug(section.dataSource.id);
   const title = String(section.content.title || product?.name || section.label);
   const type = String(section.type);
   const Heading = isPrimaryHeading ? "h1" : "h2";
@@ -349,7 +349,7 @@ function EditableProductsSection({ isPrimaryHeading, products: providedProducts,
 }
 
 function EditableShopCatalogSection({ isPrimaryHeading, products, section }: { isPrimaryHeading: boolean; products: StorefrontProduct[]; section: CmsSection }) {
-  const departments = Array.from(new Set(getVisibleProducts().map((product) => product.department))).sort();
+  const departments = Array.from(new Set(products.map((product) => product.department))).sort();
   const title = String(section.content.title || "Shop");
   const Heading = isPrimaryHeading ? "h1" : "h2";
 
@@ -710,6 +710,10 @@ function EditableProductGrid({ preset, products }: { preset: ProductGridPresetId
 }
 
 function productsForSection(section: CmsSection, fallbackLimit: number) {
+  if (process.env.E2E_CATALOG_FIXTURE !== "true") {
+    return [];
+  }
+
   const manualIds = Array.isArray(section.dataSource.manualIds) ? section.dataSource.manualIds : [];
 
   if (manualIds.length > 0) {
@@ -721,6 +725,14 @@ function productsForSection(section: CmsSection, fallbackLimit: number) {
   }
 
   return getVisibleProducts(fallbackLimit);
+}
+
+function fixtureProductBySlug(slug: string | undefined) {
+  if (process.env.E2E_CATALOG_FIXTURE !== "true" || !slug) {
+    return null;
+  }
+
+  return getProductBySlug(slug);
 }
 
 function productGridPresetForSection(section: CmsSection): ProductGridPresetId {

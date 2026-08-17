@@ -152,12 +152,12 @@ export const homepageSections: HomepageSectionConfig[] = [
     verticalPadding: "normal",
     columns: 4,
     items: [
-      { id: "toys", title: "Toys", href: "/products/premium-building-set", image: "/images/category-toys.svg", imageAlt: "Toy blocks category artwork", productSlug: "premium-building-set", squareVariationId: "seed-toy-building-set" },
-      { id: "party", title: "Party", href: "/products/celebration-tableware-kit", image: "/images/category-party.svg", imageAlt: "Party confetti category artwork", productSlug: "celebration-tableware-kit", squareVariationId: "seed-party-tableware-kit" },
-      { id: "balloons", title: "Balloons", href: "/products/mylar-balloon-pick", image: "/images/category-balloons.svg", imageAlt: "Balloon category artwork", productSlug: "mylar-balloon-pick", squareVariationId: "seed-mylar-balloon-pick" },
-      { id: "arts", title: "Arts & crafts", href: "/products/art-project-essentials", image: "/images/category-arts.svg", imageAlt: "Arts and crafts category artwork", productSlug: "art-project-essentials", squareVariationId: "seed-art-project-essentials" },
-      { id: "stationery", title: "Stationery", href: "/products/stationery-gift-set", image: "/images/category-stationery.svg", imageAlt: "Stationery category artwork", productSlug: "stationery-gift-set", squareVariationId: "seed-stationery-gift-set" },
-      { id: "gifts", title: "Gifts", href: "/products/gift-wrap-pack", image: "/images/category-gifts.svg", imageAlt: "Gift category artwork", productSlug: "gift-wrap-pack", squareVariationId: "seed-gift-wrap-pack" }
+      { id: "toys", title: "Toys", href: "/toys", image: "/images/category-toys.svg", imageAlt: "Toy blocks category artwork" },
+      { id: "party", title: "Party", href: "/party-supplies", image: "/images/category-party.svg", imageAlt: "Party confetti category artwork" },
+      { id: "balloons", title: "Balloons", href: "/balloons", image: "/images/category-balloons.svg", imageAlt: "Balloon category artwork" },
+      { id: "arts", title: "Arts & crafts", href: "/arts-and-crafts", image: "/images/category-arts.svg", imageAlt: "Arts and crafts category artwork" },
+      { id: "stationery", title: "Stationery", href: "/stationery", image: "/images/category-stationery.svg", imageAlt: "Stationery category artwork" },
+      { id: "gifts", title: "Gifts", href: "/gifts", image: "/images/category-gifts.svg", imageAlt: "Gift category artwork" }
     ]
   },
   {
