@@ -17,7 +17,7 @@ import { StorefrontCmsPage } from "@/components/cms/storefront-cms-page";
 import { LocalDeliveryQuotePanel } from "@/components/fulfillment/local-delivery-quote-panel";
 import { balloonBuilderStepLabels, balloonBuilderSteps, balloonFlows } from "@/config/balloons.config";
 import { getDepartmentBySlug } from "@/config/departments.config";
-import { readLatestCmsDocument } from "@/server/admin/admin-cms-document-service";
+import { readPublishedStorefrontCmsDocument } from "@/server/storefront/published-cms-document";
 import { ButtonLink } from "../ui/button";
 import { SectionFrame } from "../sections/section-frame";
 
@@ -32,10 +32,9 @@ export async function BalloonsPageTemplate({
   initialCollection,
   orderProDeliveryTestMode = false
 }: BalloonsPageTemplateProps) {
-  const publishedDocument = await readLatestCmsDocument({
+  const publishedDocument = await readPublishedStorefrontCmsDocument({
     entityType: flowSlug ? "landing" : "department",
     entityId: flowSlug ? `balloons-${flowSlug}` : "balloons",
-    statuses: ["PUBLISHED"]
   });
 
   if (publishedDocument) {

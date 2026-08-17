@@ -13,7 +13,7 @@ import { SectionFrame } from "@/components/sections/section-frame";
 import { getBalloonCatalogCollection, latexBalloonAddOnVariationIds, latexBalloonOrderVariationIds, type BalloonCatalogCollection } from "@/config/balloons.config";
 import { productAgeGroupIds, storefrontProducts, type FulfillmentMode, type ProductAgeGroup, type StorefrontProduct } from "@/features/catalog/product-catalog";
 import { filterWebsiteCatalogProducts, slugifyWebsiteCategory } from "@/features/catalog/services/website-merchandising-service";
-import { readLatestCmsDocument } from "@/server/admin/admin-cms-document-service";
+import { readPublishedStorefrontCmsDocument } from "@/server/storefront/published-cms-document";
 import { readResolvedSquareWebsiteCatalog } from "@/server/square/website-catalog-store";
 
 export const metadata = {
@@ -32,7 +32,7 @@ export default async function ShopPage({ searchParams }: ShopPageProps) {
   const useE2eFixture = process.env.E2E_CATALOG_FIXTURE === "true";
   const squareCatalogSource = useE2eFixture ? null : await readResolvedSquareWebsiteCatalog();
   const resolvedCatalog = squareCatalogSource?.catalog ?? null;
-  const publishedDocument = await readLatestCmsDocument({ entityType: "landing", entityId: "shop", statuses: ["PUBLISHED"] });
+  const publishedDocument = await readPublishedStorefrontCmsDocument({ entityType: "landing", entityId: "shop" });
 
   const params = await searchParams;
   const catalogProducts = resolvedCatalog?.products ?? (useE2eFixture ? storefrontProducts : []);
@@ -73,7 +73,9 @@ export default async function ShopPage({ searchParams }: ShopPageProps) {
             product.squareVariationId
           )
         )
-      : []
+      : useE2eFixture
+        ? categoryFilteredProducts
+        : []
     : categoryFilteredProducts;
   const filteredProducts = selectedCollection
     ? featureFilteredProducts.filter((product) => matchesBalloonCatalogCollection(product, selectedCollection))

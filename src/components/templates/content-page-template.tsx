@@ -14,7 +14,7 @@ BUSINESS LOGIC FILES: none
 import { SectionFrame } from "../sections/section-frame";
 import { StorefrontCmsPage } from "@/components/cms/storefront-cms-page";
 import type { CmsEntityType } from "@/lib/cms";
-import { readLatestCmsDocument } from "@/server/admin/admin-cms-document-service";
+import { readPublishedStorefrontCmsDocument } from "@/server/storefront/published-cms-document";
 
 export async function ContentPageTemplate({
   area,
@@ -31,7 +31,7 @@ export async function ContentPageTemplate({
 }) {
   const entityType = entityTypeForContentPage(area, sectionId);
   const entityId = entityIdForContentPage(sectionId);
-  const publishedDocument = await readLatestCmsDocument({ entityType, entityId, statuses: ["PUBLISHED"] });
+  const publishedDocument = await readPublishedStorefrontCmsDocument({ entityType, entityId });
 
   if (publishedDocument) {
     return <StorefrontCmsPage document={publishedDocument} />;

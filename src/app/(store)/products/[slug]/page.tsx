@@ -14,7 +14,7 @@ import { SectionFrame } from "@/components/sections/section-frame";
 import { fulfillmentModeLabel, getProductBySlug } from "@/features/catalog/product-catalog";
 import { formatMoney } from "@/lib/utils";
 import { buildStorefrontMetadata, createProductStructuredData } from "@/lib/seo/storefront-seo";
-import { readLatestCmsDocument } from "@/server/admin/admin-cms-document-service";
+import { readPublishedStorefrontCmsDocument } from "@/server/storefront/published-cms-document";
 import { readResolvedSquareWebsiteCatalog } from "@/server/square/website-catalog-store";
 
 export const dynamic = "force-dynamic";
@@ -45,7 +45,7 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
   const { slug } = await params;
   const squareCatalog = await readResolvedSquareWebsiteCatalog();
   const product = squareCatalog ? squareCatalog.catalog.products.find((candidate) => candidate.slug === slug) : getProductBySlug(slug);
-  const publishedDocument = await readLatestCmsDocument({ entityType: "product", entityId: slug, statuses: ["PUBLISHED"] });
+  const publishedDocument = await readPublishedStorefrontCmsDocument({ entityType: "product", entityId: slug });
 
   if (!product) {
     notFound();

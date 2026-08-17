@@ -264,6 +264,8 @@ else
 fi
 
 require_flag NEXT_PUBLIC_SITE_INDEXABLE false
+require_flag STOREFRONT_DESIGN_PREVIEW false
+require_flag E2E_CATALOG_FIXTURE false
 require_flag SQUARE_ALLOW_PRODUCTION_READONLY_SYNC true
 require_flag SQUARE_CHECKOUT_ENABLED false
 require_flag ORDERPRO_LOCAL_DELIVERY_CHECKOUT_ENABLED false

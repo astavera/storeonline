@@ -8,6 +8,8 @@ import { z } from "zod";
 const envSchema = z.object({
   NEXT_PUBLIC_SITE_URL: z.string().url().default("http://localhost:3000"),
   NEXT_PUBLIC_SITE_INDEXABLE: z.enum(["true", "false"]).default("false"),
+  STOREFRONT_DESIGN_PREVIEW: z.enum(["true", "false"]).default("false"),
+  E2E_CATALOG_FIXTURE: z.enum(["true", "false"]).default("false"),
   DATABASE_URL: z.preprocess((value) => value === "" ? undefined : value, z.string().min(1).optional()),
   DIRECT_URL: z.preprocess((value) => value === "" ? undefined : value, z.string().min(1).optional()),
   SQUARE_ENVIRONMENT: z.enum(["sandbox", "production"]).default("sandbox"),

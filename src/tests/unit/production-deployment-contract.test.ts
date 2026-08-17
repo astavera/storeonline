@@ -6,7 +6,7 @@ import { describe, expect, it } from "vitest";
 const repositoryRoot = process.cwd();
 
 function readRepositoryFile(path: string) {
-  return readFileSync(resolve(repositoryRoot, path), "utf8");
+  return readFileSync(resolve(repositoryRoot, path), "utf8").replace(/\r\n/gu, "\n");
 }
 
 function serviceBlock(compose: string, service: "migrate" | "storefront") {
@@ -48,6 +48,8 @@ describe("production deployment contract", () => {
     expect(migrate).not.toContain("STOREFRONT_RUNTIME_ENV_FILE");
     expect(storefront).toContain("STOREFRONT_RUNTIME_ENV_FILE:?");
     expect(storefront).not.toContain("STOREFRONT_MIGRATOR_ENV_FILE");
+    expect(storefront).toContain('STOREFRONT_DESIGN_PREVIEW: "false"');
+    expect(storefront).toContain('E2E_CATALOG_FIXTURE: "false"');
     expect(compose).not.toMatch(/^\s+depends_on:/mu);
     expect(compose).not.toMatch(/^\s+(?:DATABASE_URL|DIRECT_URL):/mu);
   });
@@ -92,6 +94,8 @@ describe("production deployment contract", () => {
     assertDatabaseBoundary(migratorDirectUrl!, "storefront_migrator");
 
     expect(runtime).not.toContain("storefront_migrator");
+    expect(runtime).toContain("STOREFRONT_DESIGN_PREVIEW=false");
+    expect(runtime).toContain("E2E_CATALOG_FIXTURE=false");
     expect(migrator).not.toContain("storefront_runtime");
     expect(configuredNames(migrator)).toEqual(["DATABASE_URL", "DIRECT_URL"]);
   });
@@ -117,6 +121,8 @@ describe("production deployment contract", () => {
     expect(preflight).toContain("exactly one running private OrderPRO container is required");
     expect(preflight).toContain("Caddy must not join a Storefront database or private API network");
     expect(preflight).toContain("migrator credentials are absent from the storefront runtime environment");
+    expect(preflight).toContain("require_flag STOREFRONT_DESIGN_PREVIEW false");
+    expect(preflight).toContain("require_flag E2E_CATALOG_FIXTURE false");
     expect(preflight).toContain("runtime credentials are absent from the migrator environment");
     expect(preflight).toContain('^[0-9a-f]{40}$');
     expect(preflight).not.toContain("STOREFRONT_ENV_FILE=");
