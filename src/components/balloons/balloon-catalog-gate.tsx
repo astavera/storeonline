@@ -2,10 +2,10 @@
 
 "use client";
 
-import { ArrowLeft, ChevronRight, Clock3, LoaderCircle, MapPin, Phone, Store, Truck, X } from "lucide-react";
+import { ArrowLeft, ChevronRight, CircleHelp, Clock3, CreditCard, LoaderCircle, MapPin, Phone, ShoppingBag, Sparkles, Store, Truck, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { createPortal } from "react-dom";
-import { useEffect, useRef, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { storeLocations } from "@/config/locations.config";
 import type { BalloonDeliveryPostalEligibility } from "@/features/fulfillment/contracts/orderpro-local-delivery";
 import type { OrderProPickupAvailability } from "@/features/fulfillment/contracts/orderpro-pickup";
@@ -25,15 +25,15 @@ type BalloonCatalogItem = {
 
 const primaryCatalogItems: BalloonCatalogItem[] = [
   { title: "Latex", collection: "latex", tone: "yellow", imageUrl: "/images/balloons/latex-bouquet-v1.png", imagePosition: "center", ariaLabel: "Shop latex balloons" },
-  { title: "Mylar", collection: "mylar", tone: "cyan", imageUrl: "/images/balloons/mylar-star-v1.png", imagePosition: "center", ariaLabel: "Shop mylar balloons" },
   { title: "Bouquets", collection: "bouquets", tone: "pink", imageUrl: "/images/balloons/bouquets-cutout-v1.png", imagePosition: "center", ariaLabel: "Shop balloon bouquets" },
-  { title: "Arches", collection: "arches", tone: "blue", imageUrl: "/images/balloons/arches-transparent-v4.png", imagePosition: "center", ariaLabel: "Shop balloon arches and columns" }
+  { title: "Shapes", collection: "mylar", tone: "cyan", imageUrl: "/images/balloons/mylar-star-v1.png", imagePosition: "center", ariaLabel: "Shop shape balloons" },
+  { title: "Numbers", collection: "numbers", tone: "yellow", imageUrl: "/images/balloons/number-one-balloon-v1.png", imagePosition: "center", imageSize: "125%", ariaLabel: "Shop number balloons" }
 ];
 
 const secondaryCatalogItems: BalloonCatalogItem[] = [
-  { title: "Numbers", collection: "numbers", tone: "yellow", imageUrl: "/images/balloons/number-one-balloon-v1.png", imagePosition: "center", imageSize: "125%", ariaLabel: "Shop number balloons" },
   { title: "Letters", collection: "letters", tone: "cyan", imageUrl: "/images/balloons/letter-a-balloon-v1.png", imagePosition: "center", ariaLabel: "Shop letter balloons" },
-  { title: "Any Occasion", collection: "any-occasion", tone: "pink", imageUrl: "/images/balloons/any-occasion-balloons-v1.png", imagePosition: "center", ariaLabel: "Shop balloons for any occasion" }
+  { title: "Any Occasion", collection: "any-occasion", tone: "pink", imageUrl: "/images/balloons/any-occasion-balloons-v1.png", imagePosition: "center", ariaLabel: "Shop balloons for any occasion" },
+  { title: "Arches", collection: "arches", tone: "blue", imageUrl: "/images/balloons/arches-transparent-v4.png", imagePosition: "center", ariaLabel: "Shop balloon arches and columns" }
 ];
 
 const catalogItems = [...primaryCatalogItems, ...secondaryCatalogItems];
@@ -42,6 +42,7 @@ const deliverySupportStore = storeLocations.find((location) => location.slug ===
 
 export function BalloonCatalogGate({ initialCollection }: { initialCollection?: string }) {
   const router = useRouter();
+  const [isGuideOpen, setIsGuideOpen] = useState(false);
   const [selectedItem, setSelectedItem] = useState<BalloonCatalogItem | null>(null);
   const [mode, setMode] = useState<FulfillmentMode | null>(null);
   const [pickupStoreId, setPickupStoreId] = useState(pickupStores[0]?.id ?? "");
@@ -55,8 +56,17 @@ export function BalloonCatalogGate({ initialCollection }: { initialCollection?: 
   const deliveryRequestVersionRef = useRef(0);
   const pickupRequestVersionRef = useRef(0);
   const openedInitialCollectionRef = useRef<string | null>(null);
+  const openedGuideRef = useRef(false);
   const closeButtonRef = useRef<HTMLButtonElement>(null);
+  const guideCloseButtonRef = useRef<HTMLButtonElement>(null);
+  const guideTriggerRef = useRef<HTMLButtonElement | null>(null);
   const triggerRef = useRef<HTMLButtonElement | null>(null);
+
+  useEffect(() => {
+    if (initialCollection || openedGuideRef.current) return;
+    openedGuideRef.current = true;
+    setIsGuideOpen(true);
+  }, [initialCollection]);
 
   useEffect(() => {
     const item = catalogItems.find((candidate) => candidate.collection === initialCollection);
@@ -102,13 +112,16 @@ export function BalloonCatalogGate({ initialCollection }: { initialCollection?: 
   }, [mode, pickupStoreId, requestedDate]);
 
   useEffect(() => {
-    if (!selectedItem) return;
+    if (!isGuideOpen && !selectedItem) return;
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
-    closeButtonRef.current?.focus();
+    if (isGuideOpen) guideCloseButtonRef.current?.focus();
+    else closeButtonRef.current?.focus();
 
     function handleKeyDown(event: KeyboardEvent) {
-      if (event.key === "Escape") closeGate();
+      if (event.key !== "Escape") return;
+      if (isGuideOpen) closeGuide();
+      else closeGate();
     }
 
     window.addEventListener("keydown", handleKeyDown);
@@ -116,7 +129,17 @@ export function BalloonCatalogGate({ initialCollection }: { initialCollection?: 
       document.body.style.overflow = previousOverflow;
       window.removeEventListener("keydown", handleKeyDown);
     };
-  }, [selectedItem]);
+  }, [isGuideOpen, selectedItem]);
+
+  function openGuide(trigger: HTMLButtonElement) {
+    guideTriggerRef.current = trigger;
+    setIsGuideOpen(true);
+  }
+
+  function closeGuide() {
+    setIsGuideOpen(false);
+    window.setTimeout(() => guideTriggerRef.current?.focus(), 0);
+  }
 
   function openGate(item: BalloonCatalogItem, trigger: HTMLButtonElement) {
     deliveryRequestVersionRef.current += 1;
@@ -219,6 +242,50 @@ export function BalloonCatalogGate({ initialCollection }: { initialCollection?: 
     <>
       <CatalogNavigation ariaLabel="Shop balloons by type" items={primaryCatalogItems} onSelect={openGate} />
       <CatalogNavigation ariaLabel="Shop more balloon collections" className="balloons-hero-links--secondary" items={secondaryCatalogItems} onSelect={openGate} />
+      <div className="balloons-order-guide-trigger-wrap">
+        <button className="balloons-order-guide-trigger" onClick={(event) => openGuide(event.currentTarget)} type="button">
+          <CircleHelp aria-hidden="true" size={18} /> How balloon ordering works
+        </button>
+      </div>
+
+      {isGuideOpen && typeof document !== "undefined"
+        ? createPortal(
+            <div className="balloons-gate-backdrop" onMouseDown={(event) => {
+              if (event.target === event.currentTarget) closeGuide();
+            }}>
+              <section aria-labelledby="balloons-order-guide-title" aria-modal="true" className="balloons-gate-modal balloons-order-guide" role="dialog">
+                <button aria-label="Close balloon ordering guide" className="balloons-gate-modal__close" onClick={closeGuide} ref={guideCloseButtonRef} type="button">
+                  <X aria-hidden="true" size={18} strokeWidth={2} />
+                </button>
+
+                <header className="balloons-order-guide__header">
+                  <h2 id="balloons-order-guide-title">Ordering balloons is easy</h2>
+                  <p>Four quick steps and you&apos;re ready to celebrate.</p>
+                </header>
+
+                <ol className="balloons-order-guide__steps">
+                  <GuideStep icon={<Sparkles aria-hidden="true" size={20} />} number="1" title="Pick your balloons">
+                    Choose the style you like.
+                  </GuideStep>
+                  <GuideStep icon={<Truck aria-hidden="true" size={20} />} number="2" title="Delivery or pickup">
+                    Enter your ZIP, or choose a store and pickup time.
+                  </GuideStep>
+                  <GuideStep icon={<ShoppingBag aria-hidden="true" size={20} />} number="3" title="Add to your cart">
+                    Choose the quantity and any extras.
+                  </GuideStep>
+                  <GuideStep icon={<CreditCard aria-hidden="true" size={20} />} number="4" title="Checkout">
+                    Review your order and pay.
+                  </GuideStep>
+                </ol>
+
+                <div className="balloons-order-guide__footer">
+                  <button className="balloons-gate-primary" onClick={closeGuide} type="button">Start shopping <ChevronRight aria-hidden="true" size={18} /></button>
+                </div>
+              </section>
+            </div>,
+            document.body
+          )
+        : null}
 
       {selectedItem && typeof document !== "undefined"
         ? createPortal(
@@ -329,6 +396,17 @@ function CatalogNavigation({ items, ariaLabel, className, onSelect }: { items: B
         </button>
       ))}
     </nav>
+  );
+}
+
+function GuideStep({ children, icon, number, title }: { children: string; icon: ReactNode; number: string; title: string }) {
+  return (
+    <li>
+      <span className="balloons-order-guide__step-number">{number}</span>
+      <span className="balloons-order-guide__step-icon">{icon}</span>
+      <h3>{title}</h3>
+      <p>{children}</p>
+    </li>
   );
 }
 

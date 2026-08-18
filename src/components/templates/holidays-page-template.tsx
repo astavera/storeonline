@@ -46,12 +46,10 @@ export async function HolidayDetailTemplate({ slug }: { slug: string }) {
   if (websiteCatalog) {
     const holiday = websiteCatalog.holidays.find((current) => current.slug === slug);
 
-    if (!holiday) {
-      notFound();
+    if (holiday) {
+      const products = filterWebsiteCatalogProducts(websiteCatalog, { holidayId: holiday.id, surface: "holiday-pages" });
+      return publishedDocument ? <StorefrontCmsPage document={publishedDocument} products={products} /> : <WebsiteHolidayDetail catalog={websiteCatalog} holiday={holiday} />;
     }
-
-    const products = filterWebsiteCatalogProducts(websiteCatalog, { holidayId: holiday.id, surface: "holiday-pages" });
-    return publishedDocument ? <StorefrontCmsPage document={publishedDocument} products={products} /> : <WebsiteHolidayDetail catalog={websiteCatalog} holiday={holiday} />;
   }
 
   if (publishedDocument) {

@@ -31,7 +31,7 @@ export function HomepagePartySuppliesCard({
 
   return (
     <article
-      className="group relative mt-4 min-h-[500px] overflow-hidden rounded-[24px] border border-black/10 bg-[#f8f7f5] text-white shadow-[0_24px_60px_rgba(52,34,63,0.18)] sm:mt-5 sm:min-h-[520px] sm:rounded-[30px]"
+      className="homepage-card group relative mt-6 min-h-[460px] overflow-hidden bg-[#f8f7f5] text-white sm:mt-8 sm:min-h-[500px]"
       data-store-section={
         section?.sectionId ?? "home.party-supplies-callout"
       }

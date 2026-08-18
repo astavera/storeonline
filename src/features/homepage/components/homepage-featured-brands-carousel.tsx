@@ -35,7 +35,7 @@ export function HomepageFeaturedBrandsCarousel({
   return (
     <section
       aria-label="Featured brands"
-      className="mt-3"
+      className="mt-8 sm:mt-10"
       data-store-section={
         section?.sectionId ?? "home.featured-brands-carousel"
       }

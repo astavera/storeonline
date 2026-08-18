@@ -101,26 +101,56 @@ select:not([multiple]):focus-visible {
   margin-inline: auto;
 }
 
-/* Gives wide homepage features slightly more breathing room on desktop screens. */
+/* Keeps all major storefront bands on one deliberate, retail-friendly grid. */
 .homepage-wide-shell {
-  max-width: none;
+  width: min(calc(100% - 2rem), 100rem);
+  max-width: 100rem;
 }
 
-@media (min-width: 1024px) {
-  .homepage-wide-shell {
-    width: calc(100% - 6rem);
+.homepage-hero-stage {
+  width: 100%;
+  margin-inline: auto;
+  overflow: hidden;
+}
+
+.homepage-card {
+  border: 1px solid rgba(31, 42, 25, 0.11);
+  border-radius: 1.5rem;
+  box-shadow: 0 18px 48px rgba(31, 42, 25, 0.09);
+}
+
+.homepage-section-kicker {
+  color: var(--color-text-secondary);
+  font-size: 0.72rem;
+  font-weight: 900;
+  letter-spacing: 0.18em;
+  line-height: 1.2;
+  text-transform: uppercase;
+}
+
+@media (min-width: 640px) {
+  .homepage-wide-shell,
+  .homepage-hero-stage {
+    width: min(calc(100% - 3rem), 100rem);
+  }
+
+  .homepage-hero-stage,
+  .homepage-card {
+    border-radius: 1.75rem;
   }
 }
 
-@media (min-width: 1280px) {
-  .homepage-wide-shell {
-    width: calc(100% - 10rem);
+@media (min-width: 1024px) {
+  .homepage-wide-shell,
+  .homepage-hero-stage {
+    width: min(calc(100% - 5rem), 100rem);
   }
 }
 
 @media (min-width: 1536px) {
-  .homepage-wide-shell {
-    width: calc(100% - 12rem);
+  .homepage-wide-shell,
+  .homepage-hero-stage {
+    width: min(calc(100% - 8rem), 100rem);
   }
 }
 
@@ -175,7 +205,11 @@ select:not([multiple]):focus-visible {
 }
 
 .homepage-full-hero[data-store-variant="seasonal-card"] {
-  background: var(--color-legacy-white);
+  background: var(--color-surface);
+}
+
+.homepage-full-hero[data-store-variant="seasonal-card"]::after {
+  display: none;
 }
 
 .homepage-full-hero[data-store-variant="back-to-school"] {

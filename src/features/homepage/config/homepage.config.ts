@@ -314,7 +314,7 @@ export const homepageSections: HomepageSectionConfig[] = [
   {
     sectionId: "home.featured-brands-carousel",
     sectionType: "feature-grid",
-    title: "Shop featured brands",
+    title: "Some of our trusted brands",
     body: "",
     variant: "featured-brands-carousel",
     sortOrder: 29,

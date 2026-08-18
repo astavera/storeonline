@@ -1,7 +1,7 @@
 .carousel {
   position: relative;
   z-index: 2;
-  min-height: clamp(560px, calc(100svh - 96px), 900px);
+  min-height: clamp(600px, calc(100svh - 200px), 760px);
   overflow: hidden;
   background: #050308;
   color: #fff;
@@ -51,7 +51,7 @@
   position: relative;
   z-index: 2;
   display: flex;
-  min-height: clamp(560px, calc(100svh - 96px), 900px);
+  min-height: clamp(600px, calc(100svh - 200px), 760px);
   width: min(58vw, 780px);
   align-items: center;
   justify-content: center;

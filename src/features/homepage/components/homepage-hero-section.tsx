@@ -60,12 +60,14 @@ export function HomepageHeroSection({
     return (
       <SectionFrame
         area="Homepage"
-        className="homepage-full-hero relative isolate overflow-hidden bg-primary text-white"
+        className="homepage-full-hero relative isolate overflow-hidden bg-primary text-white sm:pb-0 sm:pt-6"
         component="HomepageHeroSection"
         sectionId={section.sectionId}
         variant={section.variant}
       >
-        <HalloweenHeroCarousel section={section} />
+        <div className="homepage-hero-stage">
+          <HalloweenHeroCarousel section={section} />
+        </div>
       </SectionFrame>
     );
   }

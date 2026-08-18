@@ -34,8 +34,8 @@ describe("homepage promotional cards", () => {
     render(<HomePageTemplate sections={[hero]} />);
 
     expect(screen.getByRole("link", { name: "Costumes" })).toBeTruthy();
-    expect(screen.getByRole("link", { name: "Plan a party" })).toBeTruthy();
-    expect(screen.getByRole("link", { name: "Shop Accessories" })).toBeTruthy();
+    expect(screen.getByRole("link", { name: "Plan a Party" })).toBeTruthy();
+    expect(screen.getByRole("link", { name: "Accessories" })).toBeTruthy();
     expect(screen.getByRole("link", { name: "Home Decor" })).toBeTruthy();
     expect(screen.queryByRole("link", { name: "Toys" })).toBeNull();
   });

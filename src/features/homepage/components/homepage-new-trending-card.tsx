@@ -64,7 +64,7 @@ export function HomepageNewTrendingCard({
 
   return (
     <article
-      className="relative isolate flex min-h-[430px] overflow-hidden rounded-[24px] border border-black/15 bg-white text-black shadow-[0_22px_60px_rgba(0,0,0,0.08)] sm:rounded-[32px] lg:min-h-[500px]"
+      className="homepage-card relative isolate flex min-h-[430px] overflow-hidden bg-white text-black lg:min-h-[470px]"
       data-store-section={section?.sectionId ?? "home.new-trending"}
       onBlur={() => setIsPaused(false)}
       onFocus={() => setIsPaused(true)}
@@ -201,9 +201,21 @@ export function HomepageNewTrendingCard({
             </ButtonLink>
           </>
         ) : (
-          <div className="mt-5 flex flex-1 flex-col items-center justify-end rounded-[22px] border border-black/10 bg-[#f7f7f7] p-5">
+          <div className="relative mt-5 flex flex-1 flex-col justify-end overflow-hidden rounded-[22px] border border-black/10 bg-[linear-gradient(135deg,#f7f3ff_0%,#eef8ff_48%,#fff4e8_100%)] p-6 sm:p-8">
+            <span aria-hidden="true" className="absolute -right-8 -top-10 size-36 rounded-full bg-yellow/65 blur-sm" />
+            <span aria-hidden="true" className="absolute left-[12%] top-[18%] size-20 rounded-full bg-cyan/55 blur-sm" />
+            <span aria-hidden="true" className="absolute right-[28%] top-[38%] size-14 rounded-full bg-red/35 blur-sm" />
+            <div className="relative mb-auto max-w-sm pt-2">
+              <p className="homepage-section-kicker">Fresh finds</p>
+              <p className="mt-3 font-display text-2xl font-black leading-tight text-primary sm:text-3xl">
+                New arrivals are landing soon.
+              </p>
+              <p className="mt-3 text-sm font-semibold leading-relaxed text-primary/65">
+                Browse the full collection while we prepare the latest picks.
+              </p>
+            </div>
             <ButtonLink
-              className="min-h-12 w-fit justify-center gap-3 rounded-pill bg-black px-6 py-3 text-sm font-black text-white shadow-[0_12px_28px_rgba(0,0,0,0.18)] hover:bg-[#292929]"
+              className="relative min-h-12 w-fit justify-center gap-3 rounded-pill bg-black px-6 py-3 text-sm font-black text-white shadow-[0_12px_28px_rgba(0,0,0,0.18)] hover:bg-[#292929]"
               href={ctaHref}
             >
               <span>{ctaLabel}</span>

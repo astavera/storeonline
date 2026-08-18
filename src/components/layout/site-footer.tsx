@@ -20,7 +20,7 @@ export function SiteFooter() {
 
   return (
     <footer className="border-t border-border bg-surface" data-store-area="Layout" data-store-component="SiteFooter" data-store-section="layout.footer">
-      <div className="container-shell grid gap-10 py-12 md:grid-cols-[1.2fr_1fr_1fr]">
+      <div className="container-shell homepage-wide-shell grid gap-10 py-12 md:grid-cols-[1.2fr_1fr_1fr]">
         <div>
           <p className="font-display text-xl font-semibold">Modern State - State News NYC</p>
           <p className="mt-3 max-w-sm text-sm text-secondary">The evolution of State News: local, friendly, useful, and ready for modern ecommerce.</p>
