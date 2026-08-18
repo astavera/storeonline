@@ -54,7 +54,7 @@
     "next": "16.2.12",
     "react": "19.2.7",
     "react-dom": "19.2.7",
-    "read-excel-file": "9.3.1",
+    "read-excel-file": "9.3.10",
     "server-only": "0.0.1",
     "shippo": "2.18.0",
     "square": "45.0.1",
