@@ -80,7 +80,12 @@ DECLARE
     'SquareInventoryCount',
     'SquareCatalogSyncState',
     'CmsContentVersion',
+    'CheckoutAttempt',
     'AdminRateLimitBucket'
+  ];
+  runtime_usage_type_names CONSTANT text[] := ARRAY[
+    'CmsPublishStatus',
+    'CheckoutAttemptStatus'
   ];
   sync_projection_table_names CONSTANT text[] := ARRAY[
     'SquareCatalogObject',
@@ -335,7 +340,10 @@ BEGIN
           IF role_name = 'storefront_runtime' THEN
             expected_privilege :=
               (privilege_name = 'SELECT' AND object_name = ANY(runtime_select_table_names))
-              OR (privilege_name = 'INSERT' AND object_name = 'AdminRateLimitBucket')
+              OR (
+                privilege_name = 'INSERT'
+                AND object_name = ANY(ARRAY['AdminRateLimitBucket', 'CheckoutAttempt'])
+              )
               OR (
                 privilege_name = 'UPDATE'
                 AND object_name = 'AdminRateLimitBucket'
@@ -484,7 +492,7 @@ BEGIN
     END IF;
 
     actual_privilege := has_type_privilege('storefront_runtime', object_oid, 'USAGE');
-    expected_privilege := object_name = 'CmsPublishStatus';
+    expected_privilege := object_name = ANY(runtime_usage_type_names);
     IF actual_privilege IS DISTINCT FROM expected_privilege THEN
       RAISE EXCEPTION 'Unexpected runtime USAGE privilege on type public.%.', object_name;
     END IF;

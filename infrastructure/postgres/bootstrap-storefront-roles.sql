@@ -215,7 +215,12 @@ DECLARE
     'SquareInventoryCount',
     'SquareCatalogSyncState',
     'CmsContentVersion',
+    'CheckoutAttempt',
     'AdminRateLimitBucket'
+  ];
+  runtime_usage_type_names CONSTANT text[] := ARRAY[
+    'CmsPublishStatus',
+    'CheckoutAttemptStatus'
   ];
   sync_projection_table_names CONSTANT text[] := ARRAY[
     'SquareCatalogObject',
@@ -542,9 +547,15 @@ BEGIN
       ON TABLE public."AdminRateLimitBucket" TO storefront_runtime;
   END IF;
 
-  IF to_regtype('public."CmsPublishStatus"') IS NOT NULL THEN
-    GRANT USAGE ON TYPE public."CmsPublishStatus" TO storefront_runtime;
+  IF to_regclass('public."CheckoutAttempt"') IS NOT NULL THEN
+    GRANT INSERT ON TABLE public."CheckoutAttempt" TO storefront_runtime;
   END IF;
+
+  FOREACH object_name IN ARRAY runtime_usage_type_names LOOP
+    IF to_regtype(format('%I.%I', 'public', object_name)) IS NOT NULL THEN
+      EXECUTE format('GRANT USAGE ON TYPE %I.%I TO storefront_runtime', 'public', object_name);
+    END IF;
+  END LOOP;
 
   FOREACH object_name IN ARRAY sync_projection_table_names LOOP
     IF to_regclass(format('%I.%I', 'public', object_name)) IS NOT NULL THEN
