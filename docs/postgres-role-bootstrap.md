@@ -115,15 +115,18 @@ and administration tables that this preview deliberately keeps private.
 | `storefront_sync` | `StoreLocation` | `SELECT`; `UPDATE` only on `squareLocationId` and Prisma's `updatedAt` column for the reviewed mapping command |
 | `storefront_sync` | `AuditLog` | `SELECT, INSERT` only, so a successful mapping change can be recorded |
 | `storefront_runtime` | `StoreLocation`, the four Square projection tables, `CmsContentVersion` | `SELECT` only for public/admin catalog reads, inventory freshness, locations, merchandising, and homepage state |
+| `storefront_runtime` | `CheckoutAttempt` | `SELECT, INSERT` only, so pickup checkout can durably validate an idempotent request before Square creates an order and hosted payment link; no update or delete authority |
 | `storefront_runtime` | `AdminRateLimitBucket` | `SELECT, INSERT`; `UPDATE` only on `count`, `expiresAt`, and `updatedAt` for admin-login throttling |
 | Supabase `anon`, `authenticated`, `service_role` (when present) | Managed Storefront objects in `public` | No effective schema, table, column, sequence, routine, or enum privileges; Data API is closed |
 
 Everything else in `prisma/schema.prisma` is denied to the sync and runtime
 roles. In particular, neither role can access customer accounts, sessions,
-orders, checkout attempts, returns, webhook inboxes, fulfillment holds, admin
-users, or media writes. The current `/api/cart` preview endpoint calculates a
-quote from the synchronized catalog and does not persist `Cart` or `CartItem`,
-so those tables deliberately receive no runtime grant. Admin-preview CMS
+orders, returns, webhook inboxes, fulfillment holds, admin users, or media
+writes. `storefront_runtime` can only read and insert checkout attempts; it
+cannot update or delete them, and `storefront_sync` has no checkout-attempt
+access. The current `/api/cart` endpoint calculates a quote from the
+synchronized catalog and does not persist `Cart` or `CartItem`, so those tables
+deliberately receive no runtime grant. Admin-preview CMS
 mutations are blocked by the route allowlist, so `CmsContentVersion` is also
 read-only.
 
