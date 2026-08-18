@@ -61,7 +61,12 @@ test("homepage exposes the correct desktop and mobile navigation", async ({ page
     await expect(mobileNavigation.getByRole("link", { exact: true, name: "Home" })).toBeVisible();
     await expect(mobileNavigation.getByRole("link", { exact: true, name: "Shop all" })).toBeVisible();
     await expect(mobileNavigation.getByRole("link", { exact: true, name: "Balloons" })).toBeVisible();
-    await expect(mobileNavigation.getByRole("link", { exact: true, name: "Toys" })).toBeVisible();
+    const mobileToysButton = mobileNavigation.getByRole("button", { exact: true, name: "Toys" });
+    await expect(mobileToysButton).toBeVisible();
+    await expect(mobileToysButton).toHaveAttribute("aria-expanded", "false");
+    await mobileToysButton.click();
+    await expect(mobileToysButton).toHaveAttribute("aria-expanded", "true");
+    await expect(mobileNavigation.getByRole("link", { exact: true, name: "Shop All Toys" })).toBeVisible();
 
     const lastDrawerLink = mobileNavigation.getByRole("link").last();
     await lastDrawerLink.focus();
@@ -102,8 +107,17 @@ test("homepage exposes the correct desktop and mobile navigation", async ({ page
     await expect(page.locator("body")).not.toHaveCSS("overflow", "hidden");
   } else {
     await expect(headerLogo).toBeVisible();
-    await expect(primaryNavigation.getByRole("link", { exact: true, name: "Toys" })).toBeVisible();
-    await expect(primaryNavigation.getByRole("link", { exact: true, name: "Party Supplies" })).toBeVisible();
+    for (const department of [
+      { menuName: "Toy categories", shopAllName: "Shop All Toys", triggerName: "Toys" },
+      { menuName: "Party Supplies categories", shopAllName: "Shop All Party Supplies", triggerName: "Party Supplies" }
+    ]) {
+      const trigger = primaryNavigation.getByRole("button", { exact: true, name: department.triggerName });
+      await expect(trigger).toBeVisible();
+      await expect(trigger).toHaveAttribute("aria-expanded", "false");
+      await trigger.click();
+      await expect(trigger).toHaveAttribute("aria-expanded", "true");
+      await expect(primaryNavigation.getByRole("group", { name: department.menuName }).getByRole("link", { exact: true, name: department.shopAllName })).toBeVisible();
+    }
     await expect(primaryNavigation.getByRole("link", { exact: true, name: "Balloons" })).toBeVisible();
     await expect(header.getByRole("button", { name: "Open navigation menu" })).toBeHidden();
   }
