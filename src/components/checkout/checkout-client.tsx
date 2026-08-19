@@ -4,10 +4,14 @@
 
 "use client";
 
-import { CalendarDays, CreditCard, MapPin, PackageCheck, ShieldCheck } from "lucide-react";
+import { CreditCard, MapPin, PackageCheck, ShieldCheck } from "lucide-react";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { readCartItems, type StoredCartItem } from "@/components/commerce/add-to-cart-button";
 import { LocalDeliveryQuotePanel } from "@/components/fulfillment/local-delivery-quote-panel";
+import {
+  PickupSlotPanel,
+  type PickupSelection
+} from "@/components/fulfillment/pickup-slot-panel";
 import { ShippingRatePanel, type ShippingSelection } from "@/components/fulfillment/shipping-rate-panel";
 import { Button } from "@/components/ui/button";
 import type { LocalDeliveryAddress, LocalDeliverySelection } from "@/features/fulfillment/contracts/orderpro-local-delivery";
@@ -50,7 +54,8 @@ export function CheckoutClient({ locations, deliveryTestMode = false, localDeliv
   const [localDeliverySelection, setLocalDeliverySelection] = useState<LocalDeliverySelection | null>(null);
   const [shippingSelection, setShippingSelection] = useState<ShippingSelection | null>(null);
   const [deliveryPrefill, setDeliveryPrefill] = useState<{ address?: LocalDeliveryAddress; postalCode?: string; requestedDate?: string } | null>(null);
-  const [pickupSchedule, setPickupSchedule] = useState<{ requestedDate: string; slotId: string; slotLabel: string } | null>(null);
+  const [pickupSchedule, setPickupSchedule] = useState<PickupSelection | null>(null);
+  const [pickupPrefill, setPickupPrefill] = useState<{ requestedDate?: string; slotId?: string } | null>(null);
   const [message, setMessage] = useState<{ tone: "idle" | "success" | "error"; text: string }>({ tone: "idle", text: "" });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const idempotency = useRef<{ payload: string; key: string } | null>(null);
@@ -74,7 +79,7 @@ export function CheckoutClient({ locations, deliveryTestMode = false, localDeliv
         } else if (preference.mode === "pickup" && preferredLocation.pickupEnabled) {
           setFulfillmentMode("pickup");
           if (preference.requestedDate && preference.slotId && preference.slotLabel) {
-            setPickupSchedule({ requestedDate: preference.requestedDate, slotId: preference.slotId, slotLabel: preference.slotLabel });
+            setPickupPrefill({ requestedDate: preference.requestedDate, slotId: preference.slotId });
           }
         }
       }
@@ -223,7 +228,8 @@ export function CheckoutClient({ locations, deliveryTestMode = false, localDeliv
   const selectedLocation = locations.find((location) => location.id === locationId);
   const deliveryReady = fulfillmentMode !== "local-delivery" || Boolean(localDeliverySelection);
   const shippingReady = fulfillmentMode !== "shipping" || Boolean(shippingSelection);
-  const canSubmit = squareCheckoutEnabled && Boolean(selectedLocation) && deliveryReady && shippingReady && quote.errors.length === 0 && availableFulfillmentModes.includes(fulfillmentMode);
+  const pickupReady = fulfillmentMode !== "pickup" || Boolean(pickupSchedule);
+  const canSubmit = squareCheckoutEnabled && Boolean(selectedLocation) && pickupReady && deliveryReady && shippingReady && quote.errors.length === 0 && availableFulfillmentModes.includes(fulfillmentMode);
   const deliveryFeeCents = fulfillmentMode === "local-delivery" ? localDeliverySelection?.quote.feeCents ?? 0 : 0;
   const shippingFeeCents = fulfillmentMode === "shipping" ? shippingSelection?.amountCents ?? 0 : 0;
   const fulfillmentSummary = availableFulfillmentModes.includes(fulfillmentMode) ? fulfillmentLabels[fulfillmentMode] : "Not available";
@@ -260,19 +266,20 @@ export function CheckoutClient({ locations, deliveryTestMode = false, localDeliv
                   setFulfillmentMode(mode);
                   if (mode !== "local-delivery") setLocalDeliverySelection(null);
                   if (mode !== "shipping") setShippingSelection(null);
+                  if (mode !== "pickup") setPickupSchedule(null);
                 }} type="radio" value={mode} />
                 {fulfillmentLabels[mode]}
               </label>
             ))}
           </div>
-          {fulfillmentMode === "pickup" && pickupSchedule ? (
-            <div className="mt-4 flex items-start gap-3 rounded-md border border-border bg-surface-muted p-4">
-              <CalendarDays aria-hidden="true" className="mt-0.5 shrink-0 text-primary" size={18} />
-              <div>
-                <p className="text-sm font-semibold text-primary">Pickup date and time</p>
-                <p className="mt-1 text-sm text-secondary">{formatPickupDate(pickupSchedule.requestedDate)} · {pickupSchedule.slotLabel}</p>
-              </div>
-            </div>
+          {fulfillmentMode === "pickup" ? (
+            <PickupSlotPanel
+              initialRequestedDate={pickupPrefill?.requestedDate}
+              initialSlotId={pickupPrefill?.slotId}
+              items={items}
+              locationId={locationId}
+              onSelectionChange={setPickupSchedule}
+            />
           ) : null}
           {!localDeliveryCheckoutEnabled && quote.compatibleFulfillmentModes.includes("local-delivery") ? (
             <p className="mt-4 rounded-md border border-border bg-surface-muted p-3 text-sm text-secondary">Local delivery is being connected to OrderPRO and is not available at checkout yet.</p>

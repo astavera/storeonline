@@ -6,6 +6,7 @@ import * as Sentry from "@sentry/nextjs";
 import { NextResponse } from "next/server";
 import { PersistenceUnavailableError } from "@/server/db/persistence-policy";
 import { cleanupExpiredShippingCheckouts } from "@/server/checkout/shipping-checkout-cleanup";
+import { cleanupExpiredCapacityCheckouts } from "@/server/checkout/capacity-checkout-cleanup";
 import { getWebhookInboxRepository } from "@/server/webhooks/webhook-inbox";
 import { processWebhookBatch } from "@/server/webhooks/webhook-processor";
 import { authorizeWebhookWorker } from "@/server/webhooks/webhook-worker-auth";
@@ -47,8 +48,9 @@ export async function POST(request: Request) {
       }
     });
     const shippingCleanup = await cleanupExpiredShippingCheckouts(10);
+    const capacityCleanup = await cleanupExpiredCapacityCheckouts(10);
     return NextResponse.json(
-      { ok: true, ...result, shippo, shippingCleanup },
+      { ok: true, ...result, shippo, shippingCleanup, capacityCleanup },
       { headers: { "Cache-Control": "no-store" } }
     );
   } catch (error) {

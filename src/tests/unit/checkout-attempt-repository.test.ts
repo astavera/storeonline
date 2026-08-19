@@ -75,4 +75,52 @@ describe("checkout attempt repository", () => {
       squarePaymentLinkId: "square-link-1"
     })).rejects.toBeInstanceOf(CheckoutIdempotencyConflictError);
   });
+
+  it("persists and completes one durable Pickup hold-to-payment correlation", async () => {
+    const repository = new InMemoryCheckoutAttemptRepository();
+    const quote = quoteCart({ items: [{ squareVariationId: "seed-toy-building-set", quantity: 1 }] });
+    const attempt = await repository.recordValidation({
+      idempotencyKey: "pickup-checkout-key-1",
+      requestHash: "pickup-hash-1",
+      quote,
+      errors: []
+    });
+    const holdId = "00000000-0000-4000-8000-000000000201";
+    const expiresAt = new Date("2026-08-19T15:15:00.000Z");
+
+    await repository.recordCapacityReservation({
+      attemptId: attempt.attemptId,
+      fulfillmentMode: "PICKUP",
+      orderproCapacityHoldId: holdId,
+      expiresAt,
+      fulfillmentContext: { quoteId: "quote-1", slotId: "slot-1" }
+    });
+    await repository.recordCapacityHostedCheckout({
+      attemptId: attempt.attemptId,
+      squareOrderId: "square-order-pickup-1",
+      squarePaymentLinkId: "square-link-pickup-1"
+    });
+
+    expect(await repository.listExpiredCapacityCheckouts({
+      now: new Date("2026-08-19T15:16:00.000Z")
+    })).toEqual([expect.objectContaining({
+      attemptId: attempt.attemptId,
+      fulfillmentMode: "PICKUP",
+      orderproCapacityHoldId: holdId,
+      squareOrderId: "square-order-pickup-1"
+    })]);
+
+    await repository.markCapacityCheckoutCompleted({
+      attemptId: attempt.attemptId,
+      squarePaymentId: "square-payment-pickup-1"
+    });
+    expect(await repository.findCapacityCheckout(attempt.attemptId)).toMatchObject({
+      squarePaymentId: "square-payment-pickup-1"
+    });
+    await expect(repository.recordCapacityHostedCheckout({
+      attemptId: attempt.attemptId,
+      squareOrderId: "different-square-order",
+      squarePaymentLinkId: "square-link-pickup-1"
+    })).rejects.toBeInstanceOf(CheckoutIdempotencyConflictError);
+  });
 });

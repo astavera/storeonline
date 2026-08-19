@@ -697,7 +697,10 @@ model CheckoutAttempt {
   fulfillmentMode         FulfillmentMode?
   squareOrderId           String?               @unique
   squarePaymentLinkId     String?               @unique
+  squarePaymentId         String?               @unique
+  orderproCapacityHoldId  String?               @unique @db.Uuid
   orderproShippingOrderId String?               @unique
+  fulfillmentContext      Json?
   shippingContext         Json?
   hostedCheckoutCreatedAt DateTime?
   expiresAt               DateTime

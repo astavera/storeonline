@@ -10,6 +10,7 @@ import { persistSquareInventorySnapshots } from "@/server/square/inventory-postg
 import type { WebhookInboxRecord } from "@/server/webhooks/webhook-inbox";
 import type { WebhookEventHandler } from "@/server/webhooks/webhook-processor";
 import { confirmCompletedShippingPayment } from "@/server/webhooks/shipping-payment-confirmation";
+import { confirmCompletedCapacityPayment } from "@/server/webhooks/capacity-payment-confirmation";
 
 const inventoryWebhookSchema = z.object({
   data: z.object({
@@ -54,6 +55,7 @@ export type SquareWebhookOperations = {
   applyInventoryCounts(counts: SquareInventoryProjection[]): Promise<void>;
   synchronizeCatalog(): Promise<void>;
   confirmCompletedShippingPayment(paymentId: string): Promise<void>;
+  confirmCompletedCapacityPayment?(paymentId: string): Promise<void>;
   applyReturnRefundStatus?(refundId: string, status: string): Promise<void>;
 };
 
@@ -72,6 +74,7 @@ export function createSquareWebhookHandler(operations: SquareWebhookOperations):
       const payload = paymentWebhookSchema.parse(record.payload);
       if (payload.data.object.payment.status === "COMPLETED") {
         await operations.confirmCompletedShippingPayment(payload.data.object.payment.id);
+        await operations.confirmCompletedCapacityPayment?.(payload.data.object.payment.id);
       }
       return;
     }
@@ -110,6 +113,10 @@ const productionOperations: SquareWebhookOperations = {
 
   async confirmCompletedShippingPayment(paymentId) {
     await confirmCompletedShippingPayment(paymentId);
+  },
+
+  async confirmCompletedCapacityPayment(paymentId) {
+    await confirmCompletedCapacityPayment(paymentId);
   },
 
   async applyReturnRefundStatus(refundId, status) {

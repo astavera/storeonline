@@ -1,0 +1,21 @@
+{
+  "ok": true,
+  "status": {
+    "checkoutAttemptId": "checkout-attempt-1",
+    "orderproOrderId": "00000000-0000-4000-8000-000000000101",
+    "fulfillmentMode": "PICKUP",
+    "normalizedStatus": "PAYMENT_PENDING",
+    "nativeStatus": "HELD",
+    "reservationId": "00000000-0000-4000-8000-000000000103",
+    "squareOrderId": "square-order-1",
+    "squarePaymentLinkId": "square-link-1",
+    "squarePaymentId": null,
+    "expiresAt": "2026-08-18T16:00:00.000Z",
+    "amountPaidCents": null,
+    "currency": null,
+    "version": 2,
+    "updatedAt": "2026-08-18T15:50:00.000Z",
+    "requiresIntervention": false
+  },
+  "correlationId": "status-request-1"
+}

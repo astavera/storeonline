@@ -15,7 +15,11 @@ import { PersistenceUnavailableError } from "@/server/db/persistence-policy";
 import { isOrderProLocalDeliveryCheckoutEnabled } from "@/server/orderpro/config";
 import { isOrderProDeliveryTestMode, validateOrderProLocalDeliverySelection } from "@/server/orderpro/orderpro-local-delivery-service";
 import { validateOrderProPickupSelection } from "@/server/orderpro/orderpro-pickup-slot-service";
-import { getOrderProShippingOrderClient } from "@/server/orderpro/shipping-order-client";
+import { getRuntimeOrderProClient } from "@/server/orderpro/runtime";
+import {
+  getOrderProShippingOrderClient,
+  orderProShippingCommandIdentity
+} from "@/server/orderpro/shipping-order-client";
 import { readMappedOperationalStoreLocations } from "@/server/square/postgres-catalog-store";
 import {
   createSquareHostedCheckout,
@@ -49,8 +53,9 @@ const checkoutRequestSchema = z.object({
     })
   }).optional(),
   pickup: z.object({
+    quoteId: z.string().uuid(),
     requestedDate: z.string().date(),
-    slotId: z.string().trim().min(3).max(80),
+    slotId: z.string().trim().min(3).max(160),
     slotLabel: z.string().trim().min(3).max(80)
   }).optional(),
   shipping: shippingSelectionSchema.optional(),
@@ -59,6 +64,14 @@ const checkoutRequestSchema = z.object({
     email: z.string().email(),
     phone: z.string().min(7)
   })
+}).superRefine((value, context) => {
+  if (value.fulfillmentMode === "pickup" && !value.pickup) {
+    context.addIssue({
+      code: "custom",
+      path: ["pickup"],
+      message: "A current Pickup quote, date and slot are required."
+    });
+  }
 });
 
 export async function POST(request: NextRequest) {
@@ -80,6 +93,10 @@ export async function POST(request: NextRequest) {
       };
     } | undefined;
     let verifiedShipping: Awaited<ReturnType<typeof validateShippingSelection>> | undefined;
+    let verifiedPickup: Extract<
+      Awaited<ReturnType<typeof validateOrderProPickupSelection>>,
+      { valid: true }
+    > | undefined;
     const idempotencyKey = request.headers.get("idempotency-key")?.trim();
     if (!idempotencyKey || idempotencyKey.length < 8 || idempotencyKey.length > 200) {
       return NextResponse.json({ ok: false, status: "validation_only", errors: ["A valid Idempotency-Key header is required."] }, { status: 400 });
@@ -146,9 +163,12 @@ export async function POST(request: NextRequest) {
       const validation = await validateOrderProPickupSelection({
         locationId: parsed.locationId,
         requestedDate: parsed.pickup.requestedDate,
-        slotId: parsed.pickup.slotId
+        slotId: parsed.pickup.slotId,
+        quoteId: parsed.pickup.quoteId,
+        items: parsed.items
       });
       if (!validation.valid) errors.push(validation.message);
+      else verifiedPickup = validation;
     }
     if (parsed.fulfillmentMode !== "shipping" && parsed.shipping) {
       errors.push("Shipping rate details are not valid for the selected fulfillment method.");
@@ -216,7 +236,22 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const capacityClient = parsed.fulfillmentMode === "pickup"
+      ? getRuntimeOrderProClient()
+      : null;
+    if (parsed.fulfillmentMode === "pickup" && (!verifiedPickup || !capacityClient?.ready)) {
+      return NextResponse.json(
+        {
+          ok: false,
+          status: "pickup_not_available",
+          errors: ["OrderPRO Pickup reservations are not configured."]
+        },
+        { status: 503 }
+      );
+    }
+
     let orderProShippingOrderId: string | undefined;
+    let orderProCapacityHoldId: string | undefined;
     if (verifiedShipping && shippingClient) {
       const reservation = await shippingClient.create({
         checkoutAttemptId: attempt.attemptId,
@@ -234,8 +269,8 @@ export async function POST(request: NextRequest) {
           carrier: verifiedShipping.carrier,
           serviceName: verifiedShipping.serviceName
         },
-        idempotencyKey: `shipping-checkout:${attempt.attemptId}`,
-        correlationId: `shipping-checkout:${attempt.attemptId}`
+        idempotencyKey: orderProShippingCommandIdentity("create", attempt.attemptId),
+        correlationId: orderProShippingCommandIdentity("create", attempt.attemptId)
       });
       orderProShippingOrderId = reservation.order.id;
       try {
@@ -256,7 +291,48 @@ export async function POST(request: NextRequest) {
       } catch (error) {
         await shippingClient.release({
           shippingOrderId: reservation.order.id,
+          reason: "CHECKOUT_FAILED",
+          idempotencyKey: orderProShippingCommandIdentity("release", attempt.attemptId, "persist"),
+          correlationId: orderProShippingCommandIdentity("release", attempt.attemptId, "persist")
+        }).catch(() => undefined);
+        throw error;
+      }
+    }
+
+    if (verifiedPickup && capacityClient?.ready) {
+      const reserveIdentity = pickupCommandIdentity("reserve", attempt.attemptId);
+      const reservation = await capacityClient.client.reservePickup({
+        quoteId: verifiedPickup.availability.quoteId!,
+        slotId: verifiedPickup.slot.id,
+        checkoutAttemptId: attempt.attemptId
+      }, {
+        idempotencyKey: reserveIdentity,
+        correlationId: reserveIdentity
+      });
+      orderProCapacityHoldId = reservation.hold.capacityHoldId;
+      try {
+        await attemptRepository.recordCapacityReservation({
+          attemptId: attempt.attemptId,
+          fulfillmentMode: "PICKUP",
+          orderproCapacityHoldId: orderProCapacityHoldId,
+          expiresAt: new Date(reservation.hold.expiresAt),
+          fulfillmentContext: {
+            quoteId: verifiedPickup.availability.quoteId,
+            slotId: verifiedPickup.slot.id,
+            startsAt: verifiedPickup.slot.startsAt,
+            endsAt: verifiedPickup.slot.endsAt,
+            requestedDate: verifiedPickup.availability.requestedDate,
+            locationId: parsed.locationId
+          }
+        });
+      } catch (error) {
+        const releaseIdentity = pickupCommandIdentity("release", attempt.attemptId, "persist");
+        await capacityClient.client.releaseCapacityCheckout({
+          capacityHoldId: orderProCapacityHoldId,
           reason: "CHECKOUT_FAILED"
+        }, {
+          idempotencyKey: releaseIdentity,
+          correlationId: releaseIdentity
         }).catch(() => undefined);
         throw error;
       }
@@ -269,10 +345,18 @@ export async function POST(request: NextRequest) {
         idempotencyKey,
         squareLocationId: location.squareLocationId,
         ...(orderProShippingOrderId ? { orderProShippingOrderId } : {}),
+        ...(orderProCapacityHoldId ? { orderProCapacityHoldId } : {}),
         fulfillmentMode: parsed.fulfillmentMode,
         customer: parsed.customer,
         quote,
-        ...(parsed.pickup ? { pickup: parsed.pickup } : {}),
+        ...(verifiedPickup ? { pickup: {
+          quoteId: verifiedPickup.availability.quoteId!,
+          requestedDate: verifiedPickup.availability.requestedDate,
+          slotId: verifiedPickup.slot.id,
+          slotLabel: verifiedPickup.slot.label,
+          startsAt: verifiedPickup.slot.startsAt,
+          endsAt: verifiedPickup.slot.endsAt
+        } } : {}),
         ...(verifiedLocalDelivery ? { localDelivery: verifiedLocalDelivery } : {}),
         ...(verifiedShipping ? { shipping: verifiedShipping } : {})
       });
@@ -280,17 +364,81 @@ export async function POST(request: NextRequest) {
       if (orderProShippingOrderId && shippingClient) {
         await shippingClient.release({
           shippingOrderId: orderProShippingOrderId,
+          reason: "CHECKOUT_FAILED",
+          idempotencyKey: orderProShippingCommandIdentity("release", attempt.attemptId, "square"),
+          correlationId: orderProShippingCommandIdentity("release", attempt.attemptId, "square")
+        }).catch(() => undefined);
+      }
+      if (orderProCapacityHoldId && capacityClient?.ready) {
+        const releaseIdentity = pickupCommandIdentity("release", attempt.attemptId, "square");
+        await capacityClient.client.releaseCapacityCheckout({
+          capacityHoldId: orderProCapacityHoldId,
           reason: "CHECKOUT_FAILED"
+        }, {
+          idempotencyKey: releaseIdentity,
+          correlationId: releaseIdentity
         }).catch(() => undefined);
       }
       throw error;
+    }
+
+    if (orderProCapacityHoldId && capacityClient?.ready) {
+      if (!squareCheckout.squarePaymentLinkId) {
+        const releaseIdentity = pickupCommandIdentity("release", attempt.attemptId, "missing-link");
+        await capacityClient.client.releaseCapacityCheckout({
+          capacityHoldId: orderProCapacityHoldId,
+          reason: "CHECKOUT_FAILED"
+        }, {
+          idempotencyKey: releaseIdentity,
+          correlationId: releaseIdentity
+        }).catch(() => undefined);
+        throw new SquareCheckoutUnavailableError("Square did not return a manageable checkout link.");
+      }
+      try {
+        await attemptRepository.recordCapacityHostedCheckout({
+          attemptId: attempt.attemptId,
+          squareOrderId: squareCheckout.squareOrderId,
+          squarePaymentLinkId: squareCheckout.squarePaymentLinkId
+        });
+        const bindIdentity = pickupCommandIdentity("bind", attempt.attemptId);
+        await capacityClient.client.bindCapacityCheckout({
+          capacityHoldId: orderProCapacityHoldId,
+          squareOrderId: squareCheckout.squareOrderId,
+          squarePaymentLinkId: squareCheckout.squarePaymentLinkId,
+          squareLocationId: location.squareLocationId
+        }, {
+          idempotencyKey: bindIdentity,
+          correlationId: bindIdentity
+        });
+      } catch (error) {
+        let squareLinkClosed = false;
+        try {
+          await deleteSquareHostedCheckoutLink(squareCheckout.squarePaymentLinkId);
+          squareLinkClosed = true;
+        } catch {
+          // Keep the reservation while a live payment link may still complete.
+        }
+        if (squareLinkClosed) {
+          const releaseIdentity = pickupCommandIdentity("release", attempt.attemptId, "bind");
+          await capacityClient.client.releaseCapacityCheckout({
+            capacityHoldId: orderProCapacityHoldId,
+            reason: "CHECKOUT_FAILED"
+          }, {
+            idempotencyKey: releaseIdentity,
+            correlationId: releaseIdentity
+          }).catch(() => undefined);
+        }
+        throw error;
+      }
     }
 
     if (orderProShippingOrderId && shippingClient) {
       if (!squareCheckout.squarePaymentLinkId) {
         await shippingClient.release({
           shippingOrderId: orderProShippingOrderId,
-          reason: "CHECKOUT_FAILED"
+          reason: "CHECKOUT_FAILED",
+          idempotencyKey: orderProShippingCommandIdentity("release", attempt.attemptId, "missing-link"),
+          correlationId: orderProShippingCommandIdentity("release", attempt.attemptId, "missing-link")
         }).catch(() => undefined);
         throw new SquareCheckoutUnavailableError("Square did not return a manageable checkout link.");
       }
@@ -306,7 +454,9 @@ export async function POST(request: NextRequest) {
           shippingOrderId: orderProShippingOrderId,
           squareOrderId: squareCheckout.squareOrderId,
           squarePaymentLinkId: squareCheckout.squarePaymentLinkId,
-          squareLocationId: location.squareLocationId
+          squareLocationId: location.squareLocationId,
+          idempotencyKey: orderProShippingCommandIdentity("bind", attempt.attemptId),
+          correlationId: orderProShippingCommandIdentity("bind", attempt.attemptId)
         });
       } catch (error) {
         let squareLinkClosed = false;
@@ -319,7 +469,9 @@ export async function POST(request: NextRequest) {
         if (squareLinkClosed) {
           await shippingClient.release({
             shippingOrderId: orderProShippingOrderId,
-            reason: "CHECKOUT_FAILED"
+            reason: "CHECKOUT_FAILED",
+            idempotencyKey: orderProShippingCommandIdentity("release", attempt.attemptId, "bind"),
+            correlationId: orderProShippingCommandIdentity("release", attempt.attemptId, "bind")
           }).catch(() => undefined);
         }
         throw error;
@@ -357,4 +509,14 @@ export async function POST(request: NextRequest) {
       { status: 400 }
     );
   }
+}
+
+function pickupCommandIdentity(
+  action: "reserve" | "bind" | "confirm" | "release",
+  ...parts: string[]
+) {
+  const digest = createHash("sha256")
+    .update(JSON.stringify([action, ...parts]))
+    .digest("hex");
+  return `pickup-${action}:v1:${digest}`;
 }

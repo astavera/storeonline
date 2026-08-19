@@ -9,6 +9,7 @@ import { env } from "@/lib/validation/env";
 import { getCheckoutAttemptRepository } from "@/server/checkout/checkout-attempt-repository";
 import {
   getOrderProShippingOrderClient,
+  orderProShippingCommandIdentity,
   type OrderProShippingDestination
 } from "@/server/orderpro/shipping-order-client";
 
@@ -93,7 +94,9 @@ export async function confirmCompletedShippingPayment(paymentId: string) {
     amountPaidCents,
     currency: "USD",
     paidAt: payment.createdAt ?? payment.updatedAt ?? new Date().toISOString(),
-    destination
+    destination,
+    idempotencyKey: orderProShippingCommandIdentity("confirm", confirmedPaymentId),
+    correlationId: orderProShippingCommandIdentity("confirm", checkoutAttemptId, confirmedPaymentId)
   });
   await checkoutRepository.markShippingCheckoutCompleted(checkoutAttemptId);
 }

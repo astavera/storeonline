@@ -12,6 +12,7 @@ export type OrderProPickupSlot = {
 export type OrderProPickupAvailabilitySuccess = {
   available: true;
   source: "ORDERPRO" | "MOCK";
+  quoteId: string | null;
   locationId: string;
   requestedDate: string;
   availableSlots: OrderProPickupSlot[];

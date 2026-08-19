@@ -4,6 +4,8 @@ import {
   ORDERPRO_STAGING_API_BASE_URL,
   ORDERPRO_STAGING_AUDIENCE,
   ORDERPRO_STAGING_AUTH0_ISSUER,
+  ORDERPRO_PRODUCTION_AUDIENCE,
+  ORDERPRO_PRODUCTION_SCOPES,
   isOrderProLocalDeliveryCheckoutEnabled,
   isOrderProLocalDeliveryCheckoutRequested,
   parseOrderProM2mConfiguration
@@ -47,6 +49,31 @@ describe("OrderPRO M2M configuration", () => {
         tokenEndpoint: "https://dev-rfzzpvgkfg1mwf3m.us.auth0.com/oauth/token",
         audience: ORDERPRO_STAGING_AUDIENCE,
         scopes: ["local-delivery:holds", "local-delivery:quote"]
+      }
+    });
+  });
+
+  it("accepts a canonical production boundary with the complete scoped contract", () => {
+    const result = parseOrderProM2mConfiguration({
+      ...validEnvironment,
+      ORDERPRO_INTEGRATION_ENVIRONMENT: "PRODUCTION",
+      ORDERPRO_API_BASE_URL: "https://orderpro.example.com",
+      ORDERPRO_AUTH0_ISSUER: "https://orderpro-production.us.auth0.com/",
+      ORDERPRO_AUTH0_AUDIENCE: ORDERPRO_PRODUCTION_AUDIENCE,
+      ORDERPRO_AUTH0_SCOPES: ORDERPRO_PRODUCTION_SCOPES.join(" ")
+    });
+
+    expect(result).toMatchObject({
+      enabled: true,
+      state: "READY",
+      config: {
+        environment: "PRODUCTION",
+        api: { baseUrl: "https://orderpro.example.com" },
+        auth0: {
+          tokenEndpoint: "https://orderpro-production.us.auth0.com/oauth/token",
+          audience: ORDERPRO_PRODUCTION_AUDIENCE,
+          scopes: ORDERPRO_PRODUCTION_SCOPES
+        }
       }
     });
   });

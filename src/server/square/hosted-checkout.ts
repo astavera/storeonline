@@ -20,9 +20,12 @@ type CheckoutCustomer = {
 };
 
 type PickupSelection = {
+  quoteId: string;
   requestedDate: string;
   slotId: string;
   slotLabel: string;
+  startsAt: string;
+  endsAt: string;
 };
 
 type LocalDeliverySelection = {
@@ -62,6 +65,7 @@ export type SquareHostedCheckoutInput = {
   idempotencyKey: string;
   squareLocationId: string;
   orderProShippingOrderId?: string;
+  orderProCapacityHoldId?: string;
   fulfillmentMode: "pickup" | "local-delivery" | "shipping";
   customer: CheckoutCustomer;
   quote: CartQuote;
@@ -99,6 +103,9 @@ export function buildSquarePaymentLinkRequest(input: SquareHostedCheckoutInput):
   }
   if (input.fulfillmentMode === "shipping" && !input.orderProShippingOrderId) {
     throw new SquareCheckoutUnavailableError("An OrderPRO shipping reservation is required.");
+  }
+  if (input.fulfillmentMode === "pickup" && (!input.pickup || !input.orderProCapacityHoldId)) {
+    throw new SquareCheckoutUnavailableError("An OrderPRO Pickup reservation is required.");
   }
 
   const pickupNote = input.pickup
@@ -150,7 +157,12 @@ export function buildSquarePaymentLinkRequest(input: SquareHostedCheckoutInput):
               emailAddress: input.customer.email,
               phoneNumber: input.customer.phone
             },
-            scheduleType: "ASAP" as const,
+            scheduleType: "SCHEDULED" as const,
+            pickupAt: input.pickup!.startsAt,
+            pickupWindowDuration: deliveryWindowDuration(
+              input.pickup!.startsAt,
+              input.pickup!.endsAt
+            ),
             note: pickupNote.slice(0, 500)
           }
         }]
@@ -213,7 +225,11 @@ export function buildSquarePaymentLinkRequest(input: SquareHostedCheckoutInput):
       metadata: {
         checkout_attempt_id: input.attemptId.slice(0, 255),
         fulfillment_mode: input.fulfillmentMode,
-        ...(delivery ? {
+        ...(input.pickup ? {
+          orderpro_quote_id: input.pickup.quoteId,
+          orderpro_slot_id: input.pickup.slotId,
+          orderpro_capacity_hold_id: input.orderProCapacityHoldId!
+        } : delivery ? {
           orderpro_quote_id: delivery.quoteId,
           orderpro_slot_id: delivery.slotId
         } : shipping ? {

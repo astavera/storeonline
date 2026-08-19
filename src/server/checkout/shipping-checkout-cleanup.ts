@@ -7,7 +7,10 @@ import "server-only";
 import { SquareClient, SquareEnvironment } from "square";
 import { env } from "@/lib/validation/env";
 import { getCheckoutAttemptRepository } from "@/server/checkout/checkout-attempt-repository";
-import { getOrderProShippingOrderClient } from "@/server/orderpro/shipping-order-client";
+import {
+  getOrderProShippingOrderClient,
+  orderProShippingCommandIdentity
+} from "@/server/orderpro/shipping-order-client";
 import { deleteSquareHostedCheckoutLink } from "@/server/square/hosted-checkout";
 import { confirmCompletedShippingPayment } from "@/server/webhooks/shipping-payment-confirmation";
 
@@ -48,7 +51,9 @@ export async function cleanupExpiredShippingCheckouts(limit = 10) {
 
     await orderPro.release({
       shippingOrderId: checkout.orderproShippingOrderId,
-      reason: "ABANDONED"
+      reason: "ABANDONED",
+      idempotencyKey: orderProShippingCommandIdentity("release", checkout.attemptId, "expired"),
+      correlationId: orderProShippingCommandIdentity("release", checkout.attemptId, "expired")
     });
     await repository.markShippingCheckoutExpired(checkout.attemptId);
     released += 1;
