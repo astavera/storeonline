@@ -12,6 +12,7 @@
 @import "../design/themes/balloons.theme.css";
 @import "../design/themes/holiday.theme.css";
 @import "../design/themes/premium.theme.css";
+@import "../design/themes/admin.theme.css";
 
 @tailwind base;
 @tailwind components;

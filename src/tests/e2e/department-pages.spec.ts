@@ -15,8 +15,8 @@ test("Toys starts directly with products and the catalog", async ({ page }, test
 
   const cards = page.locator("#catalog article");
   if (await cards.count()) {
-    const grid = page.locator(".department-product-grid");
-    const columnCount = await grid.evaluate((element) => getComputedStyle(element).gridTemplateColumns.split(" ").length);
+    const grid = page.locator("#catalog .storefront-product-grid");
+    const columnCount = await grid.evaluate((element) => getComputedStyle(element).gridTemplateColumns.trim().split(/\s+/).length);
     expect(columnCount).toBe(testInfo.project.name === "mobile" ? 2 : 5);
   }
 });
@@ -37,17 +37,8 @@ test("Party Supplies uses an image-only hero and a responsive catalog", async ({
 
     const cards = page.locator("#catalog article");
     if (await cards.count()) {
-      const grid = page.locator(".department-product-grid");
-      const columnCount = await grid.evaluate((element) => getComputedStyle(element).gridTemplateColumns.split(" ").length);
+      const grid = page.locator("#catalog .storefront-product-grid");
+      const columnCount = await grid.evaluate((element) => getComputedStyle(element).gridTemplateColumns.trim().split(/\s+/).length);
       expect(columnCount).toBe(testInfo.project.name === "mobile" ? 2 : 5);
     }
-});
-
-test("Holidays keeps its editorial hero and hides inactive collections", async ({ page }) => {
-  await page.goto("/holidays", { waitUntil: "domcontentloaded" });
-
-  await expect(page.getByRole("heading", { level: 1, name: "Celebrate what’s happening now." })).toBeVisible();
-  await expect(page.getByRole("navigation", { name: "Holiday shortcuts" }).getByRole("link")).toHaveCount(3);
-  await expect(page.getByRole("region", { name: "Active Holidays" })).toBeVisible();
-  await expect(page.locator("html")).toHaveJSProperty("scrollWidth", await page.locator("html").evaluate((element) => element.clientWidth));
 });

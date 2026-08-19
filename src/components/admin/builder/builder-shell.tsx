@@ -6,6 +6,7 @@
 
 import { ArrowLeft, Palette } from "lucide-react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   addCmsSection,
@@ -46,7 +47,8 @@ type CmsSaveResponse = {
   versions?: BuilderDocumentHistoryEntry[];
 };
 
-export function BuilderShell({ additionalPages = [], catalogProducts = [], initialDocument, publicPreviewRoute, scope }: { additionalPages?: StorefrontEditablePage[]; catalogProducts?: StorefrontProduct[]; initialDocument: CmsPageDocument; publicPreviewRoute?: string; scope: CmsScope }) {
+export function BuilderShell({ additionalPages = [], catalogProducts = [], deletedPageKeys = [], initialDocument, publicPreviewRoute, scope }: { additionalPages?: StorefrontEditablePage[]; catalogProducts?: StorefrontProduct[]; deletedPageKeys?: string[]; initialDocument: CmsPageDocument; publicPreviewRoute?: string; scope: CmsScope }) {
+  const router = useRouter();
   const normalizedInitialDocument = useMemo(() => {
     if (initialDocument.sections.length > 0) {
       return initialDocument;
@@ -71,6 +73,7 @@ export function BuilderShell({ additionalPages = [], catalogProducts = [], initi
   const [saveState, setSaveState] = useState<BuilderSaveState>({ tone: "idle", message: "Ready" });
   const [versionHistory, setVersionHistory] = useState<BuilderDocumentHistoryEntry[]>([]);
   const [sidebarMode, setSidebarMode] = useState<"sections" | "inspector">("sections");
+  const [isDeletingPage, setIsDeletingPage] = useState(false);
   const selectedSection = documentState.sections.find((section) => section.id === selectedSectionId) ?? documentState.sections[0] ?? createCmsSection("emptyState", { id: "builder.empty" });
 
   useEffect(() => {
@@ -271,8 +274,46 @@ export function BuilderShell({ additionalPages = [], catalogProducts = [], initi
     }
   }
 
+  async function deletePage() {
+    const confirmed = window.confirm(
+      `Permanently delete “${documentState.title}”?\n\nThis removes every saved version, hides it from the Website Editor, and makes ${publicPreviewRoute ?? "its public URL"} return 404. This cannot be undone.`
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    setIsDeletingPage(true);
+    setSaveState({ tone: "idle", message: "Deleting page..." });
+
+    try {
+      const response = await fetch("/api/admin/cms", {
+        method: "DELETE",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          entityType: documentState.entityType,
+          entityId: documentState.entityId,
+          title: documentState.title
+        })
+      });
+      const result = (await response.json()) as CmsSaveResponse;
+
+      if (!response.ok || !result.ok) {
+        setSaveState({ tone: "error", message: result.errors?.join(" ") || "Could not delete this page." });
+        setIsDeletingPage(false);
+        return;
+      }
+
+      router.replace("/admin/homepage");
+      router.refresh();
+    } catch (error) {
+      setSaveState({ tone: "error", message: error instanceof Error ? error.message : "Could not delete this page." });
+      setIsDeletingPage(false);
+    }
+  }
+
   return (
-    <main className="min-h-screen bg-[#f7f7f7] lg:h-screen lg:overflow-hidden" data-store-area="Admin" data-store-component="BuilderShell" data-store-section={`admin.builder.${scope}`}>
+    <main className="min-h-screen bg-white lg:h-screen lg:overflow-hidden" data-store-area="Admin" data-store-component="BuilderShell" data-store-section={`admin.builder.${scope}`}>
       <div className="grid min-h-screen lg:h-full lg:min-h-0 lg:grid-cols-[344px_minmax(0,1fr)] lg:grid-rows-[80px_minmax(0,1fr)]">
         <aside className="border-b border-border bg-surface lg:row-span-2 lg:flex lg:min-h-0 lg:flex-col lg:border-b-0 lg:border-r">
           <div className="flex h-20 shrink-0 items-center gap-3 border-b border-border px-5">
@@ -289,11 +330,14 @@ export function BuilderShell({ additionalPages = [], catalogProducts = [], initi
               <BuilderSidebar
                 additionalPages={additionalPages}
                 currentEntityId={documentState.entityId}
+                deletedPageKeys={deletedPageKeys}
                 document={documentState}
+                isDeletingPage={isDeletingPage}
                 onBeforeNavigate={() => !isDirty || window.confirm("You have unsaved page changes. Continue to another store area editor?")}
                 onAddSection={addSection}
                 onDuplicate={duplicateSection}
                 onMove={(sectionId, direction) => commit(moveCmsSection(documentState, sectionId, direction))}
+                onDeletePage={(["department", "holiday", "location", "policy", "landing"] as CmsScope[]).includes(scope) ? deletePage : undefined}
                 onRemove={removeSection}
                 onSelect={(sectionId) => {
                   setSelectedSectionId(sectionId);

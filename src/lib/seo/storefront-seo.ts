@@ -15,11 +15,6 @@ export const storefrontStaticPaths = [
   "/toys",
   "/party-supplies",
   "/balloons",
-  "/stationery",
-  "/arts-and-crafts",
-  "/greeting-cards",
-  "/gifts",
-  "/holidays",
   "/locations",
   "/about",
   "/contact",
@@ -94,9 +89,9 @@ export function createStorefrontOrganizationSchema() {
       },
       ...publicLocations.map((location) => ({
         "@type": "Store",
-        "@id": `${absoluteStorefrontUrl(`/locations/${location.slug}`)}#store`,
+        "@id": `${absoluteStorefrontUrl("/locations")}#store-${location.slug}`,
         name: `${businessName} - ${location.name}`,
-        url: absoluteStorefrontUrl(`/locations/${location.slug}`),
+        url: absoluteStorefrontUrl("/locations"),
         parentOrganization: { "@id": organizationId },
         address: {
           "@type": "PostalAddress",

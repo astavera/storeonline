@@ -16,28 +16,9 @@ import { StorefrontCmsPage } from "@/components/cms/storefront-cms-page";
 import { ProductGrid } from "@/components/commerce/product-grid";
 import { getHolidayBySlug } from "@/config/holidays.config";
 import { filterWebsiteCatalogProducts, type ResolvedWebsiteCatalog, type WebsiteHoliday } from "@/features/catalog/services/website-merchandising-service";
-import { HolidaysLandingPage } from "@/features/holidays/components/holidays-landing-page";
 import { readPublishedStorefrontCmsDocument } from "@/server/storefront/published-cms-document";
 import { readResolvedSquareWebsiteCatalog } from "@/server/square/website-catalog-store";
 import { SectionFrame } from "../sections/section-frame";
-
-export async function HolidaysIndexTemplate({ searchParams }: { searchParams?: Record<string, string | string[] | undefined> } = {}) {
-  const [websiteCatalog, publishedDocument] = await Promise.all([
-    readCurrentWebsiteCatalog(),
-    readPublishedStorefrontCmsDocument({ entityType: "holiday", entityId: "index" })
-  ]);
-  const products = websiteCatalog
-    ? Array.from(new Map(websiteCatalog.holidays.flatMap((holiday) =>
-        filterWebsiteCatalogProducts(websiteCatalog, { holidayId: holiday.id, surface: "holiday-pages" })
-      ).map((product) => [product.squareVariationId, product])).values())
-    : [];
-
-  if (publishedDocument) {
-    return <StorefrontCmsPage document={publishedDocument} products={products} />;
-  }
-
-  return <HolidaysLandingPage catalog={websiteCatalog} catalogAvailable={Boolean(websiteCatalog)} searchParams={searchParams} />;
-}
 
 export async function HolidayDetailTemplate({ slug }: { slug: string }) {
   const websiteCatalog = await readCurrentWebsiteCatalog();

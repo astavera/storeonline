@@ -4,7 +4,7 @@ import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 import { HolidayMegaMenu } from "@/components/layout/holiday-mega-menu";
 
-const link = { id: "holidays", label: "Holidays", href: "/holidays", visible: true };
+const link = { id: "holidays", label: "Holidays", href: "/holidays/halloween", visible: true };
 const holidayItems = [
   { slug: "halloween", label: "Halloween" },
   { slug: "christmas", label: "Christmas" }
