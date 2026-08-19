@@ -2,10 +2,12 @@
  * Verifies the isolated behavior of Square hosted checkout.
  */
 
-import { describe, expect, it } from "vitest";
+import type { SquareClient } from "square";
+import { describe, expect, it, vi } from "vitest";
 import type { CartQuote } from "@/server/checkout/cart-service";
 import {
   buildSquarePaymentLinkRequest,
+  recoverSquareHostedCheckout,
   SquareCheckoutUnavailableError
 } from "@/server/square/hosted-checkout";
 
@@ -51,6 +53,60 @@ const baseInput = {
 };
 
 describe("Square hosted checkout", () => {
+  it("recovers the unique correlated link after Square rejects an idempotent replay", async () => {
+    const input = {
+      ...baseInput,
+      fulfillmentMode: "pickup" as const,
+      orderProCapacityHoldId: "00000000-0000-4000-8000-000000000601",
+      pickup: {
+        quoteId: "00000000-0000-4000-8000-000000000602",
+        requestedDate: "2026-08-19",
+        slotId: "pickup-slot-1",
+        slotLabel: "11:00 AM-12:00 PM",
+        startsAt: "2026-08-19T15:00:00.000Z",
+        endsAt: "2026-08-19T16:00:00.000Z"
+      }
+    };
+    const page = {
+      data: [{
+        id: "payment-link-1",
+        version: 1,
+        description: "Modern State website checkout attempt-123",
+        orderId: "square-order-1",
+        url: "https://square.link/u/provider-e2e"
+      }],
+      hasNextPage: () => false,
+      getNextPage: vi.fn()
+    };
+    const client = {
+      checkout: {
+        paymentLinks: {
+          list: vi.fn(async () => page)
+        }
+      },
+      orders: {
+        get: vi.fn(async () => ({
+          order: {
+            id: "square-order-1",
+            locationId: "square-location-1",
+            referenceId: "attempt-123",
+            metadata: {
+              checkout_attempt_id: "attempt-123",
+              fulfillment_mode: "pickup"
+            }
+          }
+        }))
+      }
+    } as unknown as SquareClient;
+
+    await expect(recoverSquareHostedCheckout(input, client)).resolves.toEqual({
+      checkoutUrl: "https://square.link/u/provider-e2e",
+      squareOrderId: "square-order-1",
+      squarePaymentLinkId: "payment-link-1"
+    });
+    expect(client.orders.get).toHaveBeenCalledWith({ orderId: "square-order-1" });
+  });
+
   it("builds a pickup order from trusted Square variation IDs", () => {
     const request = buildSquarePaymentLinkRequest({
       ...baseInput,

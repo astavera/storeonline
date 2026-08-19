@@ -119,7 +119,7 @@ export function buildSquarePaymentLinkRequest(input: SquareHostedCheckoutInput):
 
   return {
     idempotencyKey: input.idempotencyKey,
-    description: `Modern State website checkout ${input.attemptId}`.slice(0, 255),
+    description: squareCheckoutDescription(input.attemptId),
     order: {
       locationId: input.squareLocationId,
       referenceId: input.attemptId.slice(0, 40),
@@ -286,6 +286,15 @@ export async function createSquareHostedCheckout(input: SquareHostedCheckoutInpu
   } catch (error) {
     if (error instanceof SquareCheckoutUnavailableError) throw error;
     if (error instanceof SquareError) {
+      if (error.errors?.some((entry) => entry.code === "IDEMPOTENCY_KEY_REUSED")) {
+        try {
+          return await recoverSquareHostedCheckout(input, client);
+        } catch {
+          throw new SquareCheckoutUnavailableError(
+            "Square could not recover the existing secure checkout safely. Please try again."
+          );
+        }
+      }
       console.error(JSON.stringify({
         event: "square_hosted_checkout_rejected",
         statusCode: error.statusCode,
@@ -299,6 +308,46 @@ export async function createSquareHostedCheckout(input: SquareHostedCheckoutInpu
     }
     throw new SquareCheckoutUnavailableError();
   }
+}
+
+export async function recoverSquareHostedCheckout(
+  input: SquareHostedCheckoutInput,
+  client: SquareClient
+): Promise<SquareHostedCheckoutResult> {
+  const description = squareCheckoutDescription(input.attemptId);
+  let page = await client.checkout.paymentLinks.list({ limit: 1_000 });
+  let match: Square.PaymentLink | null = null;
+
+  for (let pageNumber = 0; pageNumber < 5; pageNumber += 1) {
+    const matches = page.data.filter((candidate) => candidate.description === description);
+    if (matches.length > 1 || (match && matches.length > 0)) {
+      throw new SquareCheckoutUnavailableError("Square returned ambiguous checkout recovery evidence.");
+    }
+    if (matches.length === 1) match = matches[0]!;
+    if (match || !page.hasNextPage()) break;
+    page = await page.getNextPage();
+  }
+
+  const checkoutUrl = normalizeSquareCheckoutUrl(match?.url);
+  const squareOrderId = match?.orderId?.trim();
+  const squarePaymentLinkId = match?.id?.trim();
+  if (!checkoutUrl || !squareOrderId || !squarePaymentLinkId) {
+    throw new SquareCheckoutUnavailableError("Square checkout recovery evidence is incomplete.");
+  }
+
+  const response = await client.orders.get({ orderId: squareOrderId });
+  const order = response.order;
+  if (
+    order?.id !== squareOrderId
+    || order.locationId !== input.squareLocationId
+    || order.referenceId !== input.attemptId.slice(0, 40)
+    || order.metadata?.checkout_attempt_id !== input.attemptId.slice(0, 255)
+    || order.metadata?.fulfillment_mode !== input.fulfillmentMode
+  ) {
+    throw new SquareCheckoutUnavailableError("Square checkout recovery correlation is invalid.");
+  }
+
+  return { checkoutUrl, squareOrderId, squarePaymentLinkId };
 }
 
 export async function deleteSquareHostedCheckoutLink(paymentLinkId: string) {
@@ -332,6 +381,10 @@ function normalizeSquareCheckoutUrl(value: string | undefined) {
   } catch {
     return null;
   }
+}
+
+function squareCheckoutDescription(attemptId: string) {
+  return `Modern State website checkout ${attemptId}`.slice(0, 255);
 }
 
 function deliveryWindowDuration(startsAt: string, endsAt: string) {
