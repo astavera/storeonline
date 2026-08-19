@@ -9,7 +9,6 @@ import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useState, type ReactNode } from "react";
 import { clearCartItems, readCartItems, writeCartItems, type StoredCartItem } from "@/components/commerce/add-to-cart-button";
-import { Button } from "@/components/ui/button";
 import { formatMoney } from "@/lib/utils";
 
 type CartQuoteLine = {
@@ -167,45 +166,44 @@ export function CartClient({ mode = "cart" }: { mode?: "cart" | "summary" }) {
   }
 
   return (
-    <div className={mode === "summary" ? "grid gap-4" : "grid gap-6 lg:grid-cols-[1fr_360px]"}>
+    <div className={mode === "summary" ? "grid gap-4" : "grid gap-10 lg:grid-cols-[minmax(0,1fr)_380px] lg:items-start lg:gap-14"}>
       {mode === "cart" ? (
-        <div className="grid gap-4">
+        <section aria-label="Cart items">
           {quote.lines.map((line) => (
-            <article className="surface-card grid gap-4 p-4 sm:grid-cols-[120px_minmax(0,1fr)]" key={line.squareVariationId}>
-              <Link className="block overflow-hidden rounded-md bg-surface-muted" href={`/products/${line.slug}`}>
-                <Image alt={line.name} className="aspect-square h-full w-full object-cover" height={120} src={line.imageUrl} unoptimized width={120} />
+            <article className="grid grid-cols-[92px_minmax(0,1fr)] gap-4 border-t border-border py-5 last:border-b sm:grid-cols-[120px_minmax(0,1fr)] sm:gap-5 sm:py-6" key={line.squareVariationId}>
+              <Link className="block self-start overflow-hidden border border-border bg-surface-muted" href={`/products/${line.slug}`}>
+                <Image alt={line.name} className="aspect-square h-auto w-full object-contain" height={120} src={line.imageUrl} unoptimized width={120} />
               </Link>
-              <div className="grid gap-3">
-                <div className="flex flex-wrap justify-between gap-3">
-                  <div>
-                    <p className="text-xs font-semibold uppercase tracking-[0.12em] text-secondary">{line.department}</p>
-                    <h2 className="mt-1 font-display text-xl font-semibold">
-                      <Link className="hover:text-blue" href={`/products/${line.slug}`}>
-                        {line.name}
-                      </Link>
+              <div className="flex min-w-0 flex-col">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <h2 className="font-display text-lg font-black leading-tight text-primary sm:text-xl">
+                      <Link className="transition hover:text-blue" href={`/products/${line.slug}`}>{line.name}</Link>
                     </h2>
+                    <p className="mt-2 text-xs text-secondary">{formatMoney(line.unitPriceCents)} each</p>
                   </div>
-                  <p className="font-semibold">{formatMoney(line.lineTotalCents)}</p>
+                  <p className="shrink-0 font-black text-primary">{formatMoney(line.lineTotalCents)}</p>
                 </div>
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  <div className="inline-flex items-center rounded-md border border-border bg-surface">
-                    <Button className="h-9 w-9 px-0" onClick={() => updateQuantity(line.squareVariationId, line.quantity - 1)} title="Decrease quantity" type="button" variant="quiet">
+
+                <div className="mt-5 flex flex-wrap items-center justify-between gap-3 sm:mt-auto sm:pt-5">
+                  <div aria-label={`Quantity for ${line.name}`} className="inline-flex min-h-10 items-center rounded-pill border border-border bg-surface" role="group">
+                    <button aria-label={`Decrease ${line.name} quantity`} className="grid h-10 w-10 place-items-center rounded-full transition hover:bg-surface-muted" onClick={() => updateQuantity(line.squareVariationId, line.quantity - 1)} type="button">
                       <Minus aria-hidden="true" size={15} />
-                    </Button>
-                    <span className="w-10 text-center text-sm font-semibold">{line.quantity}</span>
-                    <Button className="h-9 w-9 px-0" onClick={() => updateQuantity(line.squareVariationId, line.quantity + 1)} title="Increase quantity" type="button" variant="quiet">
+                    </button>
+                    <span aria-label={`${line.quantity} items`} className="w-8 text-center text-sm font-black">{line.quantity}</span>
+                    <button aria-label={`Increase ${line.name} quantity`} className="grid h-10 w-10 place-items-center rounded-full transition hover:bg-surface-muted disabled:opacity-40" disabled={line.quantity >= 99} onClick={() => updateQuantity(line.squareVariationId, line.quantity + 1)} type="button">
                       <Plus aria-hidden="true" size={15} />
-                    </Button>
+                    </button>
                   </div>
-                  <Button className="h-9 gap-2 px-3" onClick={() => updateQuantity(line.squareVariationId, 0)} type="button" variant="quiet">
+                  <button className="inline-flex min-h-10 items-center gap-2 px-2 text-sm font-bold text-secondary transition hover:text-primary" onClick={() => updateQuantity(line.squareVariationId, 0)} type="button">
                     <Trash2 aria-hidden="true" size={15} />
                     Remove
-                  </Button>
+                  </button>
                 </div>
               </div>
             </article>
           ))}
-        </div>
+        </section>
       ) : null}
 
       <CartSummary canCheckout={canCheckout} quote={quote} />
@@ -228,30 +226,31 @@ function CartStatus({ action, description, role, title }: { action?: ReactNode; 
 
 function CartSummary({ canCheckout, quote }: { canCheckout: boolean; quote: CartQuote }) {
   return (
-    <section className="surface-card h-fit p-6" data-store-area="Cart" data-store-component="CartOrderSummarySection" data-store-section="cart.order-summary" data-store-variant="summary">
-      <h2 className="font-display text-2xl font-semibold">Order summary</h2>
-      <div className="mt-5 grid gap-3 text-sm">
+    <section className="h-fit border-y border-border py-6 lg:sticky lg:top-28" data-store-area="Cart" data-store-component="CartOrderSummarySection" data-store-section="cart.order-summary" data-store-variant="summary">
+      <h2 className="font-display text-2xl font-black tracking-[-0.02em] text-primary">Order summary</h2>
+      <div className="mt-6 grid gap-4 text-sm">
         <SummaryRow label="Items" value={String(quote.itemCount)} />
         <SummaryRow label="Subtotal" value={formatMoney(quote.subtotalCents)} />
         <SummaryRow label={quote.taxEstimateIncluded === false ? "Tax" : "Estimated tax"} value={quote.taxEstimateIncluded === false ? "Calculated at checkout" : formatMoney(quote.estimatedTaxCents)} />
         <SummaryRow label="Fulfillment" value={quote.fulfillmentLabel || "Choose on the next step"} />
-        <div className="border-t border-border pt-3">
-          <SummaryRow label="Estimated total before delivery or shipping" value={formatMoney(quote.totalCents)} strong />
+        <div className="mt-1 border-t border-border pt-4">
+          <SummaryRow label="Estimated total" value={formatMoney(quote.totalCents)} strong />
         </div>
       </div>
       {quote.errors.length > 0 ? <p className="mt-4 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-900">{quote.errors.join(" ")}</p> : null}
-      <Link className={`mt-6 inline-flex min-h-11 w-full items-center justify-center rounded-md px-5 py-2.5 text-sm font-semibold ${canCheckout ? "bg-[var(--theme-action)] text-[var(--theme-action-foreground)]" : "pointer-events-none border border-border bg-surface-muted text-secondary"}`} href="/checkout">
+      <Link aria-disabled={!canCheckout} className={`mt-6 inline-flex min-h-11 w-full items-center justify-center rounded-pill px-5 py-3 text-sm font-black transition ${canCheckout ? "bg-[var(--theme-action)] text-[var(--theme-action-foreground)] hover:opacity-90" : "pointer-events-none border border-border bg-surface-muted text-secondary"}`} href="/checkout">
         Review order details
       </Link>
+      <Link className="mt-3 inline-flex min-h-10 w-full items-center justify-center text-sm font-bold text-secondary transition hover:text-primary" href="/shop">Continue shopping</Link>
     </section>
   );
 }
 
 function SummaryRow({ label, value, strong = false }: { label: string; value: string; strong?: boolean }) {
   return (
-    <div className={`flex items-center justify-between gap-3 ${strong ? "text-base font-semibold" : ""}`}>
+    <div className={`flex items-start justify-between gap-4 ${strong ? "text-base font-black text-primary" : ""}`}>
       <span className="text-secondary">{label}</span>
-      <span>{value}</span>
+      <span className="text-right">{value}</span>
     </div>
   );
 }
