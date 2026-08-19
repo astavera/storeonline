@@ -12,7 +12,7 @@ const harness = vi.hoisted(() => {
       lines: [{ squareVariationId: "variation-1", quantity: 2 }]
     },
     expiresAt: new Date("2026-08-19T15:15:00.000Z"),
-    fulfillmentMode: "PICKUP" as const,
+    fulfillmentMode: "PICKUP" as "PICKUP" | "LOCAL_DELIVERY",
     squareOrderId: "square-order-1",
     squarePaymentLinkId: "square-link-1",
     squarePaymentId: null as string | null,
@@ -90,9 +90,35 @@ const pickupOrder = {
   }]
 };
 
+const deliveryOrder = {
+  ...pickupOrder,
+  metadata: {
+    ...pickupOrder.metadata,
+    fulfillment_mode: "local-delivery"
+  },
+  fulfillments: [{
+    type: "DELIVERY",
+    deliveryDetails: {
+      recipient: {
+        displayName: "Test Customer",
+        emailAddress: "customer@example.com",
+        phoneNumber: "2125550100",
+        address: {
+          addressLine1: "500 EAST 80 STREET",
+          locality: "New York",
+          administrativeDistrictLevel1: "NY",
+          postalCode: "10075",
+          country: "US"
+        }
+      }
+    }
+  }]
+};
+
 describe("Pickup payment confirmation", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    harness.checkout.fulfillmentMode = "PICKUP";
     harness.checkout.squarePaymentId = null;
     harness.getPayment.mockResolvedValue({ payment: completedPayment });
     harness.getOrder.mockResolvedValue({ order: pickupOrder });
@@ -129,6 +155,28 @@ describe("Pickup payment confirmation", () => {
     expect(harness.getOrder).not.toHaveBeenCalled();
     expect(harness.confirmCapacityCheckout).not.toHaveBeenCalled();
     expect(harness.markCapacityCheckoutCompleted).not.toHaveBeenCalled();
+  });
+
+  it("confirms one Local Delivery order with the normalized address for duplicate webhooks", async () => {
+    harness.checkout.fulfillmentMode = "LOCAL_DELIVERY";
+    harness.getOrder.mockResolvedValue({ order: deliveryOrder });
+
+    await confirmCompletedCapacityPayment("square-payment-1");
+    await confirmCompletedCapacityPayment("square-payment-1");
+
+    expect(harness.confirmCapacityCheckout).toHaveBeenCalledOnce();
+    expect(harness.confirmCapacityCheckout).toHaveBeenCalledWith(
+      expect.objectContaining({
+        customer: expect.objectContaining({
+          address: expect.objectContaining({
+            line1: "500 EAST 80 STREET",
+            postalCode: "10075",
+            country: "US"
+          })
+        })
+      }),
+      expect.objectContaining({ idempotencyKey: expect.any(String) })
+    );
   });
 
   it("rejects a payment whose Square cart no longer matches the server quote", async () => {

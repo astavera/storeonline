@@ -39,10 +39,19 @@ const checkoutRequestSchema = z.object({
   fulfillmentMode: z.enum(["pickup", "local-delivery", "shipping"]),
   locationId: z.string().trim().min(1).max(160),
   localDelivery: z.object({
+    quoteRequestId: z.string().uuid(),
     quoteId: z.string().trim().min(8).max(200),
     slotId: z.string().trim().min(8).max(200),
     feeCents: z.number().int().nonnegative(),
     requestedDate: z.string().date(),
+    requestAddress: z.object({
+      line1: z.string().trim().min(5).max(160),
+      line2: z.string().trim().max(80).optional(),
+      city: z.string().trim().min(2).max(80),
+      state: z.string().trim().length(2),
+      postalCode: z.string().trim().regex(/^\d{5}$/),
+      country: z.literal("US")
+    }),
     address: z.object({
       line1: z.string().trim().min(5).max(160),
       line2: z.string().trim().max(80).optional(),
@@ -133,7 +142,8 @@ export async function POST(request: NextRequest) {
     if (parsed.fulfillmentMode === "local-delivery" && parsed.localDelivery) {
       const validation = await validateOrderProLocalDeliverySelection({
         ...parsed.localDelivery,
-        locationId: parsed.locationId
+        locationId: parsed.locationId,
+        items: parsed.items
       });
       if (!validation.valid) {
         errors.push(validation.message);
@@ -236,15 +246,31 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const capacityClient = parsed.fulfillmentMode === "pickup"
-      ? getRuntimeOrderProClient()
-      : null;
+    const capacityMode = parsed.fulfillmentMode === "pickup"
+      ? "pickup"
+      : parsed.fulfillmentMode === "local-delivery"
+        ? "local-delivery"
+        : null;
+    const capacityClient = capacityMode ? getRuntimeOrderProClient() : null;
     if (parsed.fulfillmentMode === "pickup" && (!verifiedPickup || !capacityClient?.ready)) {
       return NextResponse.json(
         {
           ok: false,
           status: "pickup_not_available",
           errors: ["OrderPRO Pickup reservations are not configured."]
+        },
+        { status: 503 }
+      );
+    }
+    if (
+      parsed.fulfillmentMode === "local-delivery"
+      && (!verifiedLocalDelivery || !capacityClient?.ready)
+    ) {
+      return NextResponse.json(
+        {
+          ok: false,
+          status: "local_delivery_not_available",
+          errors: ["OrderPRO Local Delivery reservations are not configured."]
         },
         { status: 503 }
       );
@@ -300,7 +326,7 @@ export async function POST(request: NextRequest) {
     }
 
     if (verifiedPickup && capacityClient?.ready) {
-      const reserveIdentity = pickupCommandIdentity("reserve", attempt.attemptId);
+      const reserveIdentity = capacityCommandIdentity("pickup", "reserve", attempt.attemptId);
       const reservation = await capacityClient.client.reservePickup({
         quoteId: verifiedPickup.availability.quoteId!,
         slotId: verifiedPickup.slot.id,
@@ -326,7 +352,60 @@ export async function POST(request: NextRequest) {
           }
         });
       } catch (error) {
-        const releaseIdentity = pickupCommandIdentity("release", attempt.attemptId, "persist");
+        const releaseIdentity = capacityCommandIdentity("pickup", "release", attempt.attemptId, "persist");
+        await capacityClient.client.releaseCapacityCheckout({
+          capacityHoldId: orderProCapacityHoldId,
+          reason: "CHECKOUT_FAILED"
+        }, {
+          idempotencyKey: releaseIdentity,
+          correlationId: releaseIdentity
+        }).catch(() => undefined);
+        throw error;
+      }
+    }
+
+    if (verifiedLocalDelivery && parsed.localDelivery && capacityClient?.ready) {
+      const reserveIdentity = capacityCommandIdentity(
+        "local-delivery",
+        "reserve",
+        attempt.attemptId
+      );
+      const reservation = await capacityClient.client.reserveWalkingLocalDelivery({
+        quoteId: verifiedLocalDelivery.quoteId,
+        slotId: verifiedLocalDelivery.slotId,
+        checkoutAttemptId: attempt.attemptId
+      }, {
+        idempotencyKey: reserveIdentity,
+        correlationId: reserveIdentity
+      });
+      orderProCapacityHoldId = reservation.hold.capacityHoldId;
+      try {
+        await attemptRepository.recordCapacityReservation({
+          attemptId: attempt.attemptId,
+          fulfillmentMode: "LOCAL_DELIVERY",
+          orderproCapacityHoldId: orderProCapacityHoldId,
+          expiresAt: new Date(reservation.hold.expiresAt),
+          fulfillmentContext: {
+            quoteRequestId: parsed.localDelivery.quoteRequestId,
+            quoteId: verifiedLocalDelivery.quoteId,
+            slotId: verifiedLocalDelivery.slotId,
+            startsAt: verifiedLocalDelivery.startsAt,
+            endsAt: verifiedLocalDelivery.endsAt,
+            requestedDate: parsed.localDelivery.requestedDate,
+            locationId: parsed.locationId,
+            feeCents: verifiedLocalDelivery.feeCents,
+            addressHash: createHash("sha256")
+              .update(JSON.stringify(verifiedLocalDelivery.address))
+              .digest("hex")
+          }
+        });
+      } catch (error) {
+        const releaseIdentity = capacityCommandIdentity(
+          "local-delivery",
+          "release",
+          attempt.attemptId,
+          "persist"
+        );
         await capacityClient.client.releaseCapacityCheckout({
           capacityHoldId: orderProCapacityHoldId,
           reason: "CHECKOUT_FAILED"
@@ -370,7 +449,7 @@ export async function POST(request: NextRequest) {
         }).catch(() => undefined);
       }
       if (orderProCapacityHoldId && capacityClient?.ready) {
-        const releaseIdentity = pickupCommandIdentity("release", attempt.attemptId, "square");
+        const releaseIdentity = capacityCommandIdentity(capacityMode!, "release", attempt.attemptId, "square");
         await capacityClient.client.releaseCapacityCheckout({
           capacityHoldId: orderProCapacityHoldId,
           reason: "CHECKOUT_FAILED"
@@ -384,7 +463,7 @@ export async function POST(request: NextRequest) {
 
     if (orderProCapacityHoldId && capacityClient?.ready) {
       if (!squareCheckout.squarePaymentLinkId) {
-        const releaseIdentity = pickupCommandIdentity("release", attempt.attemptId, "missing-link");
+        const releaseIdentity = capacityCommandIdentity(capacityMode!, "release", attempt.attemptId, "missing-link");
         await capacityClient.client.releaseCapacityCheckout({
           capacityHoldId: orderProCapacityHoldId,
           reason: "CHECKOUT_FAILED"
@@ -400,7 +479,7 @@ export async function POST(request: NextRequest) {
           squareOrderId: squareCheckout.squareOrderId,
           squarePaymentLinkId: squareCheckout.squarePaymentLinkId
         });
-        const bindIdentity = pickupCommandIdentity("bind", attempt.attemptId);
+        const bindIdentity = capacityCommandIdentity(capacityMode!, "bind", attempt.attemptId);
         await capacityClient.client.bindCapacityCheckout({
           capacityHoldId: orderProCapacityHoldId,
           squareOrderId: squareCheckout.squareOrderId,
@@ -419,7 +498,7 @@ export async function POST(request: NextRequest) {
           // Keep the reservation while a live payment link may still complete.
         }
         if (squareLinkClosed) {
-          const releaseIdentity = pickupCommandIdentity("release", attempt.attemptId, "bind");
+          const releaseIdentity = capacityCommandIdentity(capacityMode!, "release", attempt.attemptId, "bind");
           await capacityClient.client.releaseCapacityCheckout({
             capacityHoldId: orderProCapacityHoldId,
             reason: "CHECKOUT_FAILED"
@@ -511,12 +590,13 @@ export async function POST(request: NextRequest) {
   }
 }
 
-function pickupCommandIdentity(
+function capacityCommandIdentity(
+  mode: "pickup" | "local-delivery",
   action: "reserve" | "bind" | "confirm" | "release",
   ...parts: string[]
 ) {
   const digest = createHash("sha256")
-    .update(JSON.stringify([action, ...parts]))
+    .update(JSON.stringify([mode, action, ...parts]))
     .digest("hex");
-  return `pickup-${action}:v1:${digest}`;
+  return `capacity-${mode}-${action}:v1:${digest}`;
 }

@@ -14,10 +14,25 @@ import {
   validateOrderProLocalDeliverySelection
 } from "@/server/orderpro/orderpro-local-delivery-service";
 
+const orderProRuntimeMocks = vi.hoisted(() => ({
+  durableLocalDeliveryQuote: vi.fn()
+}));
+
+vi.mock("@/server/orderpro/runtime", () => ({
+  getRuntimeOrderProClient: () => ({
+    ready: true,
+    state: "READY",
+    client: {
+      durableLocalDeliveryQuote: orderProRuntimeMocks.durableLocalDeliveryQuote
+    }
+  })
+}));
+
 describe("OrderPro local delivery test gateway", () => {
   afterEach(() => {
     vi.unstubAllEnvs();
     vi.unstubAllGlobals();
+    vi.clearAllMocks();
   });
 
   it("never enables mock delivery quotes in production", () => {
@@ -106,15 +121,17 @@ describe("OrderPro local delivery test gateway", () => {
     }
   });
 
-  it("maps a production OrderPRO preview quote without enabling checkout", async () => {
+  it("maps a durable production OrderPRO quote with its real reservation identity", async () => {
     vi.stubEnv("NODE_ENV", "production");
-    vi.stubEnv("ORDERPRO_STOREFRONT_PREVIEW_BASE_URL", "http://orderpro:3000");
-    vi.stubEnv("ORDERPRO_STOREFRONT_PREVIEW_SHARED_SECRET", "test-orderpro-preview-key-that-is-long-enough");
     const requestedDate = earliestNewYorkDeliveryDate();
-    vi.stubGlobal("fetch", vi.fn<typeof fetch>(async () => new Response(JSON.stringify({
+    orderProRuntimeMocks.durableLocalDeliveryQuote.mockResolvedValueOnce({
       ok: true,
+      quoteId: "00000000-0000-4000-8000-000000000701",
+      quoteClientId: "storefront-production",
+      replayed: false,
       eligible: true,
       bookable: true,
+      reservationCapability: "HOLD_READY",
       reasonCode: "ELIGIBLE",
       normalizedAddress: {
         line1: "500 EAST 80 STREET",
@@ -122,36 +139,42 @@ describe("OrderPro local delivery test gateway", () => {
         city: "New York",
         state: "NY",
         postalCode: "10075",
-        country: "US"
+        country: "US",
+        borough: "Manhattan"
       },
+      postalCode: "10075",
       selectedLocationId: "third_avenue",
       selectedLocationName: "3rd Avenue Store",
+      assignmentRule: "NEAREST_WALKING_ROUTE",
       walkingDistanceFeet: 4261,
       walkingDurationSeconds: 1020,
+      estimatedRoundTripDurationSeconds: 2520,
       feeCents: 2500,
       currency: "USD",
+      feeTierId: "whole-zone-25",
       availableSlots: [{
         slotId: "delivery-third_avenue-slot-1",
-        startsAt: "2026-07-24T21:30:00.000Z",
-        endsAt: "2026-07-24T22:30:00.000Z"
+        slotClass: "STANDARD",
+        startsAt: "2026-08-19T21:30:00.000Z",
+        endsAt: "2026-08-19T22:30:00.000Z",
+        capacityOrders: 4,
+        remainingOrders: 3,
+        pickupUntilAt: null
       }],
-      candidateRoutes: [{
-        locationId: "third_avenue",
-        walkingDistanceFeet: 4261,
-        walkingDurationSeconds: 1020
-      }, {
-        locationId: "east_86th_street",
-        walkingDistanceFeet: 4800,
-        walkingDurationSeconds: 1200
-      }],
-      expiresAt: "2026-07-23T18:05:00.000Z"
-    }), { status: 200, headers: { "content-type": "application/json" } })));
+      zoneVersionId: "published-zone-v4",
+      feePolicyVersionId: "published-fee-v4",
+      routingProvider: "osrm",
+      expiresAt: "2026-08-19T18:05:00.000Z",
+      correlationId: "00000000-0000-4000-8000-000000000702"
+    });
 
     const quote = await quoteOrderProLocalDelivery(request("500 E 80th St", "10075"));
 
     expect(quote).toMatchObject({
       eligible: true,
       source: "ORDERPRO",
+      requestId: "00000000-0000-4000-8000-000000000702",
+      quoteId: "00000000-0000-4000-8000-000000000701",
       requestedDate,
       selectedLocationId: "store-3rd-avenue",
       walkingDurationMinutes: 17,
@@ -160,6 +183,15 @@ describe("OrderPro local delivery test gateway", () => {
         id: "delivery-third_avenue-slot-1"
       }]
     });
+    expect(orderProRuntimeMocks.durableLocalDeliveryQuote).toHaveBeenCalledWith(
+      expect.objectContaining({
+        cartLines: [{ squareVariationId: "variation-local-delivery-test", quantity: 1 }]
+      }),
+      expect.objectContaining({
+        correlationId: "00000000-0000-4000-8000-000000000702",
+        idempotencyKey: "local-delivery-quote:00000000-0000-4000-8000-000000000702"
+      })
+    );
   });
 
   it("fails closed for an address outside the published test ZIPs", () => {
@@ -184,12 +216,15 @@ describe("OrderPro local delivery test gateway", () => {
     if (!quote.eligible) return;
 
     await expect(validateOrderProLocalDeliverySelection({
+      quoteRequestId: quote.requestId,
       quoteId: quote.quoteId,
       slotId: "missing-orderpro-slot",
       feeCents: quote.feeCents,
       requestedDate: quote.requestedDate,
+      requestAddress: quote.requestAddress,
       address: quote.normalizedAddress,
-      locationId: quote.selectedLocationId
+      locationId: quote.selectedLocationId,
+      items: [{ squareVariationId: "variation-local-delivery-test", quantity: 1 }]
     })).resolves.toMatchObject({ valid: false });
   });
 });
@@ -197,6 +232,7 @@ describe("OrderPro local delivery test gateway", () => {
 function request(line1: string, postalCode: string): LocalDeliveryQuoteRequest {
   return {
     context: "checkout",
+    quoteRequestId: "00000000-0000-4000-8000-000000000702",
     address: {
       line1,
       city: "New York",
@@ -204,6 +240,7 @@ function request(line1: string, postalCode: string): LocalDeliveryQuoteRequest {
       postalCode,
       country: "US"
     },
-    requestedDate: earliestNewYorkDeliveryDate()
+    requestedDate: earliestNewYorkDeliveryDate(),
+    items: [{ squareVariationId: "variation-local-delivery-test", quantity: 1 }]
   };
 }

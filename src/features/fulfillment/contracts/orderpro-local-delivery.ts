@@ -15,8 +15,10 @@ export type LocalDeliveryAddress = {
 
 export type LocalDeliveryQuoteRequest = {
   context: LocalDeliveryQuoteContext;
+  quoteRequestId?: string;
   address: LocalDeliveryAddress;
   requestedDate: string;
+  items?: Array<{ squareVariationId: string; quantity: number }>;
 };
 
 export type LocalDeliverySlot = {
@@ -29,8 +31,10 @@ export type LocalDeliverySlot = {
 export type LocalDeliveryQuoteSuccess = {
   eligible: true;
   source: "ORDERPRO" | "MOCK";
+  requestId: string;
   quoteId: string;
   requestedDate: string;
+  requestAddress: LocalDeliveryAddress;
   normalizedAddress: LocalDeliveryAddress;
   selectedLocationId: string;
   selectedLocationName: string;

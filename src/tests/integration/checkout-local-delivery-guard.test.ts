@@ -24,8 +24,20 @@ const pickupMocks = vi.hoisted(() => ({
       }
     };
   }),
+  reserveWalkingLocalDelivery: vi.fn(async (input: unknown, options: unknown) => {
+    void input;
+    void options;
+    return {
+      replayed: false,
+      hold: {
+        capacityHoldId: "00000000-0000-4000-8000-000000000611",
+        expiresAt: "2026-08-19T15:15:00.000Z"
+      }
+    };
+  }),
   bindCapacityCheckout: vi.fn(async () => ({ changed: true })),
   releaseCapacityCheckout: vi.fn(async () => ({ changed: true })),
+  localDeliveryValid: { value: true },
   validatePickup: vi.fn(async () => ({
     valid: true as const,
     availability: {
@@ -88,6 +100,7 @@ vi.mock("@/server/orderpro/runtime", () => ({
     state: "READY",
     client: {
       reservePickup: pickupMocks.reservePickup,
+      reserveWalkingLocalDelivery: pickupMocks.reserveWalkingLocalDelivery,
       bindCapacityCheckout: pickupMocks.bindCapacityCheckout,
       releaseCapacityCheckout: pickupMocks.releaseCapacityCheckout
     }
@@ -109,7 +122,7 @@ vi.mock("@/server/orderpro/shipping-order-client", () => ({
 
 vi.mock("@/server/orderpro/orderpro-local-delivery-service", () => ({
   isOrderProDeliveryTestMode: () => false,
-  validateOrderProLocalDeliverySelection: async () => ({
+  validateOrderProLocalDeliverySelection: async () => pickupMocks.localDeliveryValid.value ? ({
     valid: true,
     quote: {
       eligible: true,
@@ -142,6 +155,9 @@ vi.mock("@/server/orderpro/orderpro-local-delivery-service", () => ({
       feePolicyVersionId: "fee-policy-version",
       expiresAt: "2026-07-24T16:00:00.000Z"
     }
+  }) : ({
+    valid: false,
+    message: "The local delivery quote or time slot is no longer valid."
   })
 }));
 
@@ -204,10 +220,18 @@ function checkoutRequest(
       ...(fulfillmentMode === "local-delivery"
         ? {
             localDelivery: {
+              quoteRequestId: "00000000-0000-4000-8000-000000000612",
               quoteId: "quote-release-guard",
               slotId: "slot-release-guard",
               feeCents: 1299,
               requestedDate: "2026-07-25",
+              requestAddress: {
+                line1: "123 Test Street",
+                city: "New York",
+                state: "NY",
+                postalCode: "10028",
+                country: "US"
+              },
               address: {
                 line1: "123 Test Street",
                 city: "New York",
@@ -249,6 +273,7 @@ function checkoutRequest(
 describe("checkout Local Delivery release guard", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    pickupMocks.localDeliveryValid.value = true;
   });
 
   it("creates a secure Square redirect only after OrderPRO revalidates delivery", async () => {
@@ -263,6 +288,14 @@ describe("checkout Local Delivery release guard", () => {
       paymentCaptured: false,
       squareOrderCreated: true
     });
+    expect(pickupMocks.reserveWalkingLocalDelivery).toHaveBeenCalledOnce();
+    expect(pickupMocks.bindCapacityCheckout).toHaveBeenCalledOnce();
+    expect(pickupMocks.createSquareHostedCheckout).toHaveBeenCalledWith(
+      expect.objectContaining({
+        fulfillmentMode: "local-delivery",
+        orderProCapacityHoldId: "00000000-0000-4000-8000-000000000611"
+      })
+    );
   });
 
   it.each(["pickup", "shipping"] as const)("creates a secure Square redirect for the existing %s flow", async (fulfillmentMode) => {
@@ -317,6 +350,43 @@ describe("checkout Local Delivery release guard", () => {
       }),
       expect.objectContaining({ idempotencyKey: expect.any(String), correlationId: expect.any(String) })
     );
+  });
+
+  it("releases the OrderPRO Local Delivery reservation when Square checkout fails", async () => {
+    pickupMocks.createSquareHostedCheckout.mockRejectedValueOnce(new Error("Square unavailable"));
+
+    const response = await POST(checkoutRequest("local-delivery"));
+
+    expect(response.status).toBe(400);
+    expect(pickupMocks.reserveWalkingLocalDelivery).toHaveBeenCalledOnce();
+    expect(pickupMocks.releaseCapacityCheckout).toHaveBeenCalledWith(
+      expect.objectContaining({
+        capacityHoldId: "00000000-0000-4000-8000-000000000611",
+        reason: "CHECKOUT_FAILED"
+      }),
+      expect.objectContaining({ idempotencyKey: expect.any(String), correlationId: expect.any(String) })
+    );
+  });
+
+  it("stops before reservation and Square when the delivery quote, address, fee or slot is stale", async () => {
+    pickupMocks.localDeliveryValid.value = false;
+
+    const response = await POST(checkoutRequest("local-delivery"));
+
+    expect(response.status).toBe(400);
+    expect(pickupMocks.reserveWalkingLocalDelivery).not.toHaveBeenCalled();
+    expect(pickupMocks.createSquareHostedCheckout).not.toHaveBeenCalled();
+  });
+
+  it("does not create Square checkout when Local Delivery capacity is exhausted", async () => {
+    pickupMocks.reserveWalkingLocalDelivery.mockRejectedValueOnce(
+      new Error("CAPACITY_UNAVAILABLE")
+    );
+
+    const response = await POST(checkoutRequest("local-delivery"));
+
+    expect(response.status).toBe(400);
+    expect(pickupMocks.createSquareHostedCheckout).not.toHaveBeenCalled();
   });
 
   it("uses stable OrderPRO and Square identities across an identical retry", async () => {

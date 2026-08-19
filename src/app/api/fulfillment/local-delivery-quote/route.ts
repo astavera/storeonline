@@ -3,7 +3,10 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { quoteOrderProLocalDelivery } from "@/server/orderpro/orderpro-local-delivery-service";
+import {
+  isOrderProDeliveryTestMode,
+  quoteOrderProLocalDelivery
+} from "@/server/orderpro/orderpro-local-delivery-service";
 
 export async function POST(request: NextRequest) {
   try {
@@ -21,7 +24,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       quote: {
         eligible: false,
-        source: "MOCK",
+        source: isOrderProDeliveryTestMode() ? "MOCK" : "ORDERPRO",
         reasonCode: "ORDERPRO_UNAVAILABLE",
         message: "We could not check local delivery. Please try again or choose pickup."
       }

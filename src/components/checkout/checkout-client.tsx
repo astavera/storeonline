@@ -144,10 +144,12 @@ export function CheckoutClient({ locations, deliveryTestMode = false, localDeliv
         locationId,
         ...(fulfillmentMode === "local-delivery" && localDeliverySelection ? {
           localDelivery: {
+            quoteRequestId: localDeliverySelection.quote.requestId,
             quoteId: localDeliverySelection.quote.quoteId,
             slotId: localDeliverySelection.slotId,
             feeCents: localDeliverySelection.quote.feeCents,
             requestedDate: localDeliverySelection.quote.requestedDate,
+            requestAddress: localDeliverySelection.quote.requestAddress,
             address: localDeliverySelection.quote.normalizedAddress
           }
         } : {}),
@@ -294,6 +296,7 @@ export function CheckoutClient({ locations, deliveryTestMode = false, localDeliv
         {fulfillmentMode === "local-delivery" ? (
           <LocalDeliveryQuotePanel
             context="checkout"
+            items={items}
             initialAddress={deliveryPrefill?.address}
             initialPostalCode={deliveryPrefill?.postalCode}
             initialRequestedDate={deliveryPrefill?.requestedDate}

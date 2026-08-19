@@ -18,6 +18,8 @@ import {
   orderProCreateHoldRequestSchema,
   orderProCreateHoldResultSchema,
   orderProErrorResponseSchema,
+  orderProDurableLocalDeliveryQuoteRequestSchema,
+  orderProDurableLocalDeliveryQuoteResultSchema,
   orderProFulfillmentStatusLookupSchema,
   orderProFulfillmentStatusResultSchema,
   orderProGetHoldResultSchema,
@@ -33,6 +35,8 @@ import {
   orderProReleaseCapacityCheckoutRequestSchema,
   orderProReleaseHoldRequestSchema,
   orderProStableIdSchema,
+  orderProWalkingLocalDeliveryReservationRequestSchema,
+  orderProWalkingLocalDeliveryReservationResultSchema,
   type OrderProAuthCheckFailure,
   type OrderProAuthCheckSuccess,
   type OrderProBindCapacityCheckoutRequest,
@@ -40,6 +44,8 @@ import {
   type OrderProCreateHoldRequest,
   type OrderProCreateHoldResult,
   type OrderProErrorResponse,
+  type OrderProDurableLocalDeliveryQuoteRequest,
+  type OrderProDurableLocalDeliveryQuoteResult,
   type OrderProFulfillmentStatusLookup,
   type OrderProFulfillmentStatusResult,
   type OrderProGetHoldResult,
@@ -52,6 +58,8 @@ import {
   type OrderProPickupReservationRequest,
   type OrderProPickupReservationResult,
   type OrderProReleaseCapacityCheckoutRequest,
+  type OrderProWalkingLocalDeliveryReservationRequest,
+  type OrderProWalkingLocalDeliveryReservationResult,
   type OrderProReleaseReason
 } from "@/server/orderpro/contracts";
 
@@ -80,6 +88,14 @@ export type OrderProClient = {
     lookup: OrderProFulfillmentStatusLookup,
     options?: OrderProCorrelationOptions
   ): Promise<OrderProFulfillmentStatusResult>;
+  durableLocalDeliveryQuote(
+    input: OrderProDurableLocalDeliveryQuoteRequest,
+    options?: OrderProIdempotentRequestOptions
+  ): Promise<OrderProDurableLocalDeliveryQuoteResult>;
+  reserveWalkingLocalDelivery(
+    input: OrderProWalkingLocalDeliveryReservationRequest,
+    options?: OrderProIdempotentRequestOptions
+  ): Promise<OrderProWalkingLocalDeliveryReservationResult>;
   pickupQuote(
     input: OrderProPickupQuoteRequest,
     options?: OrderProIdempotentRequestOptions
@@ -582,6 +598,45 @@ export function createOrderProClient({
         successStatuses: [200],
         successSchema: orderProFulfillmentStatusResultSchema,
         requireBodyCorrelation: true
+      });
+    },
+
+    async durableLocalDeliveryQuote(input, options = {}) {
+      const correlationId = correlation(options.correlationId);
+      const body = parseInput(
+        orderProDurableLocalDeliveryQuoteRequestSchema,
+        input,
+        correlationId
+      );
+      return execute({
+        method: "POST",
+        path: "/api/internal/storefront/durable-local-delivery-quote",
+        correlationId,
+        idempotencyKey: idempotency(options.idempotencyKey, correlationId),
+        body,
+        successStatuses: [200],
+        successSchema: orderProDurableLocalDeliveryQuoteResultSchema,
+        requireBodyCorrelation: true
+      });
+    },
+
+    async reserveWalkingLocalDelivery(input, options = {}) {
+      const correlationId = correlation(options.correlationId);
+      const body = parseInput(
+        orderProWalkingLocalDeliveryReservationRequestSchema,
+        input,
+        correlationId
+      );
+      return execute({
+        method: "POST",
+        path: "/api/internal/storefront/walking-capacity-reservation",
+        correlationId,
+        idempotencyKey: idempotency(options.idempotencyKey, correlationId),
+        body,
+        successStatuses: [200, 201],
+        successSchema: orderProWalkingLocalDeliveryReservationResultSchema,
+        validateSuccess: (status, value) =>
+          (status === 201 && !value.replayed) || (status === 200 && value.replayed)
       });
     },
 

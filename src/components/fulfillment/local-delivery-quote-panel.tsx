@@ -22,6 +22,7 @@ import { formatMoney } from "@/lib/utils";
 
 type LocalDeliveryQuotePanelProps = {
   context: LocalDeliveryQuoteContext;
+  items?: Array<{ squareVariationId: string; quantity: number }>;
   initialAddress?: LocalDeliveryAddress;
   initialPostalCode?: string;
   initialRequestedDate?: string;
@@ -37,6 +38,7 @@ const testAddresses = [
 
 export function LocalDeliveryQuotePanel({
   context,
+  items,
   initialAddress,
   initialPostalCode,
   initialRequestedDate,
@@ -89,6 +91,8 @@ export function LocalDeliveryQuotePanel({
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
           context,
+          quoteRequestId: crypto.randomUUID(),
+          ...(items?.length ? { items } : {}),
           address: {
             line1,
             ...(line2.trim() ? { line2 } : {}),

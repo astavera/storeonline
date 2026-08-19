@@ -342,6 +342,82 @@ export const orderProPickupReservationResultSchema = z.object({
   hold: orderProHoldSchema
 }).strict();
 
+export const orderProDurableLocalDeliveryQuoteRequestSchema = z.object({
+  address: orderProAddressSchema.extend({
+    state: z.literal("NY"),
+    country: z.literal("US")
+  }).strict(),
+  cartLines: z.array(z.object({
+    squareVariationId: externalIdSchema,
+    quantity: z.number().int().min(1).max(999)
+  }).strict()).min(1).max(100),
+  requestedDate: z.iso.date()
+}).strict();
+
+const orderProDurableLocalDeliverySlotSchema = z.object({
+  slotId: externalIdSchema,
+  slotClass: z.enum(["STANDARD", "INTERSTORE_TRANSFER"]),
+  startsAt: instantSchema,
+  endsAt: instantSchema,
+  capacityOrders: z.number().int().nonnegative().nullable(),
+  remainingOrders: z.number().int().nonnegative().nullable(),
+  pickupUntilAt: instantSchema.nullable()
+}).strict();
+
+const orderProDurableLocalDeliveryQuoteCommonSchema = z.object({
+  ok: z.literal(true),
+  quoteId: externalIdSchema,
+  quoteClientId: externalIdSchema.max(120),
+  replayed: z.boolean(),
+  normalizedAddress: normalizedAddressSchema,
+  postalCode: z.string().regex(/^\d{5}$/),
+  expiresAt: instantSchema,
+  correlationId: orderProCorrelationIdSchema
+}).strict();
+
+export const orderProDurableLocalDeliveryQuoteResultSchema = z.union([
+  orderProDurableLocalDeliveryQuoteCommonSchema.extend({
+    eligible: z.literal(false),
+    bookable: z.literal(false),
+    reservationCapability: z.literal("NOT_RESERVABLE"),
+    reasonCode: z.literal("CONTACT_STORE"),
+    storefrontMessage: z.string().trim().min(1).max(500)
+  }).strict(),
+  orderProDurableLocalDeliveryQuoteCommonSchema.extend({
+    eligible: z.literal(true),
+    bookable: z.boolean(),
+    reservationCapability: z.enum(["HOLD_READY", "NOT_RESERVABLE"]),
+    reasonCode: z.enum(["ELIGIBLE", "TRANSFER_REQUIRED", "NO_SLOTS_FOR_SELECTED_LOCATION"]),
+    selectedLocationId: externalIdSchema,
+    selectedLocationName: z.string().trim().min(1).max(200),
+    assignmentRule: z.enum(["FIXED_POSTAL_ZONE", "NEAREST_WALKING_ROUTE"]),
+    walkingDistanceFeet: z.number().int().nonnegative(),
+    walkingDurationSeconds: z.number().int().nonnegative(),
+    estimatedRoundTripDurationSeconds: z.number().int().nonnegative(),
+    feeCents: z.number().int().nonnegative(),
+    currency: z.literal("USD"),
+    feeTierId: externalIdSchema,
+    availableSlots: z.array(orderProDurableLocalDeliverySlotSchema).max(100),
+    zoneVersionId: externalIdSchema,
+    feePolicyVersionId: externalIdSchema,
+    routingProvider: z.string().trim().min(1).max(80)
+  }).strict()
+]);
+
+export const orderProWalkingLocalDeliveryReservationRequestSchema = z.object({
+  quoteId: z.string().uuid(),
+  slotId: externalIdSchema,
+  checkoutAttemptId: externalIdSchema
+}).strict();
+
+export const orderProWalkingLocalDeliveryReservationResultSchema = z.object({
+  ok: z.literal(true),
+  replayed: z.boolean(),
+  checkoutAttemptId: externalIdSchema,
+  fulfillmentMode: z.literal("WALKING_LOCAL_DELIVERY"),
+  hold: orderProHoldSchema
+}).strict();
+
 const orderProCapacityCustomerSchema = z.object({
   name: z.string().trim().min(2).max(120),
   email: z.string().trim().email().max(254),
@@ -418,6 +494,10 @@ export type OrderProPickupQuoteRequest = z.input<typeof orderProPickupQuoteReque
 export type OrderProPickupQuoteResult = z.infer<typeof orderProPickupQuoteResultSchema>;
 export type OrderProPickupReservationRequest = z.input<typeof orderProPickupReservationRequestSchema>;
 export type OrderProPickupReservationResult = z.infer<typeof orderProPickupReservationResultSchema>;
+export type OrderProDurableLocalDeliveryQuoteRequest = z.input<typeof orderProDurableLocalDeliveryQuoteRequestSchema>;
+export type OrderProDurableLocalDeliveryQuoteResult = z.infer<typeof orderProDurableLocalDeliveryQuoteResultSchema>;
+export type OrderProWalkingLocalDeliveryReservationRequest = z.input<typeof orderProWalkingLocalDeliveryReservationRequestSchema>;
+export type OrderProWalkingLocalDeliveryReservationResult = z.infer<typeof orderProWalkingLocalDeliveryReservationResultSchema>;
 export type OrderProBindCapacityCheckoutRequest = z.input<typeof orderProBindCapacityCheckoutRequestSchema>;
 export type OrderProConfirmCapacityCheckoutRequest = z.input<typeof orderProConfirmCapacityCheckoutRequestSchema>;
 export type OrderProReleaseCapacityCheckoutRequest = z.input<typeof orderProReleaseCapacityCheckoutRequestSchema>;
