@@ -11,9 +11,13 @@ import {
   quoteCartWithProducts,
   type CartQuote
 } from "@/server/checkout/cart-service";
-import { getOrderProPrivatePreviewClient } from "@/server/orderpro/private-preview-client";
+import {
+  getOrderProShippingOrderClient,
+  orderProShippingCommandIdentity
+} from "@/server/orderpro/shipping-order-client";
 import {
   readMappedOperationalStoreLocations,
+  readPublishedStorefrontShippingPoliciesByVariationIds,
   readPostgresStorefrontProductsByVariationIds
 } from "@/server/square/postgres-catalog-store";
 
@@ -48,7 +52,6 @@ export type ShippingSelection = z.infer<typeof shippingSelectionSchema>;
 type ShippingConfiguration = {
   token: string;
   allowedCarriers: string[];
-  pilotVariationIds: string[];
   origin: {
     name: string;
     company: string;
@@ -60,18 +63,10 @@ type ShippingConfiguration = {
     phone: string;
     email: string;
   };
-  parcel: {
-    length: string;
-    width: string;
-    height: string;
-    distance_unit: "in";
-    weight: string;
-    mass_unit: "lb";
-  };
 };
 
 type QuoteTokenPayload = {
-  v: 1;
+  v: 2;
   rateId: string;
   amountCents: number;
   carrier: string;
@@ -79,6 +74,7 @@ type QuoteTokenPayload = {
   expiresAt: string;
   addressHash: string;
   cartHash: string;
+  packageHash: string;
   locationId: string;
   readyToShipDate: string;
   policyVersion: string;
@@ -126,36 +122,67 @@ export function isOrderProShippingCheckoutEnabled(environment: Record<string, st
   return environment.ORDERPRO_SHIPPING_CHECKOUT_ENABLED?.trim() === "true";
 }
 
-export function getShippingPilotVariationIds() {
-  return csv(env.SHIPPO_PILOT_VARIATION_IDS, false);
-}
-
 export function assertProductsAreShippable(items: Array<{ isShippable: boolean }>) {
   if (items.some((item) => !item.isShippable)) {
     throw new Error("Cart contains products that are not eligible for warehouse shipping.");
   }
 }
 
-export async function quoteShippingPilotCart(input: {
+export async function quoteShippingCart(input: {
   items: Array<{ squareVariationId: string; quantity: number }>;
   locationId: string;
 }): Promise<CartQuote> {
-  const configuration = getShippingConfiguration();
-  assertPilotCart(input.items, configuration);
-  const location = (await readMappedOperationalStoreLocations()).find((candidate) => candidate.id === input.locationId);
-  if (!location) throw new ShippingUnavailableError("The selected shipping store is not available.");
+  return (await readShippingCartContext(input)).quote;
+}
 
-  const products = await readPostgresStorefrontProductsByVariationIds(
-    input.items.map((item) => item.squareVariationId),
-    { squareLocationIds: [location.squareLocationId] }
-  );
-  return quoteCartWithProducts(
+async function readShippingCartContext(input: {
+  items: Array<{ squareVariationId: string; quantity: number }>;
+  locationId: string;
+}) {
+  const unitCount = input.items.reduce((total, item) => total + item.quantity, 0);
+  if (input.items.length === 0 || input.items.some((item) => (
+    !item.squareVariationId.trim() || !Number.isInteger(item.quantity) || item.quantity < 1
+  ))) {
+    throw new ShippingUnavailableError("The shipping cart is invalid.");
+  }
+  if (new Set(input.items.map((item) => item.squareVariationId.trim())).size !== input.items.length) {
+    throw new ShippingUnavailableError("Duplicate shipping cart lines are not allowed.");
+  }
+  if (unitCount > 30) {
+    throw new ShippingUnavailableError("Shipping supports carts of up to 30 physical packages.");
+  }
+  const location = (await readMappedOperationalStoreLocations()).find((candidate) => candidate.id === input.locationId);
+  if (!location?.shippingFulfillmentEnabled) {
+    throw new ShippingUnavailableError("The selected store is not enabled as a shipping source.");
+  }
+
+  const variationIds = input.items.map((item) => item.squareVariationId);
+  const [products, policies] = await Promise.all([
+    readPostgresStorefrontProductsByVariationIds(variationIds, {
+      squareLocationIds: [location.squareLocationId]
+    }),
+    readPublishedStorefrontShippingPoliciesByVariationIds(variationIds)
+  ]);
+  const policiesByVariationId = new Map(policies.map((policy) => [policy.squareVariationId, policy]));
+  if (
+    new Set(variationIds).size !== policies.length ||
+    policies.some((policy) => ![
+      policy.packageLengthIn,
+      policy.packageWidthIn,
+      policy.packageHeightIn,
+      policy.packageWeightLb
+    ].every(positiveDecimal))
+  ) {
+    throw new ShippingUnavailableError("Every product must be published for shipping with complete package dimensions and weight.");
+  }
+
+  const quote = quoteCartWithProducts(
     input,
     products.map((product) => ({
       ...product,
       fulfillmentModes: ["shipping"],
       // OrderPRO is the shipping inventory authority. Square remains the
-      // catalog, price, order, and payment system for this bounded pilot.
+      // catalog, price, order, and payment system.
       inventoryTracked: false,
       availableQuantity: null
     })),
@@ -166,6 +193,53 @@ export async function quoteShippingPilotCart(input: {
       location: { ...location, shippingFulfillmentEnabled: true }
     }
   );
+  if (quote.errors.length > 0) throw new ShippingUnavailableError(quote.errors.join(" "));
+
+  const packageSnapshot = input.items
+    .map((item) => {
+      const policy = policiesByVariationId.get(item.squareVariationId)!;
+      return {
+        squareVariationId: item.squareVariationId,
+        quantity: item.quantity,
+        length: policy.packageLengthIn,
+        width: policy.packageWidthIn,
+        height: policy.packageHeightIn,
+        weight: policy.packageWeightLb
+      };
+    })
+    .sort((left, right) => left.squareVariationId.localeCompare(right.squareVariationId));
+  const parcels = packageSnapshot.flatMap((item) => Array.from({ length: item.quantity }, () => ({
+    length: item.length,
+    width: item.width,
+    height: item.height,
+    distance_unit: "in" as const,
+    weight: item.weight,
+    mass_unit: "lb" as const
+  })));
+  return {
+    quote,
+    parcels,
+    packageHash: hashValue(JSON.stringify(packageSnapshot))
+  };
+}
+
+async function readOrderProShippingAllocation(input: {
+  items: Array<{ squareVariationId: string; quantity: number }>;
+  locationId: string;
+}) {
+  const orderPro = getOrderProShippingOrderClient();
+  if (!orderPro) throw new ShippingUnavailableError("OrderPRO shipping availability is not configured.");
+  const quoteIdentity = orderProShippingCommandIdentity("quote", input.locationId, normalizedCart(input.items));
+  try {
+    return await orderPro.quote({
+      locationId: input.locationId,
+      items: input.items,
+      idempotencyKey: quoteIdentity,
+      correlationId: quoteIdentity
+    });
+  } catch {
+    throw new ShippingUnavailableError("OrderPRO shipping availability is temporarily unavailable.");
+  }
 }
 
 export async function quoteShippingRates(input: {
@@ -177,17 +251,10 @@ export async function quoteShippingRates(input: {
 }) {
   if (!isOrderProShippingCheckoutEnabled()) throw new ShippingUnavailableError();
   const configuration = getShippingConfiguration();
-  assertPilotCart(input.items, configuration);
   const address = shippingAddressSchema.parse(input.address);
-  const quote = await quoteShippingPilotCart(input);
-  if (quote.errors.length > 0) throw new ShippingUnavailableError(quote.errors.join(" "));
+  const cart = await readShippingCartContext(input);
 
-  const orderPro = getOrderProPrivatePreviewClient();
-  if (!orderPro) throw new ShippingUnavailableError("OrderPRO shipping availability is not configured.");
-  const allocation = await orderPro.previewShippingAllocation({
-    locationId: input.locationId,
-    items: input.items
-  });
+  const allocation = await readOrderProShippingAllocation(input);
   if (!allocation.available) {
     throw new ShippingUnavailableError("OrderPRO cannot allocate this cart for shipping right now.");
   }
@@ -225,7 +292,7 @@ export async function quoteShippingRates(input: {
           zip: address.postalCode,
           country: address.country
         },
-        parcels: [configuration.parcel],
+        parcels: cart.parcels,
         carrier_accounts: allowedAccountIds,
         async: false
       })
@@ -242,16 +309,17 @@ export async function quoteShippingRates(input: {
     .map((rate) => publicRate(rate, {
       expiresAt,
       cartHash,
+      packageHash: cart.packageHash,
       addressHash,
       locationId: input.locationId,
       readyToShipDate: allocation.readyToShipDate,
       policyVersion: allocation.policyVersion
     }, configuration))
     .sort((left, right) => left.amountCents - right.amountCents);
-  if (rates.length === 0) throw new ShippingUnavailableError("Shippo did not return an approved live shipping rate.");
+  if (rates.length === 0) throw new ShippingUnavailableError("Shippo did not return an approved shipping rate.");
 
   return {
-    quote,
+    quote: cart.quote,
     allocation: {
       policyVersion: allocation.policyVersion,
       fulfillmentNodeId: allocation.fulfillmentNodeId,
@@ -272,7 +340,6 @@ export async function validateShippingSelection(input: {
 }) {
   if (!isOrderProShippingCheckoutEnabled()) throw new ShippingUnavailableError();
   const configuration = getShippingConfiguration();
-  assertPilotCart(input.items, configuration);
   const selection = shippingSelectionSchema.parse(input.selection);
   const token = verifyQuoteToken(selection.quoteToken, configuration);
   const now = input.now ?? new Date();
@@ -290,12 +357,12 @@ export async function validateShippingSelection(input: {
     throw new ShippingUnavailableError("The shipping rate does not match this cart and address.");
   }
 
-  const orderPro = getOrderProPrivatePreviewClient();
-  if (!orderPro) throw new ShippingUnavailableError("OrderPRO shipping availability is not configured.");
-  const allocation = await orderPro.previewShippingAllocation({
-    locationId: input.locationId,
-    items: input.items
-  });
+  const cart = await readShippingCartContext(input);
+  if (token.packageHash !== cart.packageHash) {
+    throw new ShippingUnavailableError("The product shipping package changed. Check rates again.");
+  }
+
+  const allocation = await readOrderProShippingAllocation(input);
   if (
     !allocation.available ||
     allocation.policyVersion !== token.policyVersion ||
@@ -334,8 +401,8 @@ export async function validateShippingSelection(input: {
 function getShippingConfiguration(): ShippingConfiguration {
   const values = {
     token: env.SHIPPO_API_TOKEN?.trim() ?? "",
+    testMode: env.SHIPPO_TEST_MODE === "true",
     allowedCarriers: csv(env.SHIPPO_ALLOWED_CARRIERS),
-    pilotVariationIds: csv(env.SHIPPO_PILOT_VARIATION_IDS, false),
     name: env.SHIPPO_ORIGIN_NAME?.trim() ?? "",
     company: env.SHIPPO_ORIGIN_COMPANY?.trim() ?? "",
     street1: env.SHIPPO_ORIGIN_STREET1?.trim() ?? "",
@@ -343,25 +410,19 @@ function getShippingConfiguration(): ShippingConfiguration {
     state: env.SHIPPO_ORIGIN_STATE?.trim().toUpperCase() ?? "",
     zip: env.SHIPPO_ORIGIN_ZIP?.trim() ?? "",
     phone: env.SHIPPO_ORIGIN_PHONE?.trim() ?? "",
-    email: env.SHIPPO_ORIGIN_EMAIL?.trim() ?? "",
-    length: env.SHIPPO_PILOT_LENGTH_IN?.trim() ?? "",
-    width: env.SHIPPO_PILOT_WIDTH_IN?.trim() ?? "",
-    height: env.SHIPPO_PILOT_HEIGHT_IN?.trim() ?? "",
-    weight: env.SHIPPO_PILOT_WEIGHT_LB?.trim() ?? ""
+    email: env.SHIPPO_ORIGIN_EMAIL?.trim() ?? ""
   };
+  const expectedTokenPrefix = values.testMode ? "shippo_test_" : "shippo_live_";
   if (
-    !values.token.startsWith("shippo_live_") ||
+    !values.token.startsWith(expectedTokenPrefix) ||
     values.allowedCarriers.length === 0 ||
-    values.pilotVariationIds.length === 0 ||
-    [values.name, values.company, values.street1, values.city, values.state, values.zip, values.phone, values.email].some((value) => !value) ||
-    ![values.length, values.width, values.height, values.weight].every(positiveDecimal)
+    [values.name, values.company, values.street1, values.city, values.state, values.zip, values.phone, values.email].some((value) => !value)
   ) {
-    throw new ShippingUnavailableError("The private Shippo shipping pilot is not fully configured.");
+    throw new ShippingUnavailableError("Shippo shipping is not fully configured for the selected environment.");
   }
   return {
     token: values.token,
     allowedCarriers: values.allowedCarriers,
-    pilotVariationIds: values.pilotVariationIds,
     origin: {
       name: values.name,
       company: values.company,
@@ -372,28 +433,8 @@ function getShippingConfiguration(): ShippingConfiguration {
       country: "US",
       phone: values.phone,
       email: values.email
-    },
-    parcel: {
-      length: values.length,
-      width: values.width,
-      height: values.height,
-      distance_unit: "in",
-      weight: values.weight,
-      mass_unit: "lb"
     }
   };
-}
-
-function assertPilotCart(items: Array<{ squareVariationId: string; quantity: number }>, configuration: ShippingConfiguration) {
-  const allowed = new Set(configuration.pilotVariationIds);
-  const quantity = items.reduce((total, item) => total + item.quantity, 0);
-  if (
-    items.length === 0 ||
-    quantity > 2 ||
-    items.some((item) => !allowed.has(item.squareVariationId) || !Number.isInteger(item.quantity) || item.quantity < 1)
-  ) {
-    throw new ShippingUnavailableError("This shipping pilot is limited to Item A and Item B in the certified pilot box.");
-  }
 }
 
 async function shippoRequest<T>(
@@ -422,7 +463,7 @@ async function shippoRequest<T>(
     return schema.parse(JSON.parse(raw));
   } catch (error) {
     if (error instanceof ShippingUnavailableError) throw error;
-    throw new ShippingUnavailableError("Shippo live rates are temporarily unavailable.");
+    throw new ShippingUnavailableError("Shippo rates are temporarily unavailable.");
   } finally {
     clearTimeout(timeout);
   }
@@ -435,7 +476,7 @@ function publicRate(
 ) {
   const amountCents = moneyToCents(rate.amount);
   const payload: QuoteTokenPayload = {
-    v: 1,
+    v: 2,
     rateId: rate.object_id,
     amountCents,
     carrier: rate.provider,
@@ -475,7 +516,7 @@ function verifyQuoteToken(value: string, configuration: ShippingConfiguration): 
     throw new ShippingUnavailableError("The shipping quote is invalid.");
   }
   const payloadSchema = z.object({
-    v: z.literal(1),
+    v: z.literal(2),
     rateId: z.string().min(1),
     amountCents: z.number().int().positive(),
     carrier: z.string().min(1),
@@ -483,6 +524,7 @@ function verifyQuoteToken(value: string, configuration: ShippingConfiguration): 
     expiresAt: z.string().datetime(),
     addressHash: z.string().length(64),
     cartHash: z.string().length(64),
+    packageHash: z.string().length(64),
     locationId: z.string().min(1),
     readyToShipDate: z.string().date(),
     policyVersion: z.string().min(1)

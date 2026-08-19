@@ -28,7 +28,7 @@ import {
 } from "@/server/square/hosted-checkout";
 import {
   isOrderProShippingCheckoutEnabled,
-  quoteShippingPilotCart,
+  quoteShippingCart,
   shippingSelectionSchema,
   ShippingUnavailableError,
   validateShippingSelection
@@ -133,7 +133,7 @@ export async function POST(request: NextRequest) {
     }
 
     const quote = parsed.fulfillmentMode === "shipping"
-      ? await quoteShippingPilotCart({ items: parsed.items, locationId: parsed.locationId })
+      ? await quoteShippingCart({ items: parsed.items, locationId: parsed.locationId })
       : await quoteCartFromOperationalCatalog({ items: parsed.items, locationId: parsed.locationId });
     const errors = [...quote.errors];
     if (parsed.fulfillmentMode === "local-delivery" && !parsed.localDelivery) {

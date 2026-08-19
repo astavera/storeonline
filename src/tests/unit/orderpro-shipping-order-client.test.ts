@@ -30,6 +30,41 @@ function success() {
 }
 
 describe("OrderPRO Shipping order client", () => {
+  it("requests canonical shipping availability with the quote identity headers", async () => {
+    const fetchMock = vi.fn(async (
+      _input: Parameters<typeof fetch>[0],
+      _init?: Parameters<typeof fetch>[1]
+    ) => {
+      void _input;
+      void _init;
+      return Response.json({
+        ok: true,
+        available: false,
+        reasonCode: "INSUFFICIENT_PHYSICAL_STOCK"
+      });
+    });
+    const client = createOrderProShippingOrderClient({
+      config: {
+        baseUrl: "https://orderpro.example.com",
+        sharedSecret: "s".repeat(32)
+      },
+      fetchImpl: fetchMock as typeof fetch
+    });
+    const identity = orderProShippingCommandIdentity("quote", "store-3rd-avenue", "cart-hash");
+
+    const result = await client.quote({
+      locationId: "store-3rd-avenue",
+      items: [{ squareVariationId: "variation-a", quantity: 1 }],
+      idempotencyKey: identity,
+      correlationId: identity
+    });
+
+    expect(result).toMatchObject({ available: false, reasonCode: "INSUFFICIENT_PHYSICAL_STOCK" });
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(url).toBe("https://orderpro.example.com/api/internal/storefront/shipping/quote");
+    expect(new Headers(init?.headers).get("idempotency-key")).toBe(identity);
+  });
+
   it("never enables the legacy shared secret in production", () => {
     expect(getOrderProShippingOrderConfiguration({
       ORDERPRO_INTEGRATION_ENVIRONMENT: "PRODUCTION",

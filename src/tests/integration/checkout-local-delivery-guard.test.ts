@@ -185,7 +185,7 @@ vi.mock("@/server/shipping/shipping-service", async () => {
         country: z.literal("US")
       })
     }),
-    quoteShippingPilotCart: async () => ({
+    quoteShippingCart: async () => ({
       errors: [],
       compatibleFulfillmentModes: ["shipping"]
     }),

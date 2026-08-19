@@ -45,7 +45,7 @@ const fulfillmentLabels = {
   shipping: "Shipping"
 };
 
-export function CheckoutClient({ locations, deliveryTestMode = false, localDeliveryCheckoutEnabled = false, shippingCheckoutEnabled = false, shippingPilotVariationIds = [], squareCheckoutEnabled = false }: { locations: CheckoutLocation[]; deliveryTestMode?: boolean; localDeliveryCheckoutEnabled?: boolean; shippingCheckoutEnabled?: boolean; shippingPilotVariationIds?: string[]; squareCheckoutEnabled?: boolean }) {
+export function CheckoutClient({ locations, deliveryTestMode = false, localDeliveryCheckoutEnabled = false, shippingCheckoutEnabled = false, squareCheckoutEnabled = false }: { locations: CheckoutLocation[]; deliveryTestMode?: boolean; localDeliveryCheckoutEnabled?: boolean; shippingCheckoutEnabled?: boolean; squareCheckoutEnabled?: boolean }) {
   const [cartState, setCartState] = useState<{ hydrated: boolean; items: StoredCartItem[] }>({ hydrated: false, items: [] });
   const [quote, setQuote] = useState<CartQuote | null>(null);
   const [isCartQuoteLoading, setIsCartQuoteLoading] = useState(true);
@@ -108,12 +108,10 @@ export function CheckoutClient({ locations, deliveryTestMode = false, localDeliv
         setQuote(nextQuote);
         setIsCartQuoteLoading(false);
 
-        const pilotIds = new Set(shippingPilotVariationIds);
-        const pilotCart = items.length > 0 && items.every((item) => pilotIds.has(item.squareVariationId));
         const availableModes = nextQuote?.compatibleFulfillmentModes?.filter(
           (mode: "pickup" | "local-delivery" | "shipping") =>
             (mode !== "local-delivery" || localDeliveryCheckoutEnabled)
-            && (mode !== "shipping" || (shippingCheckoutEnabled && pilotCart))
+            && (mode !== "shipping" || shippingCheckoutEnabled)
         );
         if (availableModes?.length) {
           setFulfillmentMode((current) => availableModes.includes(current) ? current : availableModes[0]);
@@ -129,7 +127,7 @@ export function CheckoutClient({ locations, deliveryTestMode = false, localDeliv
     return () => {
       ignore = true;
     };
-  }, [cartState.hydrated, items, localDeliveryCheckoutEnabled, locationId, shippingCheckoutEnabled, shippingPilotVariationIds]);
+  }, [cartState.hydrated, items, localDeliveryCheckoutEnabled, locationId, shippingCheckoutEnabled]);
 
   async function submitCheckout(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -221,11 +219,9 @@ export function CheckoutClient({ locations, deliveryTestMode = false, localDeliv
     );
   }
 
-  const shippingPilotIds = new Set(shippingPilotVariationIds);
-  const shippingPilotCart = items.length > 0 && items.every((item) => shippingPilotIds.has(item.squareVariationId));
   const availableFulfillmentModes = quote.compatibleFulfillmentModes.filter((mode) =>
     (mode !== "local-delivery" || localDeliveryCheckoutEnabled)
-    && (mode !== "shipping" || (shippingCheckoutEnabled && shippingPilotCart))
+    && (mode !== "shipping" || shippingCheckoutEnabled)
   );
   const selectedLocation = locations.find((location) => location.id === locationId);
   const deliveryReady = fulfillmentMode !== "local-delivery" || Boolean(localDeliverySelection);
@@ -287,7 +283,7 @@ export function CheckoutClient({ locations, deliveryTestMode = false, localDeliv
             <p className="mt-4 rounded-md border border-border bg-surface-muted p-3 text-sm text-secondary">Local delivery is being connected to OrderPRO and is not available at checkout yet.</p>
           ) : null}
           {!shippingCheckoutEnabled && quote.compatibleFulfillmentModes.includes("shipping") ? (
-            <p className="mt-4 rounded-md border border-border bg-surface-muted p-3 text-sm text-secondary">Shipping is in a private OrderPRO and Shippo pilot and is not available at checkout yet.</p>
+            <p className="mt-4 rounded-md border border-border bg-surface-muted p-3 text-sm text-secondary">Shipping is not available at checkout yet.</p>
           ) : null}
           {quote.errors.length > 0 ? <p className="mt-4 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-900">{quote.errors.join(" ")}</p> : null}
           {quote.warnings?.length > 0 ? <p className="mt-4 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">{quote.warnings.join(" ")}</p> : null}

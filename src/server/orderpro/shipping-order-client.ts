@@ -85,6 +85,33 @@ const transitionResponseSchema = z.object({
   order: orderSchema
 });
 
+const allocationResponseSchema = z.discriminatedUnion("available", [
+  z.object({
+    ok: z.literal(true),
+    available: z.literal(false),
+    reasonCode: z.string().min(1),
+    policyVersion: z.string().min(1).optional()
+  }),
+  z.object({
+    ok: z.literal(true),
+    available: z.literal(true),
+    policyVersion: z.string().min(1),
+    sellingLocationId: z.string().min(1),
+    fulfillmentNodeId: z.string().min(1),
+    requiresStoreTransfer: z.boolean(),
+    transferLeadTimeDays: z.union([z.literal(0), z.literal(2)]),
+    readyToShipDate: z.string().date(),
+    items: z.array(z.object({
+      squareVariationId: z.string().min(1),
+      quantity: z.number().int().positive(),
+      ownerLocationId: z.string().min(1),
+      physicalLocationId: z.string().min(1),
+      pickLocation: z.string().min(1),
+      requiresTransfer: z.boolean()
+    }))
+  })
+]);
+
 export type OrderProShippingDestination = z.infer<typeof destinationSchema>;
 export type OrderProShippingOrder = z.infer<typeof orderSchema>;
 
@@ -95,7 +122,7 @@ type Configuration = {
 };
 
 export function orderProShippingCommandIdentity(
-  action: "create" | "bind" | "confirm" | "release",
+  action: "quote" | "create" | "bind" | "confirm" | "release",
   ...parts: readonly string[]
 ) {
   const digest = createHash("sha256")
@@ -195,6 +222,23 @@ export function createOrderProShippingOrderClient(input: {
   }
 
   return {
+    quote(input: {
+      locationId: string;
+      items: Array<{ squareVariationId: string; quantity: number }>;
+      idempotencyKey: string;
+      correlationId: string;
+    }) {
+      const { idempotencyKey, correlationId, ...body } = input;
+      return post(
+        "/api/internal/storefront/shipping/quote",
+        body,
+        allocationResponseSchema,
+        {
+          "idempotency-key": idempotencyKey,
+          "x-correlation-id": correlationId
+        }
+      );
+    },
     create(input: {
       checkoutAttemptId: string;
       locationId: string;
@@ -282,6 +326,7 @@ export function getOrderProShippingOrderClient() {
   if (
     m2m.enabled &&
     m2m.config.environment === "PRODUCTION" &&
+    m2m.config.auth0.scopes.includes("shipping:quote") &&
     m2m.config.auth0.scopes.includes("shipping:reserve") &&
     m2m.config.auth0.scopes.includes("shipping:settle")
   ) {
