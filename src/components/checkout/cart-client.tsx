@@ -7,7 +7,7 @@
 import { Minus, Plus, ShoppingBag, Trash2 } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { clearCartItems, readCartItems, writeCartItems, type StoredCartItem } from "@/components/commerce/add-to-cart-button";
 import { Button } from "@/components/ui/button";
 import { formatMoney } from "@/lib/utils";
@@ -28,6 +28,7 @@ type CartQuote = {
   itemCount: number;
   subtotalCents: number;
   estimatedTaxCents: number;
+  taxEstimateIncluded?: boolean;
   totalCents: number;
   compatibleFulfillmentModes: string[];
   fulfillmentLabel: string;
@@ -125,50 +126,43 @@ export function CartClient({ mode = "cart" }: { mode?: "cart" | "summary" }) {
 
   if (!isHydrated || isLoading) {
     return (
-      <div className="surface-card p-6 text-center" role="status">
-        <ShoppingBag aria-hidden="true" className="mx-auto text-secondary" size={32} />
-        <h2 className="mt-4 font-display text-2xl font-semibold">Reviewing your cart</h2>
-        <p className="mt-2 text-secondary">Confirming current products, prices, and availability.</p>
-      </div>
+      <CartStatus
+        description="Confirming current products, prices, and availability."
+        role="status"
+        title="Reviewing your cart"
+      />
     );
   }
 
   if (items.length === 0) {
     return (
-      <div className="surface-card p-6 text-center">
-        <ShoppingBag aria-hidden="true" className="mx-auto text-secondary" size={32} />
-        <h2 className="mt-4 font-display text-2xl font-semibold">Your cart is empty</h2>
-        <p className="mt-2 text-secondary">Add toys, balloons, gifts, stationery, or party supplies to start an order.</p>
-        <Link className="mt-5 inline-flex min-h-11 items-center justify-center rounded-md bg-[var(--theme-action)] px-5 py-2.5 text-sm font-semibold text-[var(--theme-action-foreground)]" href="/shop">
-          Shop products
-        </Link>
-      </div>
+      <CartStatus
+        action={<Link className="inline-flex min-h-11 items-center justify-center rounded-pill bg-[var(--theme-action)] px-6 py-3 text-sm font-black text-[var(--theme-action-foreground)] transition hover:opacity-90" href="/shop">Continue shopping</Link>}
+        description="Choose something from the online catalog when you’re ready."
+        title="Your cart is empty"
+      />
     );
   }
 
   if (requestFailed) {
     return (
-      <div className="surface-card p-6 text-center" role="alert">
-        <ShoppingBag aria-hidden="true" className="mx-auto text-secondary" size={32} />
-        <h2 className="mt-4 font-display text-2xl font-semibold">We couldn&apos;t review your cart</h2>
-        <p className="mt-2 text-secondary">{quote.errors.join(" ") || "Refresh the page and try again."}</p>
-        <button className="mt-5 min-h-11 rounded-md bg-[var(--theme-action)] px-5 py-2.5 text-sm font-semibold text-[var(--theme-action-foreground)]" onClick={() => window.location.reload()} type="button">
-          Try again
-        </button>
-      </div>
+      <CartStatus
+        action={<button className="min-h-11 rounded-pill bg-[var(--theme-action)] px-6 py-3 text-sm font-black text-[var(--theme-action-foreground)] transition hover:opacity-90" onClick={() => window.location.reload()} type="button">Try again</button>}
+        description={quote.errors.join(" ") || "Refresh the page and try again."}
+        role="alert"
+        title="We couldn’t review your cart"
+      />
     );
   }
 
   if (quote.lines.length === 0) {
     return (
-      <div className="surface-card p-6 text-center" role="alert">
-        <ShoppingBag aria-hidden="true" className="mx-auto text-secondary" size={32} />
-        <h2 className="mt-4 font-display text-2xl font-semibold">These items are no longer available</h2>
-        <p className="mt-2 text-secondary">{quote.errors.join(" ") || "Remove these saved items before adding current products."}</p>
-        <button className="mt-5 min-h-11 rounded-md bg-[var(--theme-action)] px-5 py-2.5 text-sm font-semibold text-[var(--theme-action-foreground)]" onClick={removeUnavailableItems} type="button">
-          Remove unavailable items
-        </button>
-      </div>
+      <CartStatus
+        action={<button className="min-h-11 rounded-pill bg-[var(--theme-action)] px-6 py-3 text-sm font-black text-[var(--theme-action-foreground)] transition hover:opacity-90" onClick={removeUnavailableItems} type="button">Remove unavailable items</button>}
+        description={quote.errors.join(" ") || "Remove these saved items before adding current products."}
+        role="alert"
+        title="These items are no longer available"
+      />
     );
   }
 
@@ -219,6 +213,19 @@ export function CartClient({ mode = "cart" }: { mode?: "cart" | "summary" }) {
   );
 }
 
+function CartStatus({ action, description, role, title }: { action?: ReactNode; description: string; role?: "alert" | "status"; title: string }) {
+  return (
+    <section className="border-y border-border py-10 md:flex md:items-center md:justify-between md:gap-10 md:py-12" role={role}>
+      <div className="max-w-2xl">
+        <ShoppingBag aria-hidden="true" className="text-secondary" size={24} strokeWidth={1.75} />
+        <h2 className="mt-4 font-display text-3xl font-black tracking-[-0.03em] text-primary">{title}</h2>
+        <p className="mt-3 text-base leading-7 text-secondary">{description}</p>
+      </div>
+      {action ? <div className="mt-7 shrink-0 md:mt-0">{action}</div> : null}
+    </section>
+  );
+}
+
 function CartSummary({ canCheckout, quote }: { canCheckout: boolean; quote: CartQuote }) {
   return (
     <section className="surface-card h-fit p-6" data-store-area="Cart" data-store-component="CartOrderSummarySection" data-store-section="cart.order-summary" data-store-variant="summary">
@@ -226,7 +233,7 @@ function CartSummary({ canCheckout, quote }: { canCheckout: boolean; quote: Cart
       <div className="mt-5 grid gap-3 text-sm">
         <SummaryRow label="Items" value={String(quote.itemCount)} />
         <SummaryRow label="Subtotal" value={formatMoney(quote.subtotalCents)} />
-        <SummaryRow label="Estimated tax" value={formatMoney(quote.estimatedTaxCents)} />
+        <SummaryRow label={quote.taxEstimateIncluded === false ? "Tax" : "Estimated tax"} value={quote.taxEstimateIncluded === false ? "Calculated at checkout" : formatMoney(quote.estimatedTaxCents)} />
         <SummaryRow label="Fulfillment" value={quote.fulfillmentLabel || "Choose on the next step"} />
         <div className="border-t border-border pt-3">
           <SummaryRow label="Estimated total before delivery or shipping" value={formatMoney(quote.totalCents)} strong />

@@ -17,10 +17,13 @@ import { CartClient } from "./cart-client";
 export function CartPageTemplate() {
   return (
     <main>
-      <SectionFrame area="Cart" className="py-16" component="CartDrawerSection" sectionId="cart.drawer" variant="page">
+      <SectionFrame area="Cart" className="py-8 md:py-12" component="CartDrawerSection" sectionId="cart.drawer" variant="page">
         <div className="container-shell">
-          <h1 className="font-display text-4xl font-semibold">Cart</h1>
-          <p className="mt-3 max-w-2xl text-secondary">Review your items and update quantities before moving to the next step.</p>
+          <header className="border-b border-border pb-6 md:pb-8">
+            <p className="text-xs font-black uppercase tracking-[0.16em] text-blue">Your order</p>
+            <h1 className="mt-2 font-display text-4xl font-black tracking-[-0.03em] text-primary md:text-5xl">Cart</h1>
+            <p className="mt-3 max-w-2xl text-secondary">Review your items and update quantities before moving to checkout.</p>
+          </header>
           <div className="mt-8">
             <CartClient />
           </div>
