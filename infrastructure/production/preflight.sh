@@ -256,11 +256,21 @@ for name in \
   ORDERPRO_API_BASE_URL \
   ADMIN_LOGIN_EMAIL \
   ADMIN_PASSWORD_HASH \
-  ADMIN_ALLOWED_ORIGINS \
-  RESEND_API_KEY \
-  CUSTOMER_AUTH_EMAIL_FROM; do
+  ADMIN_ALLOWED_ORIGINS; do
   require_value "${runtime_env_file}" "runtime" "${name}"
 done
+
+resend_api_key="$(env_value "${runtime_env_file}" RESEND_API_KEY)"
+customer_email_from="$(env_value "${runtime_env_file}" CUSTOMER_AUTH_EMAIL_FROM)"
+if [[ -z "${resend_api_key}" && -z "${customer_email_from}" ]]; then
+  pass "transactional customer email is explicitly disabled"
+elif [[ -n "${resend_api_key}" && "${resend_api_key}" != CHANGE_ME* ]] && \
+     [[ -n "${customer_email_from}" && "${customer_email_from}" != CHANGE_ME* ]]; then
+  pass "transactional customer email provider and sender are configured together"
+else
+  fail "RESEND_API_KEY and CUSTOMER_AUTH_EMAIL_FROM must both be configured or both be empty"
+fi
+unset resend_api_key customer_email_from
 
 require_value_length "${runtime_env_file}" "runtime" ADMIN_SESSION_SECRET 32
 require_value_length "${runtime_env_file}" "runtime" WEBHOOK_WORKER_SECRET 32

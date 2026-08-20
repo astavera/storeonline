@@ -130,6 +130,8 @@ describe("production deployment contract", () => {
     expect(preflight).toContain("runtime environment must set ${name} to exactly true or false");
     expect(preflight).toContain("require_flag E2E_CATALOG_FIXTURE false");
     expect(preflight).toContain("require_flag SPLIT_CHECKOUT_ENABLED false");
+    expect(preflight).toContain("transactional customer email is explicitly disabled");
+    expect(preflight).toContain("RESEND_API_KEY and CUSTOMER_AUTH_EMAIL_FROM must both be configured or both be empty");
     expect(preflight).toContain("runtime credentials are absent from the migrator environment");
     expect(preflight).toContain('^[0-9a-f]{40}$');
     expect(preflight).not.toContain("STOREFRONT_ENV_FILE=");
