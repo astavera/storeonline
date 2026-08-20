@@ -8,6 +8,17 @@ import { isStorefrontAdminPreviewRequestAllowed } from "@/server/storefront/admi
 import { isStorefrontDesignPreviewRequestAllowed } from "@/server/storefront/design-preview";
 
 export async function proxy(request: NextRequest) {
+  if (shouldShowMaintenancePage(request.nextUrl.pathname)) {
+    const maintenanceUrl = request.nextUrl.clone();
+    maintenanceUrl.pathname = "/maintenance.html";
+    maintenanceUrl.search = "";
+
+    const response = NextResponse.rewrite(maintenanceUrl);
+    response.headers.set("Cache-Control", "private, no-store");
+    response.headers.set("X-Robots-Tag", "noindex, nofollow, noarchive");
+    return response;
+  }
+
   try {
     if (!isStorefrontDesignPreviewRequestAllowed(request)) {
       return NextResponse.json(
@@ -52,6 +63,14 @@ export async function proxy(request: NextRequest) {
   response.headers.set("Cache-Control", "private, no-store");
   response.headers.set("X-Robots-Tag", "noindex, nofollow, noarchive");
   return response;
+}
+
+function shouldShowMaintenancePage(pathname: string) {
+  if (process.env.STOREFRONT_MAINTENANCE_MODE?.trim().toLowerCase() !== "true") {
+    return false;
+  }
+
+  return !pathname.startsWith("/admin") && !pathname.startsWith("/api");
 }
 
 function isPublicAdminAuthPath(pathname: string) {
