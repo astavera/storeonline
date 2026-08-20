@@ -95,6 +95,32 @@ describe("admin route proxy", () => {
   });
 });
 
+describe("storefront maintenance proxy", () => {
+  it("rewrites customer pages to the static maintenance page", async () => {
+    vi.stubEnv("STOREFRONT_MAINTENANCE_MODE", "true");
+
+    const response = await proxy(new NextRequest("https://shop.example/products/teddy-bear?ref=home"));
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get("x-middleware-rewrite")).toBe(
+      "https://shop.example/maintenance.html"
+    );
+    expect(response.headers.get("cache-control")).toBe("private, no-store");
+    expect(response.headers.get("x-robots-tag")).toBe("noindex, nofollow, noarchive");
+  });
+
+  it("keeps admin pages and APIs available during maintenance", async () => {
+    vi.stubEnv("STOREFRONT_MAINTENANCE_MODE", "true");
+
+    for (const pathname of ["/admin/login", "/api/health"]) {
+      const response = await proxy(new NextRequest(`https://shop.example${pathname}`));
+      expect(response.status).toBe(200);
+      expect(response.headers.get("x-middleware-next")).toBe("1");
+      expect(response.headers.get("x-middleware-rewrite")).toBeNull();
+    }
+  });
+});
+
 describe("design preview proxy", () => {
   it("covers public pages and APIs but skips framework assets", () => {
     expect(unstable_doesMiddlewareMatch({ config, nextConfig: {}, url: "/" })).toBe(true);
