@@ -31,6 +31,9 @@ describe("cart service", () => {
     });
 
     expect(quote.compatibleFulfillmentModes).toEqual(["pickup", "local-delivery"]);
+    expect(quote.checkoutGroups.map((group) => group.id)).toEqual(["regular", "balloons"]);
+    expect(quote.checkoutGroups.find((group) => group.id === "regular")?.compatibleFulfillmentModes).toEqual(["pickup", "local-delivery", "shipping"]);
+    expect(quote.checkoutGroups.find((group) => group.id === "balloons")?.compatibleFulfillmentModes).toEqual(["pickup", "local-delivery"]);
     expect(quote.errors).toEqual([]);
 
     const unavailable = quoteCart({
@@ -88,5 +91,54 @@ describe("cart service", () => {
       locationName: "Pickup Store",
       availabilityScope: "selected-location"
     });
+  });
+
+  it("preserves balloon-flow origin for catalog add-ons without trusting it to enable shipping", () => {
+    const base = storefrontProducts[0];
+    const balloonOrigin = quoteCartWithProducts(
+      { items: [{ squareVariationId: base.squareVariationId, quantity: 1, source: "balloons" }] },
+      [base]
+    );
+    const catalogBalloon = storefrontProducts.find((product) => product.department === "Balloons")!;
+    const forgedRegularOrigin = quoteCartWithProducts(
+      { items: [{ squareVariationId: catalogBalloon.squareVariationId, quantity: 1, source: "storefront" }] },
+      [catalogBalloon]
+    );
+
+    expect(balloonOrigin.checkoutGroups.map((group) => group.id)).toEqual(["balloons"]);
+    expect(balloonOrigin.compatibleFulfillmentModes).not.toContain("shipping");
+    expect(balloonOrigin.checkoutGroups[0].compatibleFulfillmentModes).not.toContain("shipping");
+    expect(forgedRegularOrigin.checkoutGroups.map((group) => group.id)).toEqual(["balloons"]);
+    expect(forgedRegularOrigin.checkoutGroups[0].compatibleFulfillmentModes).not.toContain("shipping");
+  });
+
+  it("uses the published admin rate only for the storefront estimate", () => {
+    const base = storefrontProducts[0];
+    const quote = quoteCartWithProducts(
+      { items: [{ squareVariationId: base.squareVariationId, quantity: 1 }] },
+      [base],
+      {
+        catalogSource: "postgres",
+        inventoryAsOf: null,
+        warnings: [],
+        estimatedTaxRate: 0.1,
+        showTaxEstimate: true
+      }
+    );
+    const hidden = quoteCartWithProducts(
+      { items: [{ squareVariationId: base.squareVariationId, quantity: 1 }] },
+      [base],
+      {
+        catalogSource: "postgres",
+        inventoryAsOf: null,
+        warnings: [],
+        estimatedTaxRate: 0.1,
+        showTaxEstimate: false
+      }
+    );
+
+    expect(quote.estimatedTaxCents).toBe(Math.round(base.priceCents * 0.1));
+    expect(quote.taxEstimateIncluded).toBe(true);
+    expect(hidden).toMatchObject({ estimatedTaxCents: 0, taxEstimateIncluded: false, totalCents: base.priceCents });
   });
 });

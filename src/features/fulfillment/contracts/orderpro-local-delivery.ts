@@ -17,6 +17,10 @@ export type LocalDeliveryQuoteRequest = {
   context: LocalDeliveryQuoteContext;
   address: LocalDeliveryAddress;
   requestedDate: string;
+  cartLines?: Array<{
+    squareVariationId: string;
+    quantity: number;
+  }>;
 };
 
 export type LocalDeliverySlot = {

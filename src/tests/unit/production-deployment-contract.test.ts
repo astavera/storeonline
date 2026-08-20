@@ -98,6 +98,7 @@ describe("production deployment contract", () => {
     expect(runtime).toContain("STOREFRONT_DESIGN_PREVIEW=false");
     expect(runtime).toContain("STOREFRONT_ADMIN_PREVIEW=false");
     expect(runtime).toContain("E2E_CATALOG_FIXTURE=false");
+    expect(runtime).toContain("SPLIT_CHECKOUT_ENABLED=false");
     expect(migrator).not.toContain("storefront_runtime");
     expect(configuredNames(migrator)).toEqual(["DATABASE_URL", "DIRECT_URL"]);
   });
@@ -128,6 +129,7 @@ describe("production deployment contract", () => {
     expect(preflight).toContain("runtime environment must define ${name} exactly once");
     expect(preflight).toContain("runtime environment must set ${name} to exactly true or false");
     expect(preflight).toContain("require_flag E2E_CATALOG_FIXTURE false");
+    expect(preflight).toContain("require_flag SPLIT_CHECKOUT_ENABLED false");
     expect(preflight).toContain("runtime credentials are absent from the migrator environment");
     expect(preflight).toContain('^[0-9a-f]{40}$');
     expect(preflight).not.toContain("STOREFRONT_ENV_FILE=");

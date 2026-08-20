@@ -12,6 +12,7 @@ export type OrderProPickupSlot = {
 export type OrderProPickupAvailabilitySuccess = {
   available: true;
   source: "ORDERPRO" | "MOCK";
+  quoteId: string | null;
   locationId: string;
   requestedDate: string;
   availableSlots: OrderProPickupSlot[];
@@ -26,3 +27,14 @@ export type OrderProPickupAvailabilityFailure = {
 };
 
 export type OrderProPickupAvailability = OrderProPickupAvailabilitySuccess | OrderProPickupAvailabilityFailure;
+
+export type PickupTimingSelection =
+  | { timing: "ASAP" }
+  | {
+      timing: "SCHEDULED";
+      requestedDate: string;
+      slotId: string;
+      slotLabel: string;
+      startsAt?: string;
+      endsAt?: string;
+    };

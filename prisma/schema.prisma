@@ -688,6 +688,7 @@ model WebhookEvent {
 
 model CheckoutAttempt {
   id                      String                @id @default(cuid())
+  checkoutVersion         Int                   @default(1)
   idempotencyKey          String                @unique
   cartId                  String?
   requestHash             String
@@ -697,8 +698,10 @@ model CheckoutAttempt {
   fulfillmentMode         FulfillmentMode?
   squareOrderId           String?               @unique
   squarePaymentLinkId     String?               @unique
+  squareCheckoutUrl       String?
   orderproShippingOrderId String?               @unique
   shippingContext         Json?
+  splitCheckoutContext    Json?
   hostedCheckoutCreatedAt DateTime?
   expiresAt               DateTime
   createdAt               DateTime              @default(now())

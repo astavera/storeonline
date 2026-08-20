@@ -4,6 +4,10 @@
 
 const newYorkTimeZone = "America/New_York";
 
+export function currentNewYorkDate(now = new Date()) {
+  return newYorkDateAfterDays(0, now);
+}
+
 export function earliestNewYorkDeliveryDate(now = new Date()) {
   return newYorkDateAfterDays(1, now);
 }
