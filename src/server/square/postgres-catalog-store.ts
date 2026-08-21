@@ -153,18 +153,21 @@ export async function readMappedOperationalStoreLocations(): Promise<Operational
 
 export async function readPostgresStorefrontProductsByVariationIds(
   variationIds: string[],
-  options: { squareLocationIds?: string[] } = {}
+  options: { squareLocationIds?: string[]; requireFreshInventory?: boolean } = {}
 ): Promise<StorefrontProduct[]> {
   const normalizedIds = Array.from(new Set(variationIds.map((id) => id.trim()).filter(Boolean)));
   if (normalizedIds.length === 0) return [];
 
   try {
     const prisma = getPrismaClient();
+    const requireFreshInventory = options.requireFreshInventory !== false;
     const [catalogState, inventoryState] = await Promise.all([
       readCatalogSyncEvidence(prisma).then((states) => exactCompletedCatalogSync(states, env.SQUARE_ENVIRONMENT)),
-      readInventorySyncEvidence(prisma).then((states) => exactCompletedInventorySync(states, env.SQUARE_ENVIRONMENT))
+      requireFreshInventory
+        ? readInventorySyncEvidence(prisma).then((states) => exactCompletedInventorySync(states, env.SQUARE_ENVIRONMENT))
+        : Promise.resolve(null)
     ]);
-    if (!catalogState || !inventoryState) return [];
+    if (!catalogState || (requireFreshInventory && !inventoryState)) return [];
 
     const mappedLocations = await readMappedOperationalStoreLocations();
     const squareLocationIds = options.squareLocationIds ?? mappedLocations.map((location) => location.squareLocationId);

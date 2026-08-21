@@ -8,7 +8,8 @@ const shippingState = vi.hoisted(() => ({
   configured: true,
   isShippable: true,
   packageWeightLb: "0.50",
-  shippingEnabled: true
+  shippingEnabled: true,
+  readProducts: vi.fn()
 }));
 
 vi.mock("@/lib/validation/env", () => ({
@@ -50,13 +51,7 @@ vi.mock("@/server/square/postgres-catalog-store", () => ({
     lastCompletedAt: new Date().toISOString(),
     latestTime: new Date().toISOString()
   }),
-  readPostgresStorefrontProductsByVariationIds: async () => [{
-    squareVariationId: "variation-a",
-    name: "Wooden Train",
-    fulfillmentModes: [],
-    inventoryTracked: true,
-    availableQuantity: 1
-  }]
+  readPostgresStorefrontProductsByVariationIds: shippingState.readProducts
 }));
 
 vi.mock("@/server/products/product-shipping-profile-store", () => ({
@@ -99,11 +94,19 @@ vi.mock("@/server/orderpro/shipping-order-client", () => ({
 
 describe("OrderPRO and Shippo shipping service", () => {
   beforeEach(() => {
+    vi.clearAllMocks();
     vi.stubEnv("ORDERPRO_SHIPPING_CHECKOUT_ENABLED", "true");
     shippingState.configured = true;
     shippingState.isShippable = true;
     shippingState.packageWeightLb = "0.50";
     shippingState.shippingEnabled = true;
+    shippingState.readProducts.mockResolvedValue([{
+      squareVariationId: "variation-a",
+      name: "Wooden Train",
+      fulfillmentModes: [],
+      inventoryTracked: true,
+      availableQuantity: 1
+    }]);
   });
 
   it("signs a live rate and revalidates the same Shippo rate before checkout", async () => {
@@ -167,6 +170,10 @@ describe("OrderPRO and Shippo shipping service", () => {
       readyToShipDate: "2026-07-27"
     });
     expect(quoted.rates[0].quoteToken).not.toContain("shippo_test");
+    expect(shippingState.readProducts).toHaveBeenCalledWith(["variation-a"], {
+      squareLocationIds: ["square-st72"],
+      requireFreshInventory: false
+    });
 
     const verified = await validateShippingSelection({
       items,

@@ -209,6 +209,22 @@ describe("PostgreSQL catalog storefront contract", () => {
     expect(prisma.squareCatalogObject.findMany).not.toHaveBeenCalled();
   });
 
+  it("allows an explicit catalog-only read when another service owns inventory availability", async () => {
+    vi.stubEnv("SQUARE_INVENTORY_SYNC_MAX_AGE_SECONDS", "240");
+    prisma.squareCatalogSyncState.findMany.mockResolvedValue([completedState()]);
+    prisma.storeLocation.findMany.mockResolvedValue([]);
+    prisma.squareItemVariation.findMany.mockResolvedValue([]);
+    prisma.squareCatalogObject.findMany.mockResolvedValue([]);
+    const source = await loadStore("production");
+
+    await expect(source.readPostgresStorefrontProductsByVariationIds(
+      ["variation-1"],
+      { requireFreshInventory: false }
+    )).resolves.toEqual([]);
+    expect(prisma.squareCatalogSyncState.findMany).toHaveBeenCalledTimes(1);
+    expect(prisma.squareItemVariation.findMany).toHaveBeenCalledOnce();
+  });
+
   it("accepts exact, fresh production inventory evidence", async () => {
     prisma.squareCatalogSyncState.findMany.mockResolvedValue([completedInventoryState()]);
     prisma.storeLocation.findMany.mockResolvedValue([

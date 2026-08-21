@@ -163,7 +163,11 @@ async function readShippingCartContext(input: {
   const variationIds = input.items.map((item) => item.squareVariationId);
   const [products, profilesByVariationId] = await Promise.all([
     readPostgresStorefrontProductsByVariationIds(variationIds, {
-      squareLocationIds: [location.squareLocationId]
+      squareLocationIds: [location.squareLocationId],
+      // OrderPRO owns shipping availability and allocation. A fresh Square
+      // catalog is still required for product identity and price, but a stale
+      // Square inventory projection must not disable warehouse shipping.
+      requireFreshInventory: false
     }),
     readProductShippingProfilesByVariationIds(variationIds)
   ]);
