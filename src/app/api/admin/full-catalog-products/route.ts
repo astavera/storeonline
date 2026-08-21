@@ -10,9 +10,11 @@ import type { WebsiteProductPlacement } from "@/features/catalog/services/websit
 import { websitePlacementReadinessIssues, websiteSurfaceIds } from "@/features/catalog/services/website-merchandising-service";
 import {
   applyBulkWebsiteMerchandisingToVariationIds,
+  parseWebsiteProductPlacement,
   readWebsiteMerchandisingSnapshot,
   saveWebsiteProductPlacement
 } from "@/server/admin/website-merchandising-store";
+import { saveProductShippingProfile } from "@/server/products/product-shipping-profile-store";
 import {
   readPostgresAdminCatalogPage,
   readPostgresAdminProductsByVariationIds,
@@ -140,7 +142,7 @@ export async function POST(request: NextRequest) {
   if (!authorization.ok) return adminAuthorizationResponse(authorization);
 
   try {
-    const body = await request.json() as { placement?: unknown; variationIds?: unknown };
+    const body = await request.json() as { placement?: unknown; shippingProfile?: unknown; variationIds?: unknown };
 
     if (body && typeof body === "object" && "variationIds" in body) {
       const bulkRequest = bulkRequestSchema.parse(body);
@@ -163,28 +165,29 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ ok: true, mode: "bulk", matchedVariationCount: variationIds.length, ...result });
     }
 
-    const candidate = body.placement as { squareVariationId?: unknown; categoryIds?: unknown } | undefined;
-    const variationId = typeof candidate?.squareVariationId === "string" ? candidate.squareVariationId : "";
+    const placement = parseWebsiteProductPlacement(body.placement);
+    const variationId = placement.squareVariationId;
 
     const matchedProducts = variationId ? await readPostgresAdminProductsByVariationIds([variationId]) : [];
     if (!variationId || matchedProducts.length === 0) {
       return NextResponse.json({ ok: false, error: "This Square variation is not available in the full catalog cache." }, { status: 404 });
     }
 
-    const requestedCategoryIds = Array.isArray(candidate?.categoryIds)
-      ? candidate.categoryIds.filter((value): value is string => typeof value === "string")
-      : [];
     const configBeforeSave = await readWebsiteMerchandisingSnapshot();
-    const assignmentIssues = partyAssignmentIssues(matchedProducts[0], requestedCategoryIds, configBeforeSave.categories);
+    const assignmentIssues = partyAssignmentIssues(matchedProducts[0], placement.categoryIds, configBeforeSave.categories);
     if (assignmentIssues.length > 0) {
       return NextResponse.json({ ok: false, error: assignmentIssues[0] }, { status: 400 });
     }
 
-    const result = await saveWebsiteProductPlacement(body.placement);
+    // Save the physical policy first. This ordering fails closed: removals take
+    // effect before CMS publication, while additions cannot surface until CMS
+    // also saves successfully.
+    const shippingProfile = await saveProductShippingProfile(placement, body.shippingProfile);
+    const result = await saveWebsiteProductPlacement(placement);
     const config = await readWebsiteMerchandisingSnapshot();
     const issues = websitePlacementReadinessIssues(result.placement, config.categories, config.holidays);
 
-    return NextResponse.json({ ok: true, ...result, issues });
+    return NextResponse.json({ ok: true, ...result, shippingProfile, issues });
   } catch (error) {
     if (error instanceof ZodError) {
       return NextResponse.json({

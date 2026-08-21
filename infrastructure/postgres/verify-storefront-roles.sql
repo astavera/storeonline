@@ -82,6 +82,10 @@ DECLARE
     'CmsContentVersion',
     'AdminRateLimitBucket'
   ];
+  runtime_execute_routine_names CONSTANT text[] := ARRAY[
+    'storefront_read_product_shipping_profiles_v1',
+    'storefront_admin_save_product_shipping_profile_v1'
+  ];
   sync_projection_table_names CONSTANT text[] := ARRAY[
     'SquareCatalogObject',
     'SquareItemVariation',
@@ -568,9 +572,12 @@ BEGIN
       AND procedure_entry.proowner = migrator_oid
   LOOP
     FOREACH role_name IN ARRAY target_role_names LOOP
-      IF has_function_privilege(role_name, routine_record.oid, 'EXECUTE') THEN
-        RAISE EXCEPTION 'Unexpected EXECUTE privilege for role % on routine public.%.',
-          role_name, routine_record.proname;
+      actual_privilege := has_function_privilege(role_name, routine_record.oid, 'EXECUTE');
+      expected_privilege := role_name = 'storefront_runtime'
+        AND routine_record.proname = ANY(runtime_execute_routine_names);
+      IF actual_privilege IS DISTINCT FROM expected_privilege THEN
+        RAISE EXCEPTION 'Unexpected EXECUTE privilege for role % on routine public.% (expected %, got %).',
+          role_name, routine_record.proname, expected_privilege, actual_privilege;
       END IF;
       IF has_function_privilege(
         role_name,
@@ -596,6 +603,17 @@ BEGIN
       END IF;
     END LOOP;
   END LOOP;
+
+  IF (
+    SELECT count(DISTINCT procedure_entry.proname)
+    FROM pg_proc procedure_entry
+    JOIN pg_namespace namespace ON namespace.oid = procedure_entry.pronamespace
+    WHERE namespace.nspname = 'public'
+      AND procedure_entry.proowner = migrator_oid
+      AND procedure_entry.proname = ANY(runtime_execute_routine_names)
+  ) <> array_length(runtime_execute_routine_names, 1) THEN
+    RAISE EXCEPTION 'One or more required Storefront runtime routines are missing.';
+  END IF;
 
   FOREACH default_object_type IN ARRAY ARRAY['r'::"char", 'S'::"char", 'f'::"char", 'T'::"char"] LOOP
     default_acl := NULL;

@@ -2036,6 +2036,46 @@
   gap: 0.9rem;
 }
 
+.admin-product-shipping-toggle {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.65rem;
+  border: 1px solid var(--admin-line);
+  padding: 0.75rem 0.8rem;
+  color: var(--admin-ink);
+  font-size: 0.72rem;
+}
+
+.admin-product-shipping-toggle input {
+  width: 1rem;
+  height: 1rem;
+  flex: 0 0 auto;
+  margin-top: 0.08rem;
+  accent-color: var(--admin-ink);
+}
+
+.admin-product-shipping-toggle span {
+  display: grid;
+  gap: 0.2rem;
+}
+
+.admin-product-shipping-toggle strong {
+  font-weight: 720;
+}
+
+.admin-product-shipping-toggle small {
+  color: #7d8286;
+  font-size: 0.64rem;
+  line-height: 1.45;
+}
+
+.admin-product-shipping-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+  margin-top: 0.8rem;
+}
+
 .admin-product-field {
   min-width: 0;
 }
@@ -2249,6 +2289,10 @@
 
   .admin-product-form-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .admin-product-shipping-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
   }
 
   .admin-campaign-row {

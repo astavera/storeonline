@@ -9,6 +9,7 @@ import type { StorefrontProduct } from "@/features/catalog/product-catalog";
 import { env } from "@/lib/validation/env";
 import { getPrismaClient } from "@/server/db/prisma";
 import { PersistenceUnavailableError } from "@/server/db/persistence-policy";
+import { readProductShippingProfilesByVariationIds } from "@/server/products/product-shipping-profile-store";
 
 export type PostgresCatalogSummary = {
   available: boolean;
@@ -249,51 +250,17 @@ export async function readPostgresStorefrontProductsByVariationIds(
 }
 
 export async function readPublishedStorefrontShippingPoliciesByVariationIds(
-  variationIds: string[],
-  now = new Date()
+  variationIds: string[]
 ): Promise<PublishedStorefrontShippingPolicy[]> {
   const normalizedIds = Array.from(new Set(variationIds.map((id) => id.trim()).filter(Boolean)));
   if (normalizedIds.length === 0) return [];
 
-  try {
-    const policies = await getPrismaClient().productOverride.findMany({
-      where: {
-        squareVariationId: { in: normalizedIds },
-        webVisible: true,
-        webStatus: "PUBLISHED",
-        publishedAt: { lte: now },
-        unpublishedAt: null,
-        shippingAllowed: true,
-        isShippable: true,
-        fulfillmentModes: { has: "SHIPPING" }
-      },
-      select: {
-        squareVariationId: true,
-        packageLengthIn: true,
-        packageWidthIn: true,
-        packageHeightIn: true,
-        packageWeightLb: true
-      }
-    });
-
-    return policies.flatMap((policy) => {
-      if (
-        policy.packageLengthIn === null ||
-        policy.packageWidthIn === null ||
-        policy.packageHeightIn === null ||
-        policy.packageWeightLb === null
-      ) return [];
-      return [{
-        squareVariationId: policy.squareVariationId,
-        packageLengthIn: policy.packageLengthIn.toString(),
-        packageWidthIn: policy.packageWidthIn.toString(),
-        packageHeightIn: policy.packageHeightIn.toString(),
-        packageWeightLb: policy.packageWeightLb.toString()
-      }];
-    });
-  } catch (error) {
-    throw new PersistenceUnavailableError("PostgreSQL shipping catalog policy", { cause: error });
-  }
+  const profiles = await readProductShippingProfilesByVariationIds(normalizedIds);
+  return normalizedIds.flatMap((squareVariationId) => {
+    const profile = profiles.get(squareVariationId);
+    if (!profile?.shippingEnabled) return [];
+    return [{ squareVariationId, ...profile }];
+  });
 }
 
 async function readCatalogSyncEvidence(prisma = getPrismaClient()): Promise<CatalogSyncEvidence[]> {

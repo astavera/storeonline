@@ -17,9 +17,9 @@ import {
 } from "@/server/orderpro/shipping-order-client";
 import {
   readMappedOperationalStoreLocations,
-  readPublishedStorefrontShippingPoliciesByVariationIds,
   readPostgresStorefrontProductsByVariationIds
 } from "@/server/square/postgres-catalog-store";
+import { readProductShippingProfilesByVariationIds } from "@/server/products/product-shipping-profile-store";
 
 export type ShippingProvider = "shippo" | "fedex-direct" | "ups-direct";
 
@@ -161,23 +161,34 @@ async function readShippingCartContext(input: {
   }
 
   const variationIds = input.items.map((item) => item.squareVariationId);
-  const [products, policies] = await Promise.all([
+  const [products, profilesByVariationId] = await Promise.all([
     readPostgresStorefrontProductsByVariationIds(variationIds, {
       squareLocationIds: [location.squareLocationId]
     }),
-    readPublishedStorefrontShippingPoliciesByVariationIds(variationIds)
+    readProductShippingProfilesByVariationIds(variationIds)
   ]);
-  const policiesByVariationId = new Map(policies.map((policy) => [policy.squareVariationId, policy]));
-  if (
-    new Set(variationIds).size !== policies.length ||
-    policies.some((policy) => ![
-      policy.packageLengthIn,
-      policy.packageWidthIn,
-      policy.packageHeightIn,
-      policy.packageWeightLb
-    ].every(positiveDecimal))
-  ) {
-    throw new ShippingUnavailableError("Every product must be published for shipping with complete package dimensions and weight.");
+  const productsByVariationId = new Map(products.map((product) => [product.squareVariationId, product]));
+  for (const variationId of variationIds) {
+    const product = productsByVariationId.get(variationId);
+    if (!product) throw new ShippingUnavailableError("A product in your cart is no longer available for shipping.");
+    const profile = profilesByVariationId.get(variationId);
+    if (!profile?.configured) {
+      throw new ShippingUnavailableError(`${product.name} has not been configured for shipping.`);
+    }
+    if (!profile.isShippable) {
+      throw new ShippingUnavailableError(`${product.name} is not eligible for shipping.`);
+    }
+    if (![
+      profile.packageLengthIn,
+      profile.packageWidthIn,
+      profile.packageHeightIn,
+      profile.packageWeightLb
+    ].every(positiveDecimal)) {
+      throw new ShippingUnavailableError(`${product.name} is missing package dimensions or weight and cannot be shipped yet.`);
+    }
+    if (!profile.shippingEnabled) {
+      throw new ShippingUnavailableError(`${product.name} is not currently published for shipping.`);
+    }
   }
 
   const quote = quoteCartWithProducts(
@@ -201,7 +212,7 @@ async function readShippingCartContext(input: {
 
   const packageSnapshot = input.items
     .map((item) => {
-      const policy = policiesByVariationId.get(item.squareVariationId)!;
+      const policy = profilesByVariationId.get(item.squareVariationId)!;
       return {
         squareVariationId: item.squareVariationId,
         quantity: item.quantity,

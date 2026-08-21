@@ -5,8 +5,10 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const shippingState = vi.hoisted(() => ({
+  configured: true,
+  isShippable: true,
   packageWeightLb: "0.50",
-  policyAvailable: true
+  shippingEnabled: true
 }));
 
 vi.mock("@/lib/validation/env", () => ({
@@ -50,17 +52,23 @@ vi.mock("@/server/square/postgres-catalog-store", () => ({
   }),
   readPostgresStorefrontProductsByVariationIds: async () => [{
     squareVariationId: "variation-a",
+    name: "Wooden Train",
     fulfillmentModes: [],
     inventoryTracked: true,
     availableQuantity: 1
-  }],
-  readPublishedStorefrontShippingPoliciesByVariationIds: async () => shippingState.policyAvailable ? [{
-    squareVariationId: "variation-a",
+  }]
+}));
+
+vi.mock("@/server/products/product-shipping-profile-store", () => ({
+  readProductShippingProfilesByVariationIds: async () => new Map([["variation-a", {
+    configured: shippingState.configured,
+    isShippable: shippingState.isShippable,
     packageLengthIn: "10",
     packageWidthIn: "5",
     packageHeightIn: "6",
-    packageWeightLb: shippingState.packageWeightLb
-  }] : []
+    packageWeightLb: shippingState.packageWeightLb,
+    shippingEnabled: shippingState.shippingEnabled
+  }]])
 }));
 
 const allocation = {
@@ -92,8 +100,10 @@ vi.mock("@/server/orderpro/shipping-order-client", () => ({
 describe("OrderPRO and Shippo shipping service", () => {
   beforeEach(() => {
     vi.stubEnv("ORDERPRO_SHIPPING_CHECKOUT_ENABLED", "true");
+    shippingState.configured = true;
+    shippingState.isShippable = true;
     shippingState.packageWeightLb = "0.50";
-    shippingState.policyAvailable = true;
+    shippingState.shippingEnabled = true;
   });
 
   it("signs a live rate and revalidates the same Shippo rate before checkout", async () => {
@@ -203,9 +213,10 @@ describe("OrderPRO and Shippo shipping service", () => {
   });
 
   it("rejects products without a published shipping policy before calling Shippo", async () => {
-    shippingState.policyAvailable = false;
+    shippingState.configured = false;
+    shippingState.shippingEnabled = false;
     const fetchMock = vi.fn();
-    const { quoteShippingRates, ShippingUnavailableError } = await import("@/server/shipping/shipping-service");
+    const { quoteShippingRates } = await import("@/server/shipping/shipping-service");
 
     await expect(quoteShippingRates({
       items: [{ squareVariationId: "variation-a", quantity: 1 }],
@@ -218,7 +229,28 @@ describe("OrderPRO and Shippo shipping service", () => {
         country: "US"
       },
       fetchImpl: fetchMock as typeof fetch
-    })).rejects.toBeInstanceOf(ShippingUnavailableError);
+    })).rejects.toThrow("Wooden Train has not been configured for shipping.");
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("explains incomplete package data before calling Shippo", async () => {
+    shippingState.packageWeightLb = "";
+    shippingState.shippingEnabled = false;
+    const fetchMock = vi.fn();
+    const { quoteShippingRates } = await import("@/server/shipping/shipping-service");
+
+    await expect(quoteShippingRates({
+      items: [{ squareVariationId: "variation-a", quantity: 1 }],
+      locationId: "store-3rd-avenue",
+      address: {
+        line1: "500 E 80th St",
+        city: "New York",
+        state: "NY",
+        postalCode: "10075",
+        country: "US"
+      },
+      fetchImpl: fetchMock as typeof fetch
+    })).rejects.toThrow("Wooden Train is missing package dimensions or weight and cannot be shipped yet.");
     expect(fetchMock).not.toHaveBeenCalled();
   });
 

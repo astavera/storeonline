@@ -19,6 +19,12 @@ import {
 import { useMemo, useState } from "react";
 import { SearchableMultiSelect } from "@/components/admin/searchable-select";
 import {
+  cloneProductShippingProfile,
+  productShippingProfileReadinessIssues,
+  productShippingProfilesMatch,
+  type ProductShippingProfile
+} from "@/features/catalog/product-shipping-profile";
+import {
   fulfillmentModeLabel,
   productAgeGroups,
   type FulfillmentMode,
@@ -42,6 +48,7 @@ type AdminProductEditorProps = {
   categories: WebsiteCategory[];
   holidays: WebsiteHoliday[];
   initialPlacement: WebsiteProductPlacement;
+  initialShippingProfile: ProductShippingProfile;
   initiallySaved: boolean;
   product: StorefrontProduct;
 };
@@ -51,6 +58,7 @@ type SaveResponse = {
   error?: string;
   issues?: string[];
   placement?: WebsiteProductPlacement;
+  shippingProfile?: ProductShippingProfile;
 };
 
 const fulfillmentOptions: ReadonlyArray<{ id: FulfillmentMode; label: string }> = [
@@ -64,11 +72,14 @@ export function AdminProductEditor({
   categories,
   holidays,
   initialPlacement,
+  initialShippingProfile,
   initiallySaved,
   product
 }: AdminProductEditorProps) {
   const [baseline, setBaseline] = useState(() => clonePlacement(initialPlacement));
   const [draft, setDraft] = useState(() => clonePlacement(initialPlacement));
+  const [shippingBaseline, setShippingBaseline] = useState(() => cloneProductShippingProfile(initialShippingProfile));
+  const [shippingDraft, setShippingDraft] = useState(() => cloneProductShippingProfile(initialShippingProfile));
   const [isConfigured, setIsConfigured] = useState(initiallySaved);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState("");
@@ -77,11 +88,22 @@ export function AdminProductEditor({
     () => websitePlacementReadinessIssues(draft, categories, holidays),
     [categories, draft, holidays]
   );
-  const isDirty = !placementsMatch(draft, baseline);
+  const shippingRequested = draft.fulfillmentModes.includes("shipping");
+  const shippingReadinessIssues = useMemo(
+    () => productShippingProfileReadinessIssues(shippingDraft),
+    [shippingDraft]
+  );
+  const isDirty = !placementsMatch(draft, baseline) || !productShippingProfilesMatch(shippingDraft, shippingBaseline);
   const publishBlocked = draft.visible && readinessIssues.length > 0;
 
   function updateDraft(patch: Partial<WebsiteProductPlacement>) {
     setDraft((current) => ({ ...current, ...patch }));
+    setError("");
+    setSuccess("");
+  }
+
+  function updateShippingDraft(patch: Partial<ProductShippingProfile>) {
+    setShippingDraft((current) => ({ ...current, ...patch }));
     setError("");
     setSuccess("");
   }
@@ -117,18 +139,38 @@ export function AdminProductEditor({
       const response = await fetch("/api/admin/full-catalog-products", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ placement: draft })
+        body: JSON.stringify({
+          placement: draft,
+          shippingProfile: {
+            isShippable: shippingDraft.isShippable,
+            packageLengthIn: shippingDraft.packageLengthIn,
+            packageWidthIn: shippingDraft.packageWidthIn,
+            packageHeightIn: shippingDraft.packageHeightIn,
+            packageWeightLb: shippingDraft.packageWeightLb
+          }
+        })
       });
       const result = await readSaveResponse(response);
-      if (!response.ok || !result.ok || !result.placement) {
+      if (!response.ok || !result.ok || !result.placement || !result.shippingProfile) {
         throw new Error(result.error || "The website settings could not be saved.");
       }
 
       const savedPlacement = clonePlacement(result.placement);
+      const savedShippingProfile = cloneProductShippingProfile(result.shippingProfile);
       setDraft(savedPlacement);
       setBaseline(savedPlacement);
+      setShippingDraft(savedShippingProfile);
+      setShippingBaseline(savedShippingProfile);
       setIsConfigured(true);
-      setSuccess(savedPlacement.visible ? "Product saved and visible on the website." : "Product saved as a private website draft.");
+      setSuccess(
+        savedPlacement.visible && savedPlacement.fulfillmentModes.includes("shipping")
+          ? savedShippingProfile.shippingEnabled
+            ? "Product saved, visible on the website and enabled for shipping."
+            : "Product saved and visible. Shipping remains unavailable until its package setup is complete."
+          : savedPlacement.visible
+            ? "Product saved and visible on the website."
+            : "Product saved as a private website draft."
+      );
     } catch (saveError) {
       setError(saveError instanceof Error ? saveError.message : "The website settings could not be saved.");
     } finally {
@@ -317,6 +359,69 @@ export function AdminProductEditor({
             </div>
           </EditorSection>
 
+          <EditorSection
+            description="Enter the packaged size and weight used for carrier rates. Square continues to own price and inventory."
+            title="Shipping package"
+          >
+            <label className="admin-product-shipping-toggle">
+              <input
+                checked={shippingDraft.isShippable}
+                onChange={(event) => updateShippingDraft({ isShippable: event.target.checked })}
+                type="checkbox"
+              />
+              <span>
+                <strong>Eligible for shipping</strong>
+                <small>Turn this off for products that must never be shipped.</small>
+              </span>
+            </label>
+            <div className="admin-product-shipping-grid">
+              <PackageField
+                label="Length (in)"
+                onChange={(value) => updateShippingDraft({ packageLengthIn: value })}
+                value={shippingDraft.packageLengthIn}
+              />
+              <PackageField
+                label="Width (in)"
+                onChange={(value) => updateShippingDraft({ packageWidthIn: value })}
+                value={shippingDraft.packageWidthIn}
+              />
+              <PackageField
+                label="Height (in)"
+                onChange={(value) => updateShippingDraft({ packageHeightIn: value })}
+                value={shippingDraft.packageHeightIn}
+              />
+              <PackageField
+                label="Weight (lb)"
+                onChange={(value) => updateShippingDraft({ packageWeightLb: value })}
+                value={shippingDraft.packageWeightLb}
+              />
+            </div>
+            {!shippingRequested ? (
+              <div className="admin-product-readiness admin-product-readiness--warning">
+                <CircleAlert aria-hidden="true" size={17} />
+                <p>Add Shipping under Fulfillment when this product is ready to be offered for delivery by carrier.</p>
+              </div>
+            ) : shippingReadinessIssues.length > 0 ? (
+              <div className="admin-product-readiness admin-product-readiness--warning">
+                <CircleAlert aria-hidden="true" size={17} />
+                <div>
+                  <p>Shipping will remain unavailable for this product</p>
+                  <ul>{shippingReadinessIssues.map((issue) => <li key={issue}>{issue}</li>)}</ul>
+                </div>
+              </div>
+            ) : !draft.visible ? (
+              <div className="admin-product-readiness admin-product-readiness--warning">
+                <CircleAlert aria-hidden="true" size={17} />
+                <p>The package is complete. Shipping will enable only after the product is visible.</p>
+              </div>
+            ) : (
+              <div className="admin-product-readiness admin-product-readiness--ready">
+                <CheckCircle2 aria-hidden="true" size={17} />
+                <p>The package is complete and shipping will be enabled when these changes are saved.</p>
+              </div>
+            )}
+          </EditorSection>
+
           <EditorSection description="Optional date-bound placements for active holiday collections." title="Campaigns">
             {holidays.length > 0 ? (
               <>
@@ -403,6 +508,24 @@ function EditorField({ children, hint, label }: { children: React.ReactNode; hin
       <div className="admin-product-field-label"><span>{label}</span>{hint ? <small>{hint}</small> : null}</div>
       {children}
     </div>
+  );
+}
+
+function PackageField({ label, onChange, value }: { label: string; onChange: (value: string) => void; value: string }) {
+  return (
+    <EditorField label={label}>
+      <input
+        aria-label={label}
+        className="admin-product-number-input"
+        inputMode="decimal"
+        max="99999.999"
+        min="0.001"
+        onChange={(event) => onChange(event.target.value)}
+        step="0.001"
+        type="number"
+        value={value}
+      />
+    </EditorField>
   );
 }
 

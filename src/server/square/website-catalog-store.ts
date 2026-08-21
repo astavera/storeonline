@@ -18,6 +18,7 @@ import {
 } from "@/server/admin/website-merchandising-store";
 import { readSquareCatalogPreview } from "@/server/square/catalog-preview-store";
 import { readPostgresCatalogSummary, readPostgresStorefrontProductsByVariationIds } from "@/server/square/postgres-catalog-store";
+import { readProductShippingProfilesByVariationIds } from "@/server/products/product-shipping-profile-store";
 
 export type SquareWebsiteCatalogSource = {
   catalog: ResolvedWebsiteCatalog;
@@ -76,10 +77,17 @@ export async function readResolvedSquareWebsiteCatalog(
       const visibleVariationIds = config.placements
         .filter((placement) => placement.visible)
         .map((placement) => placement.squareVariationId);
-      const products = await readPostgresStorefrontProductsByVariationIds(visibleVariationIds, options);
+      const shippingVariationIds = config.placements
+        .filter((placement) => placement.visible && placement.fulfillmentModes.includes("shipping"))
+        .map((placement) => placement.squareVariationId);
+      const [products, shippingProfiles] = await Promise.all([
+        readPostgresStorefrontProductsByVariationIds(visibleVariationIds, options),
+        readProductShippingProfilesByVariationIds(shippingVariationIds)
+      ]);
+      const eligibleConfig = applyProductShippingEligibility(config, shippingProfiles);
 
       return {
-        catalog: resolveWebsiteCatalog(products, config),
+        catalog: resolveWebsiteCatalog(products, eligibleConfig),
         source: "postgres",
         sourceVariationCount: summary.variationCount,
         fetchedAt: summary.updatedAt ?? config.updatedAt
@@ -125,6 +133,23 @@ export async function readResolvedSquareWebsiteCatalog(
     source: "preview",
     sourceVariationCount: preview.products.length,
     fetchedAt: preview.fetchedAt
+  };
+}
+
+export function applyProductShippingEligibility(
+  config: WebsiteMerchandisingConfig,
+  profiles: ReadonlyMap<string, { shippingEnabled: boolean }>
+): WebsiteMerchandisingConfig {
+  return {
+    ...config,
+    placements: config.placements.map((placement) => (
+      placement.fulfillmentModes.includes("shipping") && !profiles.get(placement.squareVariationId)?.shippingEnabled
+        ? {
+            ...placement,
+            fulfillmentModes: placement.fulfillmentModes.filter((mode) => mode !== "shipping")
+          }
+        : placement
+    ))
   };
 }
 

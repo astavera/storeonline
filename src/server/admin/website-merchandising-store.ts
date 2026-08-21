@@ -265,7 +265,7 @@ export async function applyBulkWebsiteMerchandisingToVariationIds(
 }
 
 export async function saveWebsiteProductPlacement(input: unknown) {
-  const placement = websitePlacementSchema.parse(input);
+  const placement = parseWebsiteProductPlacement(input);
   const config = await readSavedWebsiteMerchandising() ?? createDefaultWebsiteMerchandising([]);
   const updatedAt = new Date().toISOString();
   const nextConfig = normalizeWebsiteMerchandisingReferences(
@@ -285,6 +285,10 @@ export async function saveWebsiteProductPlacement(input: unknown) {
     placement: nextConfig.placements.find((current) => current.squareVariationId === placement.squareVariationId)!,
     updatedAt
   };
+}
+
+export function parseWebsiteProductPlacement(input: unknown) {
+  return websitePlacementSchema.parse(input);
 }
 
 export function mergeWebsiteMerchandisingProductSubset(

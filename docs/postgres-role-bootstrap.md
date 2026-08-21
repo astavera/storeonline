@@ -116,6 +116,7 @@ and administration tables that this preview deliberately keeps private.
 | `storefront_sync` | `AuditLog` | `SELECT, INSERT` only, so a successful mapping change can be recorded |
 | `storefront_runtime` | `StoreLocation`, the four Square projection tables, `CmsContentVersion` | `SELECT` only for public/admin catalog reads, inventory freshness, locations, merchandising, and homepage state |
 | `storefront_runtime` | `AdminRateLimitBucket` | `SELECT, INSERT`; `UPDATE` only on `count`, `expiresAt`, and `updatedAt` for admin-login throttling |
+| `storefront_runtime` | `storefront_read_product_shipping_profiles_v1`, `storefront_admin_save_product_shipping_profile_v1` | `EXECUTE` only; the routines expose and mutate only physical shipping eligibility fields and derive `shippingAllowed` server-side |
 | Supabase `anon`, `authenticated`, `service_role` (when present) | Managed Storefront objects in `public` | No effective schema, table, column, sequence, routine, or enum privileges; Data API is closed |
 
 Everything else in `prisma/schema.prisma` is denied to the sync and runtime

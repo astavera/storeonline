@@ -217,6 +217,10 @@ DECLARE
     'CmsContentVersion',
     'AdminRateLimitBucket'
   ];
+  runtime_execute_routine_names CONSTANT text[] := ARRAY[
+    'storefront_read_product_shipping_profiles_v1',
+    'storefront_admin_save_product_shipping_profile_v1'
+  ];
   sync_projection_table_names CONSTANT text[] := ARRAY[
     'SquareCatalogObject',
     'SquareItemVariation',
@@ -377,8 +381,8 @@ BEGIN
     END LOOP;
   END LOOP;
 
-  -- Prisma has no current routines, but a future SQL migration may create one.
-  -- Close every public routine owned by the migrator before granting nothing.
+  -- Close every public routine owned by the migrator before reinstalling only
+  -- the reviewed runtime routine manifest below.
   FOR routine_record IN
     SELECT
       namespace.nspname,
@@ -544,6 +548,19 @@ BEGIN
 
   IF to_regtype('public."CmsPublishStatus"') IS NOT NULL THEN
     GRANT USAGE ON TYPE public."CmsPublishStatus" TO storefront_runtime;
+  END IF;
+
+  IF to_regprocedure('public.storefront_read_product_shipping_profiles_v1(text[])') IS NOT NULL THEN
+    GRANT EXECUTE ON FUNCTION public.storefront_read_product_shipping_profiles_v1(text[])
+      TO storefront_runtime;
+  END IF;
+
+  IF to_regprocedure(
+    'public.storefront_admin_save_product_shipping_profile_v1(text,boolean,boolean,boolean,boolean,boolean,numeric,numeric,numeric,numeric)'
+  ) IS NOT NULL THEN
+    GRANT EXECUTE ON FUNCTION public.storefront_admin_save_product_shipping_profile_v1(
+      text, boolean, boolean, boolean, boolean, boolean, numeric, numeric, numeric, numeric
+    ) TO storefront_runtime;
   END IF;
 
   FOREACH object_name IN ARRAY sync_projection_table_names LOOP

@@ -8,6 +8,7 @@ import type { WebsiteProductPlacement } from "@/features/catalog/services/websit
 import { adminCapabilities } from "@/server/admin/admin-security";
 import { requireAdminSession } from "@/server/admin/admin-session";
 import { readWebsiteMerchandisingSnapshot } from "@/server/admin/website-merchandising-store";
+import { readProductShippingProfile } from "@/server/products/product-shipping-profile-store";
 import { readPostgresAdminProductsByVariationIds } from "@/server/square/postgres-admin-catalog-store";
 
 export const dynamic = "force-dynamic";
@@ -20,7 +21,10 @@ export default async function AdminProductEditorPage({ params }: { params: Promi
     returnTo: `/admin/products/${encodeURIComponent(variationId)}`
   });
 
-  const [product] = await readPostgresAdminProductsByVariationIds([variationId]);
+  const [[product], shippingProfile] = await Promise.all([
+    readPostgresAdminProductsByVariationIds([variationId]),
+    readProductShippingProfile(variationId)
+  ]);
   if (!product) notFound();
 
   const merchandising = await readWebsiteMerchandisingSnapshot();
@@ -34,6 +38,7 @@ export default async function AdminProductEditorPage({ params }: { params: Promi
       categories={merchandising.categories}
       holidays={merchandising.holidays}
       initialPlacement={placement ?? createPendingPlacement(product.squareVariationId, merchandising.placements.length)}
+      initialShippingProfile={shippingProfile}
       initiallySaved={Boolean(placement)}
       product={product}
     />

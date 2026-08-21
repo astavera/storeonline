@@ -45,18 +45,28 @@ describe("PostgreSQL role bootstrap", () => {
       "CmsContentVersion",
       "AdminRateLimitBucket"
     ];
+    const expectedRuntimeRoutines = [
+      "storefront_read_product_shipping_profiles_v1",
+      "storefront_admin_save_product_shipping_profile_v1"
+    ];
 
     expect(sqlArray(bootstrap, "runtime_select_table_names")).toEqual(expectedRuntimeReads);
     expect(sqlArray(verifier, "runtime_select_table_names")).toEqual(expectedRuntimeReads);
+    expect(sqlArray(bootstrap, "runtime_execute_routine_names")).toEqual(expectedRuntimeRoutines);
+    expect(sqlArray(verifier, "runtime_execute_routine_names")).toEqual(expectedRuntimeRoutines);
     expect(bootstrap).toContain('GRANT INSERT ON TABLE public."AdminRateLimitBucket" TO storefront_runtime');
     expect(bootstrap).toContain('GRANT UPDATE ("count", "expiresAt", "updatedAt")');
     expect(bootstrap).toContain('GRANT USAGE ON TYPE public."CmsPublishStatus" TO storefront_runtime');
+    expect(bootstrap).toContain("GRANT EXECUTE ON FUNCTION public.storefront_read_product_shipping_profiles_v1(text[])");
+    expect(bootstrap).toContain("GRANT EXECUTE ON FUNCTION public.storefront_admin_save_product_shipping_profile_v1(");
+    expect(verifier).toContain("routine_record.proname = ANY(runtime_execute_routine_names)");
 
     const previewPolicy = readRepositoryFile("src/server/storefront/admin-preview.ts");
     const catalogStore = readRepositoryFile("src/server/square/postgres-catalog-store.ts");
     const cmsStore = readRepositoryFile("src/server/db/cms-version-repository.ts");
     const rateLimitStore = readRepositoryFile("src/server/admin/admin-rate-limit.ts");
     const cartRoute = readRepositoryFile("src/app/api/cart/route.ts");
+    const shippingProfileStore = readRepositoryFile("src/server/products/product-shipping-profile-store.ts");
 
     expect(previewPolicy).toContain('"GET /api/admin/full-catalog-products"');
     expect(previewPolicy).toContain('"POST /api/admin/auth/login"');
@@ -70,6 +80,8 @@ describe("PostgreSQL role bootstrap", () => {
     expect(rateLimitStore).toContain("getPrismaClient().adminRateLimitBucket.upsert");
     expect(cartRoute).toContain("quoteCartFromOperationalCatalog");
     expect(cartRoute).not.toMatch(/\.(?:cart|cartItem)\.(?:create|upsert|update)/u);
+    expect(shippingProfileStore).toContain("storefront_admin_save_product_shipping_profile_v1");
+    expect(shippingProfileStore).not.toContain("productOverride.update");
 
     for (const deniedTable of [
       "AdminUser",
