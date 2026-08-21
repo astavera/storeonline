@@ -126,7 +126,8 @@ export async function quoteCartFromOperationalCatalog(
   const source = await readResolvedSquareWebsiteCatalog({
     squareLocationIds: selectedLocation
       ? [selectedLocation.squareLocationId]
-      : operationalLocations.map((location) => location.squareLocationId)
+      : operationalLocations.map((location) => location.squareLocationId),
+    requireFreshInventory: orderProShippingCheckoutGroups.size === 0
   });
   if (!source) {
     if (process.env.E2E_CATALOG_FIXTURE === "true") {

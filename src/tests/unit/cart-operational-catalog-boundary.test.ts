@@ -73,6 +73,10 @@ describe("operational cart catalog boundary", () => {
     expect(quote.warnings).toContain(
       "Shipping availability is verified directly by OrderPRO before rates and again before Square checkout."
     );
+    expect(mocks.readCatalog).toHaveBeenCalledWith({
+      squareLocationIds: [],
+      requireFreshInventory: false
+    });
     expect(mocks.readInventory).not.toHaveBeenCalled();
   });
 });
