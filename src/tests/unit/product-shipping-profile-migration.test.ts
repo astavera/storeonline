@@ -8,6 +8,10 @@ const migration = readFileSync(resolve(
   process.cwd(),
   "prisma/migrations/20260821124500_product_shipping_profiles/migration.sql"
 ), "utf8");
+const sandboxAclMigration = readFileSync(resolve(
+  process.cwd(),
+  "prisma/migrations/20260821145500_product_shipping_profiles_sandbox_acl/migration.sql"
+), "utf8");
 
 describe("product shipping profile migration", () => {
   it("uses narrow security-definer routines without granting table mutation to runtime", () => {
@@ -26,5 +30,12 @@ describe("product shipping profile migration", () => {
     expect(migration).toContain("INVALID_PRODUCT_PACKAGE_VALUE");
     expect(migration).toContain("value <= 0 OR value > 99999.999");
     expect(migration).toContain("ON CONFLICT (\"squareVariationId\") DO UPDATE");
+  });
+
+  it("supports the isolated sandbox runtime through the same narrow routines", () => {
+    expect(sandboxAclMigration).toContain("to_regrole('storefront_sandbox_runtime')");
+    expect(sandboxAclMigration).toContain("storefront_read_product_shipping_profiles_v1");
+    expect(sandboxAclMigration).toContain("storefront_admin_save_product_shipping_profile_v1");
+    expect(sandboxAclMigration).not.toMatch(/GRANT\s+(?:INSERT|UPDATE|DELETE|ALL)\s+ON\s+TABLE/iu);
   });
 });
