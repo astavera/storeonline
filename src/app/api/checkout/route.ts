@@ -475,10 +475,16 @@ async function handleSplitCheckout(request: NextRequest, body: unknown) {
     }, { status: 409 });
   }
 
-  const quote = await quoteCartFromOperationalCatalog({ items: parsed.items });
+  const requestedById = new Map(parsed.fulfillmentGroups.map((group) => [group.id, group]));
+  const orderProShippingCheckoutGroups = parsed.fulfillmentGroups
+    .filter((group) => group.fulfillmentMode === "shipping")
+    .map((group) => group.id);
+  const quote = await quoteCartFromOperationalCatalog(
+    { items: parsed.items },
+    { orderProShippingCheckoutGroups }
+  );
   const errors = [...quote.errors];
   const quotedGroups = quote.checkoutGroups ?? [];
-  const requestedById = new Map(parsed.fulfillmentGroups.map((group) => [group.id, group]));
   if (
     quotedGroups.length !== parsed.fulfillmentGroups.length
     || quotedGroups.some((group) => !requestedById.has(group.id))
@@ -501,7 +507,12 @@ async function handleSplitCheckout(request: NextRequest, body: unknown) {
       continue;
     }
     const groupItems = parsed.items.filter((item) => quotedGroup.lines.some((line) => line.squareVariationId === item.squareVariationId));
-    const locationQuote = await quoteCartFromOperationalCatalog({ items: groupItems, locationId: selection.locationId });
+    const locationQuote = await quoteCartFromOperationalCatalog(
+      { items: groupItems, locationId: selection.locationId },
+      selection.fulfillmentMode === "shipping"
+        ? { orderProShippingCheckoutGroups: [quotedGroup.id] }
+        : {}
+    );
     const locationGroup = locationQuote.checkoutGroups?.find((group) => group.id === quotedGroup.id);
     errors.push(...locationQuote.errors);
     if (!locationGroup || !locationGroup.compatibleFulfillmentModes.includes(selection.fulfillmentMode)) {

@@ -319,10 +319,62 @@ describe("split checkout capacity reservations", () => {
     }));
 
     expect(response.status).toBe(200);
+    expect(mocks.quoteCart).toHaveBeenNthCalledWith(1, { items: [regularItem] }, {
+      orderProShippingCheckoutGroups: []
+    });
+    expect(mocks.quoteCart).toHaveBeenNthCalledWith(2, {
+      items: [regularItem],
+      locationId: "store-3rd-avenue"
+    }, {});
     expect(mocks.getCapacityClient).not.toHaveBeenCalled();
     expect(mocks.recordSplitCheckoutContext).toHaveBeenCalledWith(expect.objectContaining({
       context: expect.objectContaining({ groups: [expect.objectContaining({ id: "regular", pickup: { timing: "ASAP" } })] })
     }));
+  });
+
+  it("uses OrderPRO inventory authority for shipping without changing pickup validation", async () => {
+    const oneGroupQuote = {
+      ...quote,
+      lines: [quote.lines[0]],
+      checkoutGroups: [quote.checkoutGroups[0]],
+      itemCount: 1,
+      subtotalCents: 1000,
+      estimatedTaxCents: 90,
+      totalCents: 1090
+    };
+    mocks.quoteCart.mockResolvedValue(oneGroupQuote);
+
+    const response = await POST(request({
+      version: 2,
+      items: [regularItem],
+      fulfillmentGroups: [{
+        id: "regular",
+        fulfillmentMode: "shipping",
+        locationId: "store-3rd-avenue",
+        shipping: {
+          quoteToken: "shipping-token",
+          rateId: "shipping-rate",
+          amountCents: 657,
+          carrier: "USPS",
+          serviceName: "Ground Advantage",
+          readyToShipDate: "2026-08-21",
+          address: { line1: "350 5th Ave", city: "New York", state: "NY", postalCode: "10118", country: "US" }
+        }
+      }],
+      customer: { name: "Jane Customer", email: "jane@example.com", phone: "2125550100" }
+    }));
+
+    expect(response.status).toBe(400);
+    expect(mocks.quoteCart).toHaveBeenNthCalledWith(1, { items: [regularItem] }, {
+      orderProShippingCheckoutGroups: ["regular"]
+    });
+    expect(mocks.quoteCart).toHaveBeenNthCalledWith(2, {
+      items: [regularItem],
+      locationId: "store-3rd-avenue"
+    }, {
+      orderProShippingCheckoutGroups: ["regular"]
+    });
+    expect(mocks.createSquare).not.toHaveBeenCalled();
   });
 });
 

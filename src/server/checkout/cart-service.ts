@@ -84,6 +84,7 @@ type CartQuoteMetadata = Pick<CartQuote, "catalogSource" | "inventoryAsOf" | "wa
   location?: OperationalStoreLocation;
   estimatedTaxRate?: number;
   showTaxEstimate?: boolean;
+  orderProInventoryCheckoutGroups?: ReadonlySet<CheckoutGroupKind>;
 };
 
 const estimatedTaxRate = 0.08875;
@@ -105,8 +106,16 @@ export function quoteCart(input: z.infer<typeof cartQuoteInputSchema>): CartQuot
   });
 }
 
-export async function quoteCartFromOperationalCatalog(input: z.infer<typeof cartQuoteInputSchema>): Promise<CartQuote> {
+type OperationalCartQuoteOptions = {
+  readonly orderProShippingCheckoutGroups?: readonly CheckoutGroupKind[];
+};
+
+export async function quoteCartFromOperationalCatalog(
+  input: z.infer<typeof cartQuoteInputSchema>,
+  options: OperationalCartQuoteOptions = {}
+): Promise<CartQuote> {
   const parsed = cartQuoteInputSchema.parse(input);
+  const orderProShippingCheckoutGroups = new Set(options.orderProShippingCheckoutGroups ?? []);
   const operationalLocations = await readMappedOperationalStoreLocations();
   const selectedLocation = parsed.locationId
     ? operationalLocations.find((location) => location.id === parsed.locationId)
@@ -132,10 +141,15 @@ export async function quoteCartFromOperationalCatalog(input: z.infer<typeof cart
   }
   const requestedIds = new Set(parsed.items.map((item) => item.squareVariationId));
   const products = source.catalog.products.filter((product) => requestedIds.has(product.squareVariationId));
+  const productsByVariationId = new Map(products.map((product) => [product.squareVariationId, product]));
+  const usesOrderProInventory = (item: z.infer<typeof cartItemInputSchema>) => {
+    const product = productsByVariationId.get(item.squareVariationId);
+    return Boolean(product && orderProShippingCheckoutGroups.has(checkoutGroupForProduct(product, item.source)));
+  };
   const warnings: string[] = [];
   let inventoryAsOf: string | null = null;
 
-  if (products.some((product) => product.inventoryTracked)) {
+  if (parsed.items.some((item) => productsByVariationId.get(item.squareVariationId)?.inventoryTracked && !usesOrderProInventory(item))) {
     const inventory = await readPostgresInventorySyncSummary();
     const completedAt = inventory.lastCompletedAt ? Date.parse(inventory.lastCompletedAt) : Number.NaN;
     if (!inventory.available || Number.isNaN(completedAt) || completedAt < Date.now() - 30 * 60_000) {
@@ -149,11 +163,15 @@ export async function quoteCartFromOperationalCatalog(input: z.infer<typeof cart
       warnings.push("Availability is aggregated across Square locations until every operational store has a Square location mapping.");
     }
   }
+  if (parsed.items.some(usesOrderProInventory)) {
+    warnings.push("Shipping availability is verified directly by OrderPRO before rates and again before Square checkout.");
+  }
 
   return quoteCartWithProducts(parsed, products, {
     catalogSource: source.source,
     inventoryAsOf,
     warnings,
+    orderProInventoryCheckoutGroups: orderProShippingCheckoutGroups,
     ...(selectedLocation ? { location: selectedLocation } : {})
   });
 }
@@ -181,8 +199,11 @@ export function quoteCartWithProducts(
       errors.push("One or more items do not currently have a purchasable Square price.");
       return [];
     }
-    const availableQuantity = product.inventoryTracked ? Math.max(0, product.availableQuantity ?? 0) : null;
-    if (product.inventoryTracked && availableQuantity! < item.quantity) {
+    const checkoutGroup = checkoutGroupForProduct(product, item.source);
+    const inventoryTracked = Boolean(product.inventoryTracked)
+      && !metadata.orderProInventoryCheckoutGroups?.has(checkoutGroup);
+    const availableQuantity = inventoryTracked ? Math.max(0, product.availableQuantity ?? 0) : null;
+    if (inventoryTracked && availableQuantity! < item.quantity) {
       errors.push("One or more items do not have enough current Square inventory for the requested quantity.");
     }
 
@@ -197,9 +218,9 @@ export function quoteCartWithProducts(
         quantity: item.quantity,
         lineTotalCents: product.priceCents * item.quantity,
         fulfillmentModes: product.fulfillmentModes,
-        inventoryTracked: Boolean(product.inventoryTracked),
+        inventoryTracked,
         availableQuantity,
-        checkoutGroup: checkoutGroupForProduct(product, item.source)
+        checkoutGroup
       }
     ];
   });
