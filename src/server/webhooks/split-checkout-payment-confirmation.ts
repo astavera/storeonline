@@ -108,7 +108,9 @@ export async function confirmCompletedSplitCheckoutPayment(paymentId: string) {
   }
 
   const repository = getCheckoutAttemptRepository();
-  const checkout = await repository.findSplitCheckout(checkoutAttemptId);
+  const checkout = await repository.findSplitCheckout(checkoutAttemptId, {
+    allowCompletedReplay: true
+  });
   if (!checkout || checkout.squareOrderId !== order.id) throw new Error("STOREFRONT_SPLIT_CHECKOUT_CORRELATION_MISMATCH");
   const context = storedContextSchema.parse(checkout.context);
   assertSquareOrderCart(order.lineItems ?? [], checkout.quote.lines);

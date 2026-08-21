@@ -66,7 +66,10 @@ export interface CheckoutAttemptRepository {
     squarePaymentLinkId: string;
     checkoutUrl: string;
   }): Promise<SplitCheckoutRecord>;
-  findSplitCheckout(attemptId: string): Promise<SplitCheckoutRecord | null>;
+  findSplitCheckout(
+    attemptId: string,
+    options?: { allowCompletedReplay?: boolean }
+  ): Promise<SplitCheckoutRecord | null>;
   listExpiredSplitCheckouts(input: { now?: Date; limit?: number }): Promise<SplitCheckoutRecord[]>;
   markSplitCheckoutExpired(attemptId: string): Promise<void>;
   markSplitCheckoutCompleted(attemptId: string): Promise<void>;
@@ -396,10 +399,15 @@ const prismaCheckoutAttemptRepository: CheckoutAttemptRepository = {
     }
   },
 
-  async findSplitCheckout(attemptId) {
+  async findSplitCheckout(attemptId, options) {
     try {
       const record = await getPrismaClient().checkoutAttempt.findFirst({
-        where: { id: attemptId, status: "VALIDATED" }
+        where: {
+          id: attemptId,
+          status: options?.allowCompletedReplay
+            ? { in: ["VALIDATED", "COMPLETED"] }
+            : "VALIDATED"
+        }
       });
       if (!record || record.checkoutVersion !== 2 || !record.splitCheckoutContext) return null;
       return toSplitRecord(record);
