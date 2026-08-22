@@ -60,10 +60,12 @@ describe("Square webhook handler", () => {
 
   it("confirms only completed payments and never creates orders from order.updated", async () => {
     const confirmCompletedShippingPayment = vi.fn().mockResolvedValue(undefined);
+    const confirmCompletedSplitCheckoutPayment = vi.fn().mockResolvedValue(undefined);
     const handler = createSquareWebhookHandler({
       applyInventoryCounts: vi.fn(),
       synchronizeCatalog: vi.fn(),
-      confirmCompletedShippingPayment
+      confirmCompletedShippingPayment,
+      confirmCompletedSplitCheckoutPayment
     });
     const payment = (status: string) => ({
       data: { object: { payment: { id: "payment-1", status } } }
@@ -71,11 +73,14 @@ describe("Square webhook handler", () => {
 
     await handler(record("payment.updated", payment("PENDING")));
     expect(confirmCompletedShippingPayment).not.toHaveBeenCalled();
+    expect(confirmCompletedSplitCheckoutPayment).not.toHaveBeenCalled();
 
     await handler(record("payment.updated", payment("COMPLETED")));
+    expect(confirmCompletedSplitCheckoutPayment).toHaveBeenCalledWith("payment-1");
     expect(confirmCompletedShippingPayment).toHaveBeenCalledWith("payment-1");
 
     await handler(record("order.updated", {}));
+    expect(confirmCompletedSplitCheckoutPayment).toHaveBeenCalledTimes(1);
     expect(confirmCompletedShippingPayment).toHaveBeenCalledTimes(1);
   });
 });

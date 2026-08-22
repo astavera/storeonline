@@ -28,12 +28,26 @@ export type ShippingCheckoutRecord = {
   fulfillmentMode: "SHIPPING";
   squareOrderId: string | null;
   squarePaymentLinkId: string | null;
+  checkoutUrl: string | null;
   orderproShippingOrderId: string;
   shippingContext: unknown;
 };
 
+export type SplitCheckoutRecord = {
+  attemptId: string;
+  requestHash: string;
+  quote: CartQuote;
+  expiresAt: Date;
+  checkoutVersion: 2;
+  context: unknown;
+  squareOrderId: string | null;
+  squarePaymentLinkId: string | null;
+  checkoutUrl: string | null;
+};
+
 export interface CheckoutAttemptRepository {
   recordValidation(input: Omit<CheckoutValidationRecord, "attemptId" | "replayed">): Promise<CheckoutValidationRecord>;
+  findValidation(input: { idempotencyKey: string; requestHash: string }): Promise<CheckoutValidationRecord | null>;
   recordShippingReservation(input: {
     attemptId: string;
     orderproShippingOrderId: string;
@@ -43,7 +57,19 @@ export interface CheckoutAttemptRepository {
     attemptId: string;
     squareOrderId: string;
     squarePaymentLinkId: string;
+    checkoutUrl: string;
   }): Promise<ShippingCheckoutRecord>;
+  recordSplitCheckoutContext(input: { attemptId: string; context: unknown }): Promise<SplitCheckoutRecord>;
+  recordSplitHostedCheckout(input: {
+    attemptId: string;
+    squareOrderId: string;
+    squarePaymentLinkId: string;
+    checkoutUrl: string;
+  }): Promise<SplitCheckoutRecord>;
+  findSplitCheckout(attemptId: string): Promise<SplitCheckoutRecord | null>;
+  listExpiredSplitCheckouts(input: { now?: Date; limit?: number }): Promise<SplitCheckoutRecord[]>;
+  markSplitCheckoutExpired(attemptId: string): Promise<void>;
+  markSplitCheckoutCompleted(attemptId: string): Promise<void>;
   findShippingCheckout(attemptId: string): Promise<ShippingCheckoutRecord | null>;
   listExpiredShippingCheckouts(input: { now?: Date; limit?: number }): Promise<ShippingCheckoutRecord[]>;
   markShippingCheckoutExpired(attemptId: string): Promise<void>;
@@ -69,6 +95,7 @@ export function getCheckoutAttemptRepository(): CheckoutAttemptRepository {
 export class InMemoryCheckoutAttemptRepository implements CheckoutAttemptRepository {
   private readonly attempts = new Map<string, CheckoutValidationRecord>();
   private readonly shipping = new Map<string, ShippingCheckoutRecord>();
+  private readonly split = new Map<string, SplitCheckoutRecord>();
 
   async recordValidation(input: Omit<CheckoutValidationRecord, "attemptId" | "replayed">) {
     const existing = this.attempts.get(input.idempotencyKey);
@@ -80,6 +107,13 @@ export class InMemoryCheckoutAttemptRepository implements CheckoutAttemptReposit
     const created = { ...input, attemptId: `development-${this.attempts.size + 1}`, replayed: false };
     this.attempts.set(input.idempotencyKey, created);
     return created;
+  }
+
+  async findValidation(input: { idempotencyKey: string; requestHash: string }) {
+    const existing = this.attempts.get(input.idempotencyKey);
+    if (!existing) return null;
+    if (existing.requestHash !== input.requestHash) throw new CheckoutIdempotencyConflictError();
+    return { ...existing, replayed: true };
   }
 
   async recordShippingReservation(input: {
@@ -104,6 +138,7 @@ export class InMemoryCheckoutAttemptRepository implements CheckoutAttemptReposit
       fulfillmentMode: "SHIPPING",
       squareOrderId: null,
       squarePaymentLinkId: null,
+      checkoutUrl: null,
       orderproShippingOrderId: input.orderproShippingOrderId,
       shippingContext: input.shippingContext
     };
@@ -115,22 +150,91 @@ export class InMemoryCheckoutAttemptRepository implements CheckoutAttemptReposit
     attemptId: string;
     squareOrderId: string;
     squarePaymentLinkId: string;
+    checkoutUrl: string;
   }) {
     const record = this.shipping.get(input.attemptId);
     if (!record) throw new Error("Shipping checkout reservation does not exist.");
     if (
       (record.squareOrderId && record.squareOrderId !== input.squareOrderId) ||
-      (record.squarePaymentLinkId && record.squarePaymentLinkId !== input.squarePaymentLinkId)
+      (record.squarePaymentLinkId && record.squarePaymentLinkId !== input.squarePaymentLinkId) ||
+      (record.checkoutUrl && record.checkoutUrl !== input.checkoutUrl)
     ) {
       throw new CheckoutIdempotencyConflictError();
     }
     const updated = {
       ...record,
       squareOrderId: input.squareOrderId,
-      squarePaymentLinkId: input.squarePaymentLinkId
+      squarePaymentLinkId: input.squarePaymentLinkId,
+      checkoutUrl: input.checkoutUrl
     };
     this.shipping.set(input.attemptId, updated);
     return updated;
+  }
+
+  async recordSplitCheckoutContext(input: { attemptId: string; context: unknown }) {
+    const attempt = [...this.attempts.values()].find((candidate) => candidate.attemptId === input.attemptId);
+    if (!attempt) throw new Error("Checkout attempt does not exist.");
+    const existing = this.split.get(input.attemptId);
+    if (existing) return existing;
+    const record: SplitCheckoutRecord = {
+      attemptId: attempt.attemptId,
+      requestHash: attempt.requestHash,
+      quote: attempt.quote,
+      expiresAt: new Date(Date.now() + 15 * 60 * 1000),
+      checkoutVersion: 2,
+      context: input.context,
+      squareOrderId: null,
+      squarePaymentLinkId: null,
+      checkoutUrl: null
+    };
+    this.split.set(input.attemptId, record);
+    return record;
+  }
+
+  async recordSplitHostedCheckout(input: {
+    attemptId: string;
+    squareOrderId: string;
+    squarePaymentLinkId: string;
+    checkoutUrl: string;
+  }) {
+    const record = this.split.get(input.attemptId);
+    if (!record) throw new Error("Split checkout context does not exist.");
+    if (
+      (record.squareOrderId && record.squareOrderId !== input.squareOrderId)
+      || (record.squarePaymentLinkId && record.squarePaymentLinkId !== input.squarePaymentLinkId)
+      || (record.checkoutUrl && record.checkoutUrl !== input.checkoutUrl)
+    ) {
+      throw new CheckoutIdempotencyConflictError();
+    }
+    const updated = {
+      ...record,
+      squareOrderId: input.squareOrderId,
+      squarePaymentLinkId: input.squarePaymentLinkId,
+      checkoutUrl: input.checkoutUrl
+    };
+    this.split.set(input.attemptId, updated);
+    return updated;
+  }
+
+  async findSplitCheckout(attemptId: string) {
+    return this.split.get(attemptId) ?? null;
+  }
+
+  async listExpiredSplitCheckouts(input: { now?: Date; limit?: number }) {
+    const now = input.now ?? new Date();
+    return [...this.split.values()]
+      .filter((record) => record.squarePaymentLinkId && record.expiresAt <= now)
+      .slice(0, Math.min(100, Math.max(1, input.limit ?? 25)));
+  }
+
+  async markSplitCheckoutExpired(attemptId: string) {
+    this.split.delete(attemptId);
+  }
+
+  async markSplitCheckoutCompleted(attemptId: string) {
+    // Keep the correlation available so duplicate Square webhooks can replay
+    // the idempotent OrderPRO notification during local/test execution.
+    void attemptId;
   }
 
   async findShippingCheckout(attemptId: string) {
@@ -140,7 +244,7 @@ export class InMemoryCheckoutAttemptRepository implements CheckoutAttemptReposit
   async listExpiredShippingCheckouts(input: { now?: Date; limit?: number }) {
     const now = input.now ?? new Date();
     return [...this.shipping.values()]
-      .filter((record) => record.squarePaymentLinkId && record.expiresAt <= now)
+      .filter((record) => !this.split.has(record.attemptId) && record.squarePaymentLinkId && record.expiresAt <= now)
       .slice(0, Math.min(100, Math.max(1, input.limit ?? 25)));
   }
 
@@ -188,6 +292,18 @@ const prismaCheckoutAttemptRepository: CheckoutAttemptRepository = {
     }
   },
 
+  async findValidation(input) {
+    try {
+      const existing = await getPrismaClient().checkoutAttempt.findUnique({
+        where: { idempotencyKey: input.idempotencyKey }
+      });
+      return existing ? replayDatabaseRecord(existing, input.requestHash) : null;
+    } catch (error) {
+      if (error instanceof CheckoutIdempotencyConflictError) throw error;
+      throw new PersistenceUnavailableError("Checkout attempt", { cause: error });
+    }
+  },
+
   async recordShippingReservation(input) {
     try {
       const updated = await getPrismaClient().checkoutAttempt.update({
@@ -216,7 +332,8 @@ const prismaCheckoutAttemptRepository: CheckoutAttemptRepository = {
         !existing.orderproShippingOrderId ||
         existing.fulfillmentMode !== "SHIPPING" ||
         (existing.squareOrderId && existing.squareOrderId !== input.squareOrderId) ||
-        (existing.squarePaymentLinkId && existing.squarePaymentLinkId !== input.squarePaymentLinkId)
+        (existing.squarePaymentLinkId && existing.squarePaymentLinkId !== input.squarePaymentLinkId) ||
+        (existing.squareCheckoutUrl && existing.squareCheckoutUrl !== input.checkoutUrl)
       ) {
         throw new CheckoutIdempotencyConflictError();
       }
@@ -225,6 +342,7 @@ const prismaCheckoutAttemptRepository: CheckoutAttemptRepository = {
         data: {
           squareOrderId: input.squareOrderId,
           squarePaymentLinkId: input.squarePaymentLinkId,
+          squareCheckoutUrl: input.checkoutUrl,
           hostedCheckoutCreatedAt: existing.hostedCheckoutCreatedAt ?? new Date()
         }
       });
@@ -232,6 +350,102 @@ const prismaCheckoutAttemptRepository: CheckoutAttemptRepository = {
     } catch (error) {
       if (error instanceof CheckoutIdempotencyConflictError) throw error;
       throw new PersistenceUnavailableError("Square hosted checkout correlation", { cause: error });
+    }
+  },
+
+  async recordSplitCheckoutContext(input) {
+    try {
+      const updated = await getPrismaClient().checkoutAttempt.update({
+        where: { id: input.attemptId },
+        data: {
+          checkoutVersion: 2,
+          splitCheckoutContext: toPrismaJson(input.context)
+        }
+      });
+      return toSplitRecord(updated);
+    } catch (error) {
+      throw new PersistenceUnavailableError("Split checkout context", { cause: error });
+    }
+  },
+
+  async recordSplitHostedCheckout(input) {
+    try {
+      const existing = await getPrismaClient().checkoutAttempt.findUniqueOrThrow({ where: { id: input.attemptId } });
+      if (
+        existing.checkoutVersion !== 2
+        || !existing.splitCheckoutContext
+        || (existing.squareOrderId && existing.squareOrderId !== input.squareOrderId)
+        || (existing.squarePaymentLinkId && existing.squarePaymentLinkId !== input.squarePaymentLinkId)
+        || (existing.squareCheckoutUrl && existing.squareCheckoutUrl !== input.checkoutUrl)
+      ) {
+        throw new CheckoutIdempotencyConflictError();
+      }
+      const updated = await getPrismaClient().checkoutAttempt.update({
+        where: { id: input.attemptId },
+        data: {
+          squareOrderId: input.squareOrderId,
+          squarePaymentLinkId: input.squarePaymentLinkId,
+          squareCheckoutUrl: input.checkoutUrl,
+          hostedCheckoutCreatedAt: existing.hostedCheckoutCreatedAt ?? new Date()
+        }
+      });
+      return toSplitRecord(updated);
+    } catch (error) {
+      if (error instanceof CheckoutIdempotencyConflictError) throw error;
+      throw new PersistenceUnavailableError("Split Square checkout correlation", { cause: error });
+    }
+  },
+
+  async findSplitCheckout(attemptId) {
+    try {
+      const record = await getPrismaClient().checkoutAttempt.findFirst({
+        where: { id: attemptId, status: "VALIDATED" }
+      });
+      if (!record || record.checkoutVersion !== 2 || !record.splitCheckoutContext) return null;
+      return toSplitRecord(record);
+    } catch (error) {
+      throw new PersistenceUnavailableError("Split checkout correlation", { cause: error });
+    }
+  },
+
+  async listExpiredSplitCheckouts(input) {
+    try {
+      const records = await getPrismaClient().checkoutAttempt.findMany({
+        where: {
+          checkoutVersion: 2,
+          status: "VALIDATED",
+          expiresAt: { lte: input.now ?? new Date() },
+          squarePaymentLinkId: { not: null },
+          splitCheckoutContext: { not: Prisma.DbNull }
+        },
+        orderBy: { expiresAt: "asc" },
+        take: Math.min(100, Math.max(1, input.limit ?? 25))
+      });
+      return records.map(toSplitRecord);
+    } catch (error) {
+      throw new PersistenceUnavailableError("Expired split checkouts", { cause: error });
+    }
+  },
+
+  async markSplitCheckoutExpired(attemptId) {
+    try {
+      await getPrismaClient().checkoutAttempt.updateMany({
+        where: { id: attemptId, checkoutVersion: 2, status: "VALIDATED" },
+        data: { status: "EXPIRED" }
+      });
+    } catch (error) {
+      throw new PersistenceUnavailableError("Expired split checkout", { cause: error });
+    }
+  },
+
+  async markSplitCheckoutCompleted(attemptId) {
+    try {
+      await getPrismaClient().checkoutAttempt.updateMany({
+        where: { id: attemptId, checkoutVersion: 2, status: "VALIDATED" },
+        data: { status: "COMPLETED" }
+      });
+    } catch (error) {
+      throw new PersistenceUnavailableError("Completed split checkout", { cause: error });
     }
   },
 
@@ -249,6 +463,7 @@ const prismaCheckoutAttemptRepository: CheckoutAttemptRepository = {
     try {
       const records = await getPrismaClient().checkoutAttempt.findMany({
         where: {
+          checkoutVersion: 1,
           fulfillmentMode: "SHIPPING",
           status: "VALIDATED",
           expiresAt: { lte: input.now ?? new Date() },
@@ -287,6 +502,33 @@ const prismaCheckoutAttemptRepository: CheckoutAttemptRepository = {
   }
 };
 
+function toSplitRecord(record: {
+  id: string;
+  requestHash: string;
+  quote: unknown;
+  expiresAt: Date;
+  checkoutVersion: number;
+  splitCheckoutContext: unknown;
+  squareOrderId: string | null;
+  squarePaymentLinkId: string | null;
+  squareCheckoutUrl: string | null;
+}): SplitCheckoutRecord {
+  if (record.checkoutVersion !== 2 || !record.splitCheckoutContext) {
+    throw new Error("Checkout attempt is not a split checkout.");
+  }
+  return {
+    attemptId: record.id,
+    requestHash: record.requestHash,
+    quote: record.quote as CartQuote,
+    expiresAt: record.expiresAt,
+    checkoutVersion: 2,
+    context: record.splitCheckoutContext,
+    squareOrderId: record.squareOrderId,
+    squarePaymentLinkId: record.squarePaymentLinkId,
+    checkoutUrl: record.squareCheckoutUrl
+  };
+}
+
 function toShippingRecord(record: {
   id: string;
   requestHash: string;
@@ -295,6 +537,7 @@ function toShippingRecord(record: {
   fulfillmentMode: "PICKUP" | "LOCAL_DELIVERY" | "SHIPPING" | null;
   squareOrderId: string | null;
   squarePaymentLinkId: string | null;
+  squareCheckoutUrl: string | null;
   orderproShippingOrderId: string | null;
   shippingContext: unknown;
 }): ShippingCheckoutRecord {
@@ -309,6 +552,7 @@ function toShippingRecord(record: {
     fulfillmentMode: "SHIPPING",
     squareOrderId: record.squareOrderId,
     squarePaymentLinkId: record.squarePaymentLinkId,
+    checkoutUrl: record.squareCheckoutUrl,
     orderproShippingOrderId: record.orderproShippingOrderId,
     shippingContext: record.shippingContext
   };

@@ -22,9 +22,6 @@ import {
   Link2,
   ListChecks,
   Monitor,
-  Palette,
-  PanelLeftClose,
-  PanelLeftOpen,
   PanelRight,
   Plus,
   Redo2,
@@ -40,6 +37,7 @@ import {
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useDeferredValue, useEffect, useMemo, useRef, useState, type ChangeEvent, type DragEvent, type MouseEvent as ReactMouseEvent } from "react";
+import { createPortal } from "react-dom";
 import { StorefrontPageSwitcher } from "@/components/admin/storefront-page-switcher";
 import { SiteFooter } from "@/components/layout/site-footer";
 import { SiteHeader } from "@/components/layout/site-header";
@@ -88,6 +86,7 @@ type HomepageWorkspaceSummary = {
 
 type HomepageStudioEditorProps = {
   additionalPages?: StorefrontEditablePage[];
+  deletedPageKeys?: string[];
   initialHeaderNavigation?: HeaderNavigationConfig;
   initialPhotoPresets?: HomepageImagePreset[];
   initialSections: HomepageSectionConfig[];
@@ -96,6 +95,7 @@ type HomepageStudioEditorProps = {
   initialWorkspace?: HomepageWorkspaceSummary;
   initialWorkspaces?: HomepageWorkspaceSummary[];
   itemLinkOptions?: HomepageItemLinkOption[];
+  navigationCategories?: WebsiteCategory[];
   previewCategories?: WebsiteCategory[];
   previewProducts?: StorefrontProduct[];
 };
@@ -172,18 +172,24 @@ const maxBrowserImageUploadBytes = 5 * 1024 * 1024;
 
 const coreHomepageSectionIds = new Set(homepageSections.map((section) => section.sectionId));
 
-const panelTabs: Array<{ id: EditorPanel; label: string; icon: typeof PanelRight }> = [
+const sectionPanelTabs: Array<{ id: EditorPanel; label: string; icon: typeof PanelRight }> = [
   { id: "content", label: "Content", icon: PanelRight },
-  { id: "design", label: "Design", icon: LayoutDashboard },
-  { id: "media", label: "Media", icon: ImageIcon },
+  { id: "media", label: "Image", icon: ImageIcon },
+  { id: "design", label: "Layout", icon: LayoutDashboard }
+];
+
+const pagePanelTabs: Array<{ id: EditorPanel; label: string; icon: typeof PanelRight }> = [
   { id: "navigation", label: "Navigation", icon: Link2 },
   { id: "seo", label: "SEO", icon: Search },
   { id: "checks", label: "Checks", icon: ListChecks },
   { id: "history", label: "History", icon: History }
 ];
 
+const pagePanelIds = new Set<EditorPanel>(pagePanelTabs.map((tab) => tab.id));
+
 export function HomepageStudioEditor({
   additionalPages = [],
+  deletedPageKeys = [],
   initialHeaderNavigation = defaultHeaderNavigation,
   initialPhotoPresets = homepageImagePresets,
   initialSections,
@@ -192,13 +198,13 @@ export function HomepageStudioEditor({
   initialWorkspace = { id: "main", name: "Main Homepage", status: "NEW", updatedAt: new Date(0).toISOString(), publishedAt: null },
   initialWorkspaces = [],
   itemLinkOptions = [],
+  navigationCategories = [],
   previewCategories = [],
   previewProducts = []
 }: HomepageStudioEditorProps) {
   const router = useRouter();
   const editorRef = useRef<HTMLDivElement>(null);
   const previewFrameRef = useRef<HTMLDivElement>(null);
-  const previewCanvasRef = useRef<HTMLDivElement>(null);
   const [editingHistory, setEditingHistory] = useState(() => createEditingHistory<HomepageEditingSnapshot>({
     homepageName: initialWorkspace.name,
     headerNavigation: initialHeaderNavigation,
@@ -209,7 +215,7 @@ export function HomepageStudioEditor({
   }));
   const editingHistoryRef = useRef(editingHistory);
   const savedSnapshotRef = useRef(homepageSnapshotSignature(editingHistory.present));
-  const { changeSummary, headerNavigation, homepageName, photoPresets, sections, seo } = editingHistory.present;
+  const { changeSummary, headerNavigation, homepageName, sections, seo } = editingHistory.present;
   const [versions, setVersions] = useState<HomepageVersionSummary[]>(initialVersions);
   const [workspaces, setWorkspaces] = useState<HomepageWorkspaceSummary[]>(initialWorkspaces);
   const [selectedSectionId, setSelectedSectionId] = useState(initialSections[0]?.sectionId ?? "home.hero");
@@ -227,7 +233,7 @@ export function HomepageStudioEditor({
   const [isDirty, setIsDirty] = useState(false);
   const [isHydrated, setIsHydrated] = useState(false);
   const [previewFrameWidth, setPreviewFrameWidth] = useState(0);
-  const [previewCanvasHeight, setPreviewCanvasHeight] = useState(0);
+  const [previewFrameHeight, setPreviewFrameHeight] = useState(0);
   const [canvasExpanded, setCanvasExpanded] = useState(false);
   const [draggingSectionId, setDraggingSectionId] = useState<string | null>(null);
   const selectedSection = useMemo(() => sections.find((section) => section.sectionId === selectedSectionId) ?? sections[0], [sections, selectedSectionId]);
@@ -249,7 +255,9 @@ export function HomepageStudioEditor({
   const publishCooldownSeconds = Math.max(0, Math.ceil((publishCooldownUntil - clockNow) / 1000));
   const previewDesignWidth = previewCanvasDesignWidth(previewMode);
   const previewScale = previewFrameWidth > 0 ? Math.min(1, Math.max(0.25, (previewFrameWidth - 2) / previewDesignWidth)) : 1;
-  const scaledPreviewHeight = previewCanvasHeight > 0 ? previewCanvasHeight * previewScale : undefined;
+  const previewViewportHeight = previewFrameHeight > 0
+    ? Math.max(640, Math.floor((previewFrameHeight - 2) / previewScale))
+    : 800;
 
   useEffect(() => {
     setIsHydrated(true);
@@ -277,26 +285,12 @@ export function HomepageStudioEditor({
 
     const observer = new ResizeObserver(([entry]) => {
       setPreviewFrameWidth(entry.contentRect.width);
+      setPreviewFrameHeight(entry.contentRect.height);
     });
 
     setPreviewFrameWidth(frame.clientWidth);
+    setPreviewFrameHeight(frame.clientHeight);
     observer.observe(frame);
-
-    return () => observer.disconnect();
-  }, []);
-
-  useEffect(() => {
-    const canvas = previewCanvasRef.current;
-
-    if (!canvas || typeof ResizeObserver === "undefined") {
-      return;
-    }
-
-    const updateCanvasHeight = () => setPreviewCanvasHeight(canvas.scrollHeight);
-    const observer = new ResizeObserver(updateCanvasHeight);
-
-    updateCanvasHeight();
-    observer.observe(canvas);
 
     return () => observer.disconnect();
   }, []);
@@ -373,10 +367,6 @@ export function HomepageStudioEditor({
 
   function commitSections(updater: (current: HomepageSectionConfig[]) => HomepageSectionConfig[]) {
     commitSnapshot((current) => ({ ...current, sections: updater(current.sections) }));
-  }
-
-  function commitPhotoPresets(updater: (current: HomepageImagePreset[]) => HomepageImagePreset[]) {
-    commitSnapshot((current) => ({ ...current, photoPresets: updater(current.photoPresets) }));
   }
 
   function commitHeaderNavigation(updater: (current: HeaderNavigationConfig) => HeaderNavigationConfig) {
@@ -680,9 +670,9 @@ export function HomepageStudioEditor({
   }
 
   return (
-    <main className="min-h-screen w-full max-w-full overflow-x-hidden bg-[#f7f7f7] lg:h-screen lg:overflow-hidden">
+    <main className="admin-homepage-studio">
       {notification ? (
-        <div aria-live="polite" className="fixed right-5 top-5 z-[100] flex max-w-sm items-center gap-3 rounded-xl border border-green-200 bg-white px-4 py-3 text-sm font-semibold text-green-900 shadow-xl" role="status">
+        <div aria-live="polite" className="admin-homepage-notification" role="status">
           <CheckCircle2 aria-hidden="true" className="shrink-0" size={20} />
           {notification}
         </div>
@@ -690,8 +680,8 @@ export function HomepageStudioEditor({
       <div
         ref={editorRef}
         className={cn(
-          "grid min-h-screen w-full max-w-full transition-[grid-template-columns] duration-300 lg:h-full lg:min-h-0 lg:grid-rows-[80px_minmax(0,1fr)]",
-          canvasExpanded ? "lg:grid-cols-[0_minmax(0,1fr)]" : "lg:grid-cols-[360px_minmax(0,1fr)] xl:grid-cols-[380px_minmax(0,1fr)] 2xl:grid-cols-[400px_minmax(0,1fr)]"
+          "admin-homepage-editor-grid",
+          canvasExpanded && "admin-homepage-editor-grid--expanded"
         )}
         data-hydrated={isHydrated ? "true" : "false"}
         data-store-area="Admin"
@@ -700,23 +690,28 @@ export function HomepageStudioEditor({
       >
         <aside
           className={cn(
-            "min-w-0 border-b border-border bg-surface lg:col-start-1 lg:row-span-2 lg:flex lg:min-h-0 lg:flex-col lg:overflow-hidden lg:border-b-0 lg:border-r",
-            canvasExpanded && "lg:pointer-events-none lg:invisible lg:border-0"
+            "admin-homepage-sidebar",
+            canvasExpanded && "admin-homepage-sidebar--hidden"
           )}
         >
-          <div className="flex h-20 shrink-0 items-center gap-3 border-b border-border px-5">
-            <Link aria-label="Back to Admin" className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-surface-muted text-secondary transition hover:text-primary" href="/admin">
-              <ArrowLeft aria-hidden="true" size={20} />
+          <div className="admin-homepage-sidebar-header">
+            <Link aria-label="Back to Admin" className="admin-homepage-back" href="/admin">
+              <ArrowLeft aria-hidden="true" size={18} />
             </Link>
-            <div className="flex h-12 min-w-0 flex-1 items-center gap-3 rounded-md bg-surface-muted px-4">
-              <Palette aria-hidden="true" size={18} />
-              <span className="truncate font-semibold">Site design</span>
+            <div className="admin-homepage-sidebar-title">
+              <span className="truncate">Website Editor</span>
+              <span>Content and presentation</span>
             </div>
           </div>
 
-          <div className="min-h-0 w-full max-w-full flex-1 overflow-x-hidden overflow-y-auto p-5">
+          <div className="admin-homepage-sidebar-scroll">
             {sidebarMode === "sections" ? (
-              <div className="grid gap-5">
+              <div className="grid gap-4">
+                <StorefrontPageSwitcher
+                  additionalPages={additionalPages}
+                  deletedPageKeys={deletedPageKeys}
+                  onBeforeNavigate={() => !isDirty || window.confirm("You have unsaved homepage changes. Continue to another page?")}
+                />
                 <HomepageWorkspaceSwitcher
                   currentId={initialWorkspace.id}
                   homepageName={homepageName}
@@ -726,10 +721,6 @@ export function HomepageStudioEditor({
                   onSwitch={switchHomepage}
                   workspaces={workspaces}
                 />
-                <StorefrontPageSwitcher
-                  additionalPages={additionalPages}
-                  onBeforeNavigate={() => !isDirty || window.confirm("You have unsaved homepage changes. Continue to another page?")}
-                />
                 <SectionsPanel
                   addSectionFromTemplate={addSectionFromTemplate}
                   duplicateSelectedSection={duplicateSelectedSection}
@@ -738,11 +729,9 @@ export function HomepageStudioEditor({
                   onDragEnd={() => setDraggingSectionId(null)}
                   onDragStart={setDraggingSectionId}
                   onDropSection={reorderSection}
-                  onManageSeasonalProducts={(sectionId) => {
-                    setSelectedSectionId(sectionId);
-                    setActivePanel("content");
+                  onOpenPagePanel={(panel) => {
+                    setActivePanel(panel);
                     setSidebarMode("inspector");
-                    setFocusRequest({ field: "items", token: Date.now() });
                   }}
                   onToggleSectionVisibility={updateSectionVisibility}
                   removeSelectedSection={removeSelectedSection}
@@ -755,12 +744,13 @@ export function HomepageStudioEditor({
                   sections={sections}
                   selectedSection={selectedSection}
                   selectedSectionId={selectedSection.sectionId}
+                  validation={validation}
+                  versions={versions}
                 />
               </div>
             ) : (
               <InspectorPanel
                 activePanel={activePanel}
-                addPhotoPreset={(preset) => commitPhotoPresets((current) => [...current, preset])}
                 changeSummary={changeSummary}
                 focusRequest={focusRequest}
                 headerNavigation={headerNavigation}
@@ -769,14 +759,11 @@ export function HomepageStudioEditor({
                 onDuplicate={duplicateSelectedSection}
                 onFixIssue={openValidationIssue}
                 onRemove={removeSelectedSection}
-                photoPresets={photoPresets}
-                removePhotoPreset={(presetId) => commitPhotoPresets((current) => (current.length > 1 ? current.filter((preset) => preset.id !== presetId) : current))}
                 section={selectedSection}
                 selectedNavigationItemId={selectedNavigationItemId}
                 seo={seo}
                 setActivePanel={setActivePanel}
                 setChangeSummary={(summary) => commitSnapshot((current) => ({ ...current, changeSummary: summary }))}
-                updatePhotoPreset={(presetId, patch) => commitPhotoPresets((current) => current.map((preset) => (preset.id === presetId ? { ...preset, ...patch } : preset)))}
                 updateHeaderNavigation={commitHeaderNavigation}
                 updateSection={updateSelected}
                 updateSeo={commitSeo}
@@ -813,25 +800,34 @@ export function HomepageStudioEditor({
           validation={validation}
         />
 
-        <section className="min-w-0 p-2 lg:col-start-2 lg:row-start-2 lg:flex lg:min-h-0 lg:flex-col lg:overflow-hidden lg:p-3">
-          <div className="min-h-[720px] flex-1 rounded-[24px] border border-border bg-surface p-3 shadow-sm lg:min-h-0 lg:overflow-hidden">
-            <div className="mx-auto h-full w-full overflow-auto rounded-[16px] border border-border bg-surface transition-all" data-preview-frame="true" ref={previewFrameRef}>
-              <div className="relative mx-auto" style={{ height: scaledPreviewHeight ? `${scaledPreviewHeight}px` : undefined, width: previewFrameWidth ? `${Math.min(previewFrameWidth, previewDesignWidth)}px` : "100%" }}>
+        <section className="admin-homepage-stage">
+          <div className="admin-homepage-stage-shell">
+            <div className="admin-homepage-preview-frame" data-preview-frame="true" ref={previewFrameRef}>
+              <div
+                className="relative mx-auto"
+                style={{
+                  height: `${previewViewportHeight * previewScale}px`,
+                  width: `${previewDesignWidth * previewScale}px`
+                }}
+              >
                 <div
+                  className="admin-homepage-preview-device"
                   data-preview-canvas="true"
-                  ref={previewCanvasRef}
                   style={{
+                    height: `${previewViewportHeight}px`,
                     transform: `scale(${previewScale})`,
                     transformOrigin: "top left",
                     width: `${previewDesignWidth}px`
                   }}
                 >
                   {isHydrated ? (
-                    <StorefrontPreview
+                    <ResponsiveStorefrontPreview
                       categories={previewCategories}
                       headerNavigation={deferredSnapshot.headerNavigation}
+                      navigationCategories={navigationCategories}
                       onEditNavigationTarget={openNavigationTarget}
                       onEditTarget={openPreviewTarget}
+                      previewMode={previewMode}
                       products={previewProducts}
                       sections={deferredSnapshot.sections}
                       selectedSectionId={selectedSection.sectionId}
@@ -866,20 +862,23 @@ function HomepageWorkspaceSwitcher({
   onSwitch: (workspaceId: string) => void;
   workspaces: HomepageWorkspaceSummary[];
 }) {
+  const currentWorkspace = workspaces.find((workspace) => workspace.id === currentId);
+
   return (
-    <section className="grid gap-3 rounded-xl border border-border bg-surface-muted p-3" aria-label="Homepage document">
-      <div className="flex items-center justify-between gap-3">
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.12em] text-secondary">Homepage document</p>
-          <p className="mt-1 text-sm font-semibold">Edit one campaign at a time</p>
-        </div>
-        <Button className="h-9 shrink-0 px-3 text-xs" onClick={onCreate} type="button" variant="secondary">
-          <Plus aria-hidden="true" size={15} />
-          New
-        </Button>
-      </div>
+    <section className="admin-homepage-document" aria-label="Homepage settings">
+      <details className="admin-homepage-document-details">
+        <summary>
+          <span>
+            <span className="block text-xs font-semibold uppercase tracking-[0.12em] text-secondary">Homepage version</span>
+            <span className="mt-1 block truncate text-sm font-semibold text-primary">{homepageName}</span>
+          </span>
+          <span className="admin-homepage-document-status">
+            {isDirty ? "Unsaved" : (currentWorkspace?.status ?? "Draft").toLowerCase()}
+          </span>
+        </summary>
+        <div className="grid gap-3 border-t border-border pt-3">
       <label className="grid gap-1.5 text-xs font-semibold text-secondary">
-        Saved homepages
+        Version
         <select className="min-h-10 rounded-md border border-border bg-surface px-3 text-sm font-semibold text-primary" onChange={(event) => onSwitch(event.currentTarget.value)} value={currentId}>
           {workspaces.map((workspace) => (
             <option key={workspace.id} value={workspace.id}>{workspace.name} · {workspace.status.toLowerCase()}</option>
@@ -887,12 +886,18 @@ function HomepageWorkspaceSwitcher({
         </select>
       </label>
       <label className="grid gap-1.5 text-xs font-semibold text-secondary">
-        Internal homepage name
+        Version name
         <input className="min-h-10 rounded-md border border-border bg-surface px-3 text-sm font-semibold text-primary outline-none focus:border-primary" maxLength={80} onChange={(event) => onNameChange(event.currentTarget.value)} value={homepageName} />
       </label>
-      <p className="text-[11px] leading-relaxed text-secondary">
-        {isDirty ? "Unsaved changes belong only to this homepage." : "Saved separately. Publishing makes only this homepage live."}
-      </p>
+          <Button className="h-9 justify-start px-3 text-xs" onClick={onCreate} type="button" variant="quiet">
+            <Plus aria-hidden="true" size={15} />
+            Create homepage version
+          </Button>
+          <p className="text-[11px] leading-relaxed text-secondary">
+            Publishing makes only the selected version live.
+          </p>
+        </div>
+      </details>
     </section>
   );
 }
@@ -939,19 +944,10 @@ function EditorTopBar({
   validation: ValidationResult;
 }) {
   return (
-    <header className="flex min-h-20 items-center justify-between gap-4 border-b border-border bg-[#f7f7f7] px-5 py-3 lg:col-start-2 lg:row-start-1">
+    <header className="admin-homepage-topbar">
       <div className="flex items-center gap-3">
-        <button
-          aria-label={canvasExpanded ? "Show editor panel" : "Expand preview"}
-          className="grid h-10 w-10 place-items-center rounded-full bg-surface text-secondary shadow-sm transition hover:text-primary"
-          onClick={onPreview}
-          title={canvasExpanded ? "Show editor panel" : "Expand preview"}
-          type="button"
-        >
-          {canvasExpanded ? <PanelLeftOpen aria-hidden="true" size={18} /> : <PanelLeftClose aria-hidden="true" size={18} />}
-        </button>
         <SegmentedPreviewMode previewMode={previewMode} setPreviewMode={setPreviewMode} />
-        <div className="inline-flex rounded-full bg-surface-muted p-1">
+        <div className="admin-editor-history-controls">
           <button aria-label="Undo" className="grid h-9 w-9 place-items-center rounded-full text-secondary transition hover:bg-surface disabled:cursor-not-allowed disabled:opacity-35" disabled={!canUndo} onClick={onUndo} title="Undo (Ctrl+Z)" type="button">
             <Undo2 aria-hidden="true" size={17} />
           </button>
@@ -970,21 +966,21 @@ function EditorTopBar({
             Sign in again
           </Link>
         ) : null}
-        <Button className="h-11 rounded-full px-4" disabled={isSubmitting} onClick={onSaveDraft} title="Save draft without changing the live website" type="button" variant="quiet">
+        <Button className="h-10 px-3" disabled={isSubmitting} onClick={onSaveDraft} title="Save draft without changing the live website" type="button" variant="quiet">
           <Save aria-hidden="true" size={17} />
           <span className="ml-2">Save draft</span>
         </Button>
-        <Button className="h-11 rounded-full px-5" onClick={onPreview} type="button" variant="secondary">
+        <Button className="h-10 px-4" onClick={onPreview} type="button" variant="secondary">
           {canvasExpanded ? "Exit preview" : "Preview"}
         </Button>
-        <Button aria-label="Open live site" className="h-11 w-11 rounded-full px-0" onClick={onOpenLiveSite} title="Open the live production site" type="button" variant="quiet">
+        <Button aria-label="Open live site" className="h-10 w-10 px-0" onClick={onOpenLiveSite} title="Open the live production site" type="button" variant="quiet">
           <ExternalLink aria-hidden="true" size={17} />
         </Button>
         <Button
           aria-label={canPublish ? "Publish" : "Review required fixes"}
-          className="h-11 rounded-full bg-primary px-5 text-white hover:bg-primary/90"
+          className="h-10 bg-primary px-5 text-white hover:bg-primary/90"
           disabled={isSubmitting || publishCooldownSeconds > 0}
-          onClick={onPublish}
+          onClick={canPublish ? onPublish : onShowChecks}
           title={canPublish ? "Publish homepage" : "Review required fixes before publishing"}
           type="button"
         >
@@ -1029,7 +1025,7 @@ function SegmentedPreviewMode({ previewMode, setPreviewMode }: { previewMode: Pr
   ];
 
   return (
-    <div className="inline-flex rounded-md border border-border bg-surface-muted p-1">
+    <div className="admin-editor-segmented">
       {options.map((option) => {
         const Icon = option.icon;
 
@@ -1037,7 +1033,7 @@ function SegmentedPreviewMode({ previewMode, setPreviewMode }: { previewMode: Pr
           <button
             aria-label={option.label}
             aria-pressed={previewMode === option.id}
-            className={cn("flex h-8 w-9 items-center justify-center rounded text-secondary transition hover:text-primary", previewMode === option.id && "bg-surface text-primary shadow-sm")}
+            className={cn("admin-editor-segment", previewMode === option.id && "admin-editor-segment--active")}
             key={option.id}
             onClick={() => setPreviewMode(option.id)}
             title={option.label}
@@ -1059,13 +1055,15 @@ function SectionsPanel({
   onDragEnd,
   onDragStart,
   onDropSection,
-  onManageSeasonalProducts,
+  onOpenPagePanel,
   onToggleSectionVisibility,
   removeSelectedSection,
   onSelectSection,
   sections,
   selectedSection,
-  selectedSectionId
+  selectedSectionId,
+  validation,
+  versions
 }: {
   addSectionFromTemplate: (template: HomepageSectionTemplate) => void;
   duplicateSelectedSection: () => void;
@@ -1074,224 +1072,71 @@ function SectionsPanel({
   onDragEnd: () => void;
   onDragStart: (sectionId: string) => void;
   onDropSection: (sourceId: string, targetId: string) => void;
-  onManageSeasonalProducts: (sectionId: string) => void;
+  onOpenPagePanel: (panel: EditorPanel) => void;
   onToggleSectionVisibility: (sectionId: string, isVisible: boolean) => void;
   removeSelectedSection: () => void;
   onSelectSection: (sectionId: string) => void;
   sections: HomepageSectionConfig[];
   selectedSection: HomepageSectionConfig;
   selectedSectionId: string;
+  validation: ValidationResult;
+  versions: HomepageVersionSummary[];
 }) {
   const [libraryOpen, setLibraryOpen] = useState(false);
-  const seasonalProductRows = sections.filter(
-    (section) => section.variant === "seasonal-product-carousel"
-  );
-  const newTrendingCarousel = sections.find(
-    (section) => section.variant === "new-trending-carousel"
-  );
-  const featuredBrandsCarousel = sections.find(
-    (section) => section.variant === "featured-brands-carousel"
-  );
-  const toyCategoryCarousel = sections.find(
-    (section) => section.variant === "toy-category-carousel"
-  );
-  const toysFeaturedProducts = sections.find(
-    (section) => section.variant === "toys-featured-grid"
-  );
+  const selectedIndex = sections.findIndex((section) => section.sectionId === selectedSectionId);
+  const issueCount = validation.errors.length + validation.warnings.length;
 
   return (
-    <aside className="grid gap-4">
-      <div className="flex items-center justify-between gap-3">
+    <aside className="admin-homepage-sections-panel">
+      <div className="flex items-end justify-between gap-3">
         <div>
           <p className="text-xs font-semibold uppercase tracking-[0.12em] text-secondary">Page structure</p>
-          <h2 className="mt-1 text-lg font-semibold">Home sections</h2>
+          <h2 className="mt-1 text-lg font-semibold">Sections</h2>
         </div>
-        <div className="flex rounded-full bg-surface-muted p-1">
-          <button className="grid h-8 w-8 place-items-center rounded-full hover:bg-surface" onClick={() => moveSelected(-1)} title="Move selected section up" type="button"><ArrowUp aria-hidden="true" size={15} /></button>
-          <button className="grid h-8 w-8 place-items-center rounded-full hover:bg-surface" onClick={() => moveSelected(1)} title="Move selected section down" type="button"><ArrowDown aria-hidden="true" size={15} /></button>
-          <button className="grid h-8 w-8 place-items-center rounded-full hover:bg-surface" onClick={duplicateSelectedSection} title="Duplicate selected section" type="button"><Copy aria-hidden="true" size={15} /></button>
-          <button className="grid h-8 w-8 place-items-center rounded-full hover:bg-surface hover:text-red" onClick={removeSelectedSection} title={coreHomepageSectionIds.has(selectedSection.sectionId) ? "Hide selected core section" : "Remove selected section"} type="button"><Trash2 aria-hidden="true" size={15} /></button>
-        </div>
+        <Button className="h-9 gap-2 px-3 text-xs" onClick={() => setLibraryOpen((current) => !current)} type="button" variant="secondary">
+          <Plus aria-hidden="true" size={15} />
+          Add
+        </Button>
       </div>
 
-      {seasonalProductRows.length > 0 ? (
-        <div className="grid gap-2 rounded-md border border-border bg-surface p-3">
-          <div>
-            <p className="text-sm font-semibold">Seasonal product rows</p>
-            <p className="mt-1 text-xs leading-relaxed text-secondary">
-              Choose which rows appear and manage the catalog products shown in each carousel.
-            </p>
-          </div>
-          {seasonalProductRows.map((section) => (
-            <div className="grid gap-2 rounded-md border border-border bg-surface-muted p-2" key={section.sectionId}>
-              <ToggleRow
-                checked={section.isVisible}
-                label={`${section.title} - ${section.isVisible ? "Visible" : "Hidden"}`}
-                onChange={(isVisible) =>
-                  onToggleSectionVisibility(section.sectionId, isVisible)
-                }
-              />
-              <Button
-                className="h-9 justify-between px-3 text-xs"
-                onClick={() => onManageSeasonalProducts(section.sectionId)}
-                type="button"
-                variant="secondary"
-              >
-                <span>
-                  Configure category &amp; products
-                </span>
-                <ChevronRight aria-hidden="true" size={15} />
-              </Button>
-              <p className="px-1 text-[11px] text-secondary">
-                {section.categorySlug
-                  ? `Selected category: ${section.categorySlug}`
-                  : `${section.items?.length ?? 0} individual products selected`}
-              </p>
-            </div>
+      {libraryOpen ? (
+        <div className="admin-homepage-section-library">
+          {homepageSectionTemplates.map((template) => (
+            <button
+              key={template.id}
+              onClick={() => {
+                addSectionFromTemplate(template);
+                setLibraryOpen(false);
+              }}
+              type="button"
+            >
+              <span>{template.title}</span>
+              <small>{template.description}</small>
+            </button>
           ))}
         </div>
       ) : null}
 
-      {newTrendingCarousel ? (
-        <div className="grid gap-2 rounded-md border border-border bg-surface p-3">
-          <div>
-            <p className="text-sm font-semibold">New &amp; trending carousel</p>
-            <p className="mt-1 text-xs leading-relaxed text-secondary">
-              Select a full category, then add individual products only when needed.
-            </p>
-          </div>
-          <ToggleRow
-            checked={newTrendingCarousel.isVisible}
-            label={newTrendingCarousel.isVisible ? "Visible on homepage" : "Hidden from homepage"}
-            onChange={(isVisible) =>
-              onToggleSectionVisibility(newTrendingCarousel.sectionId, isVisible)
-            }
-          />
-          <Button
-            className="h-10 justify-between px-3 text-xs"
-            onClick={() => onManageSeasonalProducts(newTrendingCarousel.sectionId)}
-            type="button"
-            variant="secondary"
-          >
-            <span>
-              Configure category &amp; products
-            </span>
-            <ChevronRight aria-hidden="true" size={15} />
-          </Button>
-          <p className="px-1 text-[11px] text-secondary">
-            {newTrendingCarousel.categorySlug
-              ? `Selected category: ${newTrendingCarousel.categorySlug}`
-              : `${newTrendingCarousel.items?.length ?? 0} individual products selected`}
-          </p>
-        </div>
-      ) : null}
+      <div className="admin-homepage-section-list" role="list">
+        {sections.map((section, index) => {
+          const selected = section.sectionId === selectedSectionId;
 
-      {featuredBrandsCarousel ? (
-        <div className="grid gap-2 rounded-md border border-border bg-surface p-3">
-          <div>
-            <p className="text-sm font-semibold">Featured brands carousel</p>
-            <p className="mt-1 text-xs leading-relaxed text-secondary">
-              Choose and order the brands customers can open from the homepage.
-            </p>
-          </div>
-          <ToggleRow
-            checked={featuredBrandsCarousel.isVisible}
-            label={featuredBrandsCarousel.isVisible ? "Visible on homepage" : "Hidden from homepage"}
-            onChange={(isVisible) =>
-              onToggleSectionVisibility(featuredBrandsCarousel.sectionId, isVisible)
-            }
-          />
-          <Button
-            className="h-10 justify-between px-3 text-xs"
-            onClick={() => onManageSeasonalProducts(featuredBrandsCarousel.sectionId)}
-            type="button"
-            variant="secondary"
-          >
-            <span>
-              Select brands ({featuredBrandsCarousel.items?.length ?? 0})
-            </span>
-            <ChevronRight aria-hidden="true" size={15} />
-          </Button>
-        </div>
-      ) : null}
-
-      {toyCategoryCarousel ? (
-        <div className="grid gap-2 rounded-md border border-border bg-surface p-3">
-          <div>
-            <p className="text-sm font-semibold">Toy categories</p>
-            <p className="mt-1 text-xs leading-relaxed text-secondary">
-              Select and order image-ready categories that belong directly under Toys.
-            </p>
-          </div>
-          <ToggleRow
-            checked={toyCategoryCarousel.isVisible}
-            label={toyCategoryCarousel.isVisible ? "Visible on homepage" : "Hidden from homepage"}
-            onChange={(isVisible) =>
-              onToggleSectionVisibility(toyCategoryCarousel.sectionId, isVisible)
-            }
-          />
-          <Button
-            className="h-10 justify-between px-3 text-xs"
-            onClick={() => onManageSeasonalProducts(toyCategoryCarousel.sectionId)}
-            type="button"
-            variant="secondary"
-          >
-            <span>
-              Select categories ({toyCategoryCarousel.items?.length ?? 0})
-            </span>
-            <ChevronRight aria-hidden="true" size={15} />
-          </Button>
-        </div>
-      ) : null}
-
-      {toysFeaturedProducts ? (
-        <div className="grid gap-2 rounded-md border border-border bg-surface p-3">
-          <div>
-            <p className="text-sm font-semibold">Featured toys grid</p>
-            <p className="mt-1 text-xs leading-relaxed text-secondary">
-              Select and order up to eight Catalog Publishing products for the two-row homepage grid.
-            </p>
-          </div>
-          <ToggleRow
-            checked={toysFeaturedProducts.isVisible}
-            label={toysFeaturedProducts.isVisible ? "Visible on homepage" : "Hidden from homepage"}
-            onChange={(isVisible) =>
-              onToggleSectionVisibility(toysFeaturedProducts.sectionId, isVisible)
-            }
-          />
-          <Button
-            className="h-10 justify-between px-3 text-xs"
-            onClick={() => onManageSeasonalProducts(toysFeaturedProducts.sectionId)}
-            type="button"
-            variant="secondary"
-          >
-            <span>
-              Select products ({toysFeaturedProducts.items?.length ?? 0}/8)
-            </span>
-            <ChevronRight aria-hidden="true" size={15} />
-          </Button>
-        </div>
-      ) : null}
-
-      <div className="grid gap-2 rounded-md bg-surface-muted p-2">
-          {sections.map((section, index) => (
-            <button
-              aria-pressed={section.sectionId === selectedSectionId}
+          return (
+            <article
               className={cn(
-                "flex min-h-14 items-center gap-3 rounded-md px-3 text-left text-sm transition",
-                section.sectionId === selectedSectionId ? "bg-surface text-primary shadow-sm" : "text-primary hover:bg-surface/75",
+                "admin-homepage-section-row",
+                selected && "admin-homepage-section-row--selected",
                 draggingSectionId === section.sectionId && "opacity-60"
               )}
               draggable
               key={section.sectionId}
-              onClick={() => onSelectSection(section.sectionId)}
               onDragEnd={onDragEnd}
               onDragOver={(event) => event.preventDefault()}
-              onDragStart={(event: DragEvent<HTMLButtonElement>) => {
+              onDragStart={(event: DragEvent<HTMLElement>) => {
                 event.dataTransfer.setData("text/plain", section.sectionId);
                 onDragStart(section.sectionId);
               }}
-              onDrop={(event: DragEvent<HTMLButtonElement>) => {
+              onDrop={(event: DragEvent<HTMLElement>) => {
                 event.preventDefault();
                 const sourceId = event.dataTransfer.getData("text/plain") || draggingSectionId;
 
@@ -1301,63 +1146,126 @@ function SectionsPanel({
 
                 onDragEnd();
               }}
-              type="button"
+              role="listitem"
             >
-              <GripVertical aria-hidden="true" className="shrink-0 text-secondary" size={16} />
-              <span className="min-w-0 flex-1 truncate font-semibold">{sectionLabel(section.sectionId)}</span>
-              <span className="flex shrink-0 items-center gap-2 text-xs text-secondary">
-                {section.isVisible ? <Eye aria-hidden="true" size={15} /> : <EyeOff aria-hidden="true" size={15} />}
-                {index + 1}
-              </span>
-            </button>
-          ))}
-      </div>
-
-      <button className="flex min-h-12 w-full items-center justify-center gap-2 rounded-md bg-surface-muted px-4 text-sm font-semibold transition hover:bg-border" onClick={() => setLibraryOpen((current) => !current)} type="button">
-        <Plus aria-hidden="true" size={17} />
-        {libraryOpen ? "Close section library" : "Add section"}
-      </button>
-
-      {libraryOpen ? (
-        <div className="grid gap-2 border-t border-border pt-4">
-          <p className="text-xs font-semibold uppercase tracking-[0.12em] text-secondary">Section library</p>
-            {homepageSectionTemplates.map((template) => (
+              <GripVertical aria-hidden="true" className="shrink-0 text-secondary" size={15} />
+              <button className="admin-homepage-section-open" onClick={() => onSelectSection(section.sectionId)} type="button">
+                <span className="min-w-0">
+                  <span className="block truncate text-sm font-semibold">{sectionDisplayName(section)}</span>
+                  <span className="mt-0.5 block truncate text-[11px] text-secondary">{sectionEditorSummary(section)}</span>
+                </span>
+                <ChevronRight aria-hidden="true" className="shrink-0 text-secondary" size={15} />
+              </button>
               <button
-                className="rounded-md border border-border bg-surface-muted p-3 text-left text-sm transition hover:border-primary hover:text-primary"
-                key={template.id}
-                onClick={() => {
-                  addSectionFromTemplate(template);
-                  setLibraryOpen(false);
-                }}
+                aria-label={`${section.isVisible ? "Hide" : "Show"} ${sectionDisplayName(section)}`}
+                aria-pressed={section.isVisible}
+                className="admin-homepage-section-visibility"
+                onClick={() => onToggleSectionVisibility(section.sectionId, !section.isVisible)}
+                title={section.isVisible ? "Visible on website" : "Hidden from website"}
                 type="button"
               >
-                <span className="font-semibold">{template.title}</span>
-                <span className="mt-1 block text-xs text-secondary">{template.description}</span>
+                {section.isVisible ? <Eye aria-hidden="true" size={15} /> : <EyeOff aria-hidden="true" size={15} />}
               </button>
-            ))}
+              <span className="sr-only">Section {index + 1}</span>
+            </article>
+          );
+        })}
+      </div>
+
+      <div className="admin-homepage-section-actions" aria-label="Selected section actions">
+        <button disabled={selectedIndex <= 0} onClick={() => moveSelected(-1)} title="Move up" type="button"><ArrowUp aria-hidden="true" size={15} /> Up</button>
+        <button disabled={selectedIndex === sections.length - 1} onClick={() => moveSelected(1)} title="Move down" type="button"><ArrowDown aria-hidden="true" size={15} /> Down</button>
+        <button onClick={duplicateSelectedSection} type="button"><Copy aria-hidden="true" size={15} /> Duplicate</button>
+        <button onClick={removeSelectedSection} type="button"><Trash2 aria-hidden="true" size={15} /> {coreHomepageSectionIds.has(selectedSection.sectionId) ? "Hide" : "Remove"}</button>
+      </div>
+
+      <div className="admin-homepage-page-tools">
+        <p>Page settings</p>
+        <div>
+          {pagePanelTabs.map((tab) => {
+            const Icon = tab.icon;
+            const count = tab.id === "checks" ? issueCount : tab.id === "history" ? versions.length : 0;
+
+            return (
+              <button key={tab.id} onClick={() => onOpenPagePanel(tab.id)} type="button">
+                <Icon aria-hidden="true" size={15} />
+                <span>{tab.label}</span>
+                {count > 0 ? <small>{count}</small> : null}
+              </button>
+            );
+          })}
         </div>
-      ) : null}
+      </div>
     </aside>
+  );
+}
+
+type StorefrontPreviewProps = {
+  categories: WebsiteCategory[];
+  headerNavigation: HeaderNavigationConfig;
+  navigationCategories: WebsiteCategory[];
+  onEditNavigationTarget: (navigationItemId: string) => void;
+  onEditTarget: (target: PreviewEditTarget) => void;
+  products: StorefrontProduct[];
+  sections: HomepageSectionConfig[];
+  selectedSectionId: string;
+};
+
+function ResponsiveStorefrontPreview({
+  previewMode,
+  ...previewProps
+}: StorefrontPreviewProps & { previewMode: PreviewMode }) {
+  const iframeRef = useRef<HTMLIFrameElement>(null);
+  const [mountNode, setMountNode] = useState<HTMLElement | null>(null);
+
+  function initializePreviewDocument() {
+    const previewDocument = iframeRef.current?.contentDocument;
+
+    if (!previewDocument) {
+      return;
+    }
+
+    previewDocument.documentElement.className = document.documentElement.className;
+    previewDocument.body.className = "bg-background text-primary";
+    previewDocument.body.style.margin = "0";
+    previewDocument.body.style.minWidth = "0";
+
+    document
+      .querySelectorAll<HTMLLinkElement | HTMLStyleElement>('link[rel="stylesheet"], style')
+      .forEach((stylesheet) => {
+        const clone = stylesheet.cloneNode(true) as HTMLLinkElement | HTMLStyleElement;
+        clone.dataset.websiteEditorPreviewStyle = "true";
+        previewDocument.head.append(clone);
+      });
+
+    setMountNode(previewDocument.body);
+  }
+
+  return (
+    <>
+      <iframe
+        aria-label={`${previewMode} storefront preview`}
+        className="admin-homepage-responsive-preview"
+        onLoad={initializePreviewDocument}
+        ref={iframeRef}
+        srcDoc={'<!doctype html><html><head><base href="/"><meta name="viewport" content="width=device-width, initial-scale=1"></head><body></body></html>'}
+        title={`${previewMode} storefront preview`}
+      />
+      {mountNode ? createPortal(<StorefrontPreview {...previewProps} />, mountNode) : null}
+    </>
   );
 }
 
 function StorefrontPreview({
   categories,
   headerNavigation,
+  navigationCategories,
   onEditNavigationTarget,
   onEditTarget,
   products,
   sections,
   selectedSectionId
-}: {
-  categories: WebsiteCategory[];
-  headerNavigation: HeaderNavigationConfig;
-  onEditNavigationTarget: (navigationItemId: string) => void;
-  onEditTarget: (target: PreviewEditTarget) => void;
-  products: StorefrontProduct[];
-  sections: HomepageSectionConfig[];
-  selectedSectionId: string;
-}) {
+}: StorefrontPreviewProps) {
   const previewRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -1378,7 +1286,11 @@ function StorefrontPreview({
     );
 
     if (selectedSectionId === "home.hero") {
-      scrollContainer?.scrollTo({ top: 0, behavior: "smooth" });
+      if (scrollContainer) {
+        scrollContainer.scrollTo({ top: 0, behavior: "smooth" });
+      } else {
+        preview.ownerDocument.defaultView?.scrollTo({ top: 0, behavior: "smooth" });
+      }
       return;
     }
 
@@ -1419,7 +1331,7 @@ function StorefrontPreview({
 
   return (
     <div className="bg-background text-primary" onClickCapture={handlePreviewClick} ref={previewRef}>
-      <SiteHeader navigation={headerNavigation} />
+      <SiteHeader categories={navigationCategories} navigation={headerNavigation} />
       <HomePageTemplate
         categories={categories}
         editorPreview
@@ -1514,10 +1426,6 @@ function InspectorPanel({
   itemLinkOptions,
   updateHeaderNavigation,
   selectedNavigationItemId,
-  photoPresets,
-  addPhotoPreset,
-  updatePhotoPreset,
-  removePhotoPreset,
   seo,
   updateSeo,
   validation,
@@ -1538,10 +1446,6 @@ function InspectorPanel({
   itemLinkOptions: HomepageItemLinkOption[];
   updateHeaderNavigation: (updater: (current: HeaderNavigationConfig) => HeaderNavigationConfig) => void;
   selectedNavigationItemId: string;
-  photoPresets: HomepageImagePreset[];
-  addPhotoPreset: (preset: HomepageImagePreset) => void;
-  updatePhotoPreset: (presetId: string, patch: Partial<HomepageImagePreset>) => void;
-  removePhotoPreset: (presetId: string) => void;
   seo: HomepageSeoConfig;
   updateSeo: (patch: Partial<HomepageSeoConfig>) => void;
   validation: ValidationResult;
@@ -1565,28 +1469,32 @@ function InspectorPanel({
     inspectorRef.current?.scrollIntoView({ block: "nearest", behavior: "smooth" });
   }, [focusRequest]);
 
+  const editingPageSettings = pagePanelIds.has(activePanel);
+  const inspectorTabs = editingPageSettings ? pagePanelTabs : sectionPanelTabs;
   const inspectorTitle =
     activePanel === "navigation"
       ? "Header navigation"
       : activePanel === "seo"
         ? "Homepage SEO"
+        : activePanel === "checks"
+          ? "Publish checks"
         : activePanel === "history"
           ? "Version history"
-          : sectionLabel(section.sectionId);
+          : sectionDisplayName(section);
 
   return (
     <aside className="min-h-0 w-full min-w-0 max-w-full" ref={inspectorRef}>
       <div className="sticky top-0 z-20 -mx-5 -mt-5 border-b border-border bg-surface/95 px-5 py-4 backdrop-blur">
         <div className="flex items-center justify-between gap-3">
           <h2 className="truncate font-display text-lg font-semibold">{inspectorTitle}</h2>
-          <Button className="h-10 shrink-0 rounded-full px-4" onClick={onDone} variant="quiet">
-            Done
+          <Button className="h-10 shrink-0 px-4" onClick={onDone} variant="quiet">
+            Back to sections
           </Button>
         </div>
       </div>
 
-      <div className="my-4 grid grid-cols-4 gap-1">
-        {panelTabs.map((tab) => {
+      <div className={cn("admin-homepage-inspector-tabs", editingPageSettings ? "grid-cols-4" : "grid-cols-3")}>
+        {inspectorTabs.map((tab) => {
           const Icon = tab.icon;
           const selected = activePanel === tab.id;
 
@@ -1594,7 +1502,7 @@ function InspectorPanel({
             <button
               aria-pressed={selected}
               className={cn(
-                "inline-flex h-9 min-w-0 items-center justify-center gap-1 rounded-full px-2 text-[11px] font-semibold transition",
+                "inline-flex h-9 min-w-0 items-center justify-center gap-1 px-2 text-[11px] font-semibold transition",
                 selected ? "bg-primary text-white" : "bg-surface-muted text-secondary hover:text-primary"
               )}
               key={tab.id}
@@ -1612,12 +1520,8 @@ function InspectorPanel({
       {activePanel === "design" ? <DesignPanel focusRequest={focusRequest} section={section} updateSection={updateSection} /> : null}
       {activePanel === "media" ? (
         <MediaPanel
-          addPhotoPreset={addPhotoPreset}
           focusRequest={focusRequest}
-          photoPresets={photoPresets}
-          removePhotoPreset={removePhotoPreset}
           section={section}
-          updatePhotoPreset={updatePhotoPreset}
           updateSection={updateSection}
         />
       ) : null}
@@ -1626,16 +1530,18 @@ function InspectorPanel({
       {activePanel === "checks" ? <ChecksPanel changeSummary={changeSummary} onFixIssue={onFixIssue} setChangeSummary={setChangeSummary} validation={validation} /> : null}
       {activePanel === "history" ? <HistoryPanel versions={versions} /> : null}
 
-      <div className="mt-6 grid grid-cols-2 gap-2 border-t border-border pt-4">
-        <Button className="justify-center" onClick={onDuplicate} variant="quiet">
-          <Copy aria-hidden="true" className="size-4" />
-          Duplicate
-        </Button>
-        <Button className="justify-center" onClick={onRemove} variant="quiet">
-          <Trash2 aria-hidden="true" className="size-4" />
-          Remove
-        </Button>
-      </div>
+      {!editingPageSettings ? (
+        <div className="mt-6 grid grid-cols-2 gap-2 border-t border-border pt-4">
+          <Button className="justify-center" onClick={onDuplicate} variant="quiet">
+            <Copy aria-hidden="true" className="size-4" />
+            Duplicate
+          </Button>
+          <Button className="justify-center" onClick={onRemove} variant="quiet">
+            <Trash2 aria-hidden="true" className="size-4" />
+            Remove
+          </Button>
+        </div>
+      ) : null}
     </aside>
   );
 }
@@ -2023,7 +1929,7 @@ function ContentPanel({
             Secondary hero button
           </div>
           <TextField label="Button label" onChange={(secondaryCtaLabel) => updateSection({ secondaryCtaLabel })} value={section.secondaryCtaLabel ?? (section.variant === "back-to-school" ? "Build a School Kit" : "Balloon order")} />
-          <ButtonDestinationEditor href={section.secondaryCtaHref ?? (section.variant === "back-to-school" ? "/stationery" : "/balloons")} linkOptions={itemLinkOptions} onChange={(secondaryCtaHref) => updateSection({ secondaryCtaHref })} />
+          <ButtonDestinationEditor href={section.secondaryCtaHref ?? (section.variant === "back-to-school" ? "/shop" : "/balloons")} linkOptions={itemLinkOptions} onChange={(secondaryCtaHref) => updateSection({ secondaryCtaHref })} />
         </div>
       ) : null}
       {!isSeasonalProductRow && !isBrandCarousel && !isToysFeaturedGrid && !isToyCategoryCarousel ? <Button className="gap-2" onClick={() => setActivePanel("media")} type="button" variant="secondary">
@@ -2461,18 +2367,10 @@ function DesignPanel({ section, updateSection, focusRequest }: { section: Homepa
 function MediaPanel({
   section,
   updateSection,
-  photoPresets,
-  addPhotoPreset,
-  updatePhotoPreset,
-  removePhotoPreset,
   focusRequest
 }: {
   section: HomepageSectionConfig;
   updateSection: (patch: Partial<HomepageSectionConfig>) => void;
-  photoPresets: HomepageImagePreset[];
-  addPhotoPreset: (preset: HomepageImagePreset) => void;
-  updatePhotoPreset: (presetId: string, patch: Partial<HomepageImagePreset>) => void;
-  removePhotoPreset: (presetId: string) => void;
   focusRequest: EditorFocusRequest | null;
 }) {
   const [sectionUploadState, setSectionUploadState] = useState<SaveState>({ tone: "idle", message: "" });
@@ -2480,15 +2378,6 @@ function MediaPanel({
 
   if (isSeasonalHero) {
     return <SeasonalHeroMediaPanel section={section} updateSection={updateSection} />;
-  }
-
-  function addCurrentPhotoAsPreset() {
-    const nextIndex = photoPresets.length + 1;
-    addPhotoPreset({
-      id: `custom-${Date.now()}`,
-      label: `Custom ${nextIndex}`,
-      url: section.backgroundImage || defaultHomepageImage
-    });
   }
 
   async function uploadSectionImage(file: File) {
@@ -2505,24 +2394,22 @@ function MediaPanel({
 
   return (
     <div className="grid gap-4">
-      <ImageUrlField fieldId="media" focusRequest={focusRequest} label="Photo URL" onApply={(backgroundImage) => updateSection({ backgroundImage, mediaPlacement: "background" })} value={section.backgroundImage ?? ""} />
-      <TextField fieldId="imageAlt" focusRequest={focusRequest} label="Image alt text" onChange={(imageAlt) => updateSection({ imageAlt })} value={section.imageAlt ?? ""} />
-      <div className="grid gap-2 rounded-md border border-border bg-surface-muted p-3">
-        <p className="text-sm font-semibold">Current image</p>
-        <EditablePresetImage alt={section.imageAlt || `${sectionLabel(section.sectionId)} image`} className="h-28 rounded-md border border-border" src={section.backgroundImage || defaultHomepageImage} />
-        <ImageUploadControl id={`section-image-upload-${section.sectionId}`} label="Upload section image" onUpload={uploadSectionImage} />
+      <div className="admin-homepage-current-image">
+        <div>
+          <p className="text-sm font-semibold">Section image</p>
+          <p className="mt-1 text-xs text-secondary">Upload the image used only in this section.</p>
+        </div>
+        <EditablePresetImage alt={section.imageAlt || `${sectionDisplayName(section)} image`} className="h-32 border border-border" src={section.backgroundImage || defaultHomepageImage} />
+        <ImageUploadControl id={`section-image-upload-${section.sectionId}`} label="Replace image" onUpload={uploadSectionImage} />
         <UploadStatus state={sectionUploadState} />
       </div>
-
-      <PhotoPresetEditor
-        addCurrentPhotoAsPreset={addCurrentPhotoAsPreset}
-        addPhotoPreset={addPhotoPreset}
-        photoPresets={photoPresets}
-        removePhotoPreset={removePhotoPreset}
-        selectPhoto={(imageUrl) => updateSection({ backgroundImage: imageUrl || defaultHomepageImage, mediaPlacement: "background" })}
-        updatePhotoPreset={updatePhotoPreset}
-        useFallback={() => updateSection({ backgroundImage: defaultHomepageImage, mediaPlacement: "background" })}
-      />
+      <TextField fieldId="imageAlt" focusRequest={focusRequest} label="Image description (alt text)" onChange={(imageAlt) => updateSection({ imageAlt })} value={section.imageAlt ?? ""} />
+      <details className="admin-homepage-inline-details">
+        <summary>Use an image URL</summary>
+        <div className="pt-3">
+          <ImageUrlField fieldId="media" focusRequest={focusRequest} label="Image URL" onApply={(backgroundImage) => updateSection({ backgroundImage, mediaPlacement: "background" })} value={section.backgroundImage ?? ""} />
+        </div>
+      </details>
     </div>
   );
 }
@@ -2574,9 +2461,9 @@ function SeasonalHeroMediaPanel({
   return (
     <section className="grid gap-3">
       <div className="rounded-md border border-primary/20 bg-primary/5 p-3">
-        <p className="text-sm font-semibold">Active hero images</p>
+        <p className="text-sm font-semibold">Hero images</p>
         <p className="mt-1 text-xs leading-relaxed text-secondary">
-          Only the rotating images used by this hero appear here. The general media library is hidden so an old homepage photo cannot replace a slide by mistake.
+          Replace each slide here. These images are used only by the homepage hero.
         </p>
       </div>
 
@@ -2598,17 +2485,22 @@ function SeasonalHeroMediaPanel({
               onUpload={(file) => uploadSlideImage(slide, file)}
             />
             <UploadStatus state={uploadStates[slide.id] ?? { tone: "idle", message: "" }} />
-            <ImageUrlField
-              compact
-              label={`Slide ${index + 1} image URL`}
-              onApply={(image) => updateSlide(slide.id, { image })}
-              value={slide.image ?? ""}
-            />
             <TextField
               label={`Slide ${index + 1} image alt text`}
               onChange={(imageAlt) => updateSlide(slide.id, { imageAlt })}
               value={slide.imageAlt ?? ""}
             />
+            <details className="admin-homepage-inline-details">
+              <summary>Use an image URL</summary>
+              <div className="pt-3">
+                <ImageUrlField
+                  compact
+                  label={`Slide ${index + 1} image URL`}
+                  onApply={(image) => updateSlide(slide.id, { image })}
+                  value={slide.image ?? ""}
+                />
+              </div>
+            </details>
           </article>
         ))
       ) : (
@@ -2692,117 +2584,6 @@ function HistoryPanel({ versions }: { versions: HomepageVersionSummary[] }) {
         </article>
       ))}
     </div>
-  );
-}
-
-function PhotoPresetEditor({
-  photoPresets,
-  selectPhoto,
-  updatePhotoPreset,
-  removePhotoPreset,
-  addCurrentPhotoAsPreset,
-  addPhotoPreset,
-  useFallback
-}: {
-  photoPresets: HomepageImagePreset[];
-  selectPhoto: (imageUrl: string) => void;
-  updatePhotoPreset: (presetId: string, patch: Partial<HomepageImagePreset>) => void;
-  removePhotoPreset: (presetId: string) => void;
-  addCurrentPhotoAsPreset: () => void;
-  addPhotoPreset: (preset: HomepageImagePreset) => void;
-  useFallback: () => void;
-}) {
-  const [presetUploadState, setPresetUploadState] = useState<SaveState>({ tone: "idle", message: "" });
-
-  async function uploadNewPreset(file: File) {
-    setPresetUploadState({ tone: "idle", message: "Uploading preset..." });
-
-    try {
-      const asset = await uploadAdminImage(file, "homepage-photo-preset");
-      const nextIndex = photoPresets.length + 1;
-      const preset = {
-        id: `uploaded-${Date.now()}`,
-        label: labelFromFileName(asset.originalName) || `Uploaded ${nextIndex}`,
-        url: asset.url
-      };
-      addPhotoPreset(preset);
-      selectPhoto(asset.url);
-      setPresetUploadState({ tone: "success", message: `Uploaded ${asset.originalName}.` });
-    } catch (error) {
-      setPresetUploadState({ tone: "error", message: error instanceof Error ? error.message : "Image upload failed." });
-    }
-  }
-
-  async function replacePresetPhoto(preset: HomepageImagePreset, file: File) {
-    setPresetUploadState({ tone: "idle", message: `Replacing ${preset.label}...` });
-
-    try {
-      const asset = await uploadAdminImage(file, `homepage-photo-preset-${preset.id}`);
-      updatePhotoPreset(preset.id, { url: asset.url });
-      selectPhoto(asset.url);
-      setPresetUploadState({ tone: "success", message: `Replaced ${preset.label}.` });
-    } catch (error) {
-      setPresetUploadState({ tone: "error", message: error instanceof Error ? error.message : "Image upload failed." });
-    }
-  }
-
-  return (
-    <section className="rounded-md border border-border bg-surface-muted p-3">
-      <div className="flex items-center justify-between gap-2">
-        <div>
-          <p className="text-sm font-semibold">Media library</p>
-          <p className="mt-1 text-xs text-secondary">Reusable homepage images.</p>
-        </div>
-        <div className="flex gap-2">
-          <Button className="h-9 px-3" onClick={addCurrentPhotoAsPreset} type="button" variant="secondary">
-            Add
-          </Button>
-          <ImageUploadControl className="h-9 min-h-9 px-3" id="photo-preset-upload" label="Upload" onUpload={uploadNewPreset} />
-        </div>
-      </div>
-      <UploadStatus state={presetUploadState} />
-
-      <div className="mt-3 grid gap-3">
-        {photoPresets.length > 0 ? (
-          photoPresets.map((preset) => (
-            <div className="grid gap-3 rounded-md border border-border bg-surface p-2 sm:grid-cols-[88px_minmax(0,1fr)]" key={preset.id}>
-              <button
-                className="relative h-20 w-full overflow-hidden rounded-md border border-border bg-surface-muted sm:w-[88px]"
-                data-photo-preset-id={preset.id}
-                data-photo-preset-url={preset.url || defaultHomepageImage}
-                data-photo-preset-use="image"
-                onClick={() => selectPhoto(preset.url)}
-                title={`Use ${preset.label}`}
-                type="button"
-              >
-                <EditablePresetImage alt={preset.label} className="h-full" src={preset.url} />
-                <span className="absolute bottom-1 left-1 rounded-md bg-black/65 px-1.5 py-0.5 text-[11px] font-semibold text-white">Use</span>
-              </button>
-              <div className="grid min-w-0 gap-2">
-                <input aria-label={`${preset.label} preset label`} className="w-full rounded-md border border-border bg-surface px-2 py-1.5 text-xs outline-none focus:border-primary" onChange={(event) => updatePhotoPreset(preset.id, { label: event.target.value })} value={preset.label} />
-                <ImageUrlField compact label={`${preset.label} preset URL`} onApply={(url) => updatePhotoPreset(preset.id, { url })} value={preset.url} />
-                <div className="grid grid-cols-3 gap-2">
-                  <Button className="h-8 min-h-8 px-2 text-xs" data-photo-preset-id={preset.id} data-photo-preset-url={preset.url || defaultHomepageImage} data-photo-preset-use="button" onClick={() => selectPhoto(preset.url)} type="button" variant="secondary">
-                    Use
-                  </Button>
-                  <ImageUploadControl className="h-8 min-h-8 px-2" id={`replace-preset-${safeDomId(preset.id)}`} label="Replace" onUpload={(file) => replacePresetPhoto(preset, file)} />
-                  <Button className="h-8 px-2 text-xs" onClick={() => removePhotoPreset(preset.id)} type="button" variant="quiet">
-                    Remove
-                  </Button>
-                </div>
-              </div>
-            </div>
-          ))
-        ) : (
-          <div className="rounded-md border border-dashed border-border bg-surface p-4 text-sm text-secondary">No photos yet. The fallback photo will be used.</div>
-        )}
-      </div>
-
-      <Button className="mt-3 w-full gap-2" onClick={useFallback} type="button" variant="secondary">
-        <ImageIcon aria-hidden="true" size={16} />
-        Use fallback photo
-      </Button>
-    </section>
   );
 }
 
@@ -3323,12 +3104,6 @@ function defaultEditableItemsForSection(section: HomepageSectionConfig): Homepag
         title: "Balloons",
         body: "Latex, mylar, numbers, bouquets, pickup, and local delivery.",
         href: "/balloons"
-      },
-      {
-        id: "gifts",
-        title: "Gifts",
-        body: "Neighborhood-ready gifts, wrap, frames, albums, and small finds.",
-        href: "/gifts"
       }
     ];
   }
@@ -3384,6 +3159,67 @@ function sectionLabel(sectionId: string) {
     .filter(Boolean)
     .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
     .join(" ");
+}
+
+function sectionDisplayName(section: HomepageSectionConfig) {
+  if (section.variant === "seasonal-card") {
+    return "Hero";
+  }
+
+  if (section.variant === "new-trending-carousel") {
+    return "New & trending";
+  }
+
+  if (section.variant === "featured-brands-carousel") {
+    return "Featured brands";
+  }
+
+  if (section.variant === "toy-category-carousel") {
+    return "Toy categories";
+  }
+
+  if (section.variant === "toys-featured-grid") {
+    return "Featured toys";
+  }
+
+  if (section.variant === "seasonal-product-carousel") {
+    return section.title.trim() || "Product carousel";
+  }
+
+  return sectionLabel(section.sectionId);
+}
+
+function sectionEditorSummary(section: HomepageSectionConfig) {
+  if (!section.isVisible) {
+    return "Hidden from website";
+  }
+
+  const itemCount = section.items?.length ?? 0;
+
+  if (section.variant === "seasonal-card") {
+    return `${itemCount} ${itemCount === 1 ? "slide" : "slides"}`;
+  }
+
+  if (section.variant === "featured-brands-carousel") {
+    return `${itemCount} ${itemCount === 1 ? "brand" : "brands"}`;
+  }
+
+  if (section.variant === "toy-category-carousel") {
+    return `${itemCount} ${itemCount === 1 ? "category" : "categories"}`;
+  }
+
+  if (
+    section.variant === "new-trending-carousel" ||
+    section.variant === "seasonal-product-carousel" ||
+    section.variant === "toys-featured-grid"
+  ) {
+    return section.categorySlug
+      ? `Category: ${section.categorySlug.replaceAll("-", " ")}`
+      : `${itemCount} ${itemCount === 1 ? "product" : "products"}`;
+  }
+
+  const title = section.title.trim();
+  return title && title !== sectionDisplayName(section) ? title : "Content section";
 }
 
 function previewCanvasDesignWidth(previewMode: PreviewMode) {

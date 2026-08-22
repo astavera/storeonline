@@ -11,20 +11,20 @@ RELATED FILES: src/config/locations.config.ts
 BUSINESS LOGIC FILES: src/features/locations/services/location-service.ts, src/features/fulfillment/services/delivery-zone-service.ts
 */
 
-import { notFound } from "next/navigation";
 import { StorefrontCmsPage } from "@/components/cms/storefront-cms-page";
-import { getLocationBySlug, storeLocations } from "@/config/locations.config";
 import { readPublishedStorefrontCmsDocument } from "@/server/storefront/published-cms-document";
+import { readPublicStoreLocations } from "@/server/storefront/public-store-locations";
 import { SectionFrame } from "../sections/section-frame";
 
 export async function LocationsIndexTemplate() {
-  const publishedDocument = await readPublishedStorefrontCmsDocument({ entityType: "location", entityId: "index" });
+  const [publishedDocument, publicLocations] = await Promise.all([
+    readPublishedStorefrontCmsDocument({ entityType: "location", entityId: "index" }),
+    readPublicStoreLocations()
+  ]);
 
   if (publishedDocument) {
     return <StorefrontCmsPage document={publishedDocument} />;
   }
-
-  const publicLocations = storeLocations.filter((location) => location.slug !== "warehouse");
 
   return (
     <main>
@@ -42,42 +42,6 @@ export async function LocationsIndexTemplate() {
                 <p className="text-secondary">{location.hours}</p>
               </article>
             ))}
-          </div>
-        </div>
-      </SectionFrame>
-    </main>
-  );
-}
-
-export async function LocationDetailTemplate({ slug }: { slug: string }) {
-  const publishedDocument = await readPublishedStorefrontCmsDocument({ entityType: "location", entityId: slug });
-
-  if (publishedDocument) {
-    return <StorefrontCmsPage document={publishedDocument} />;
-  }
-
-  const location = getLocationBySlug(slug);
-
-  if (!location || location.slug === "warehouse") {
-    notFound();
-  }
-
-  return (
-    <main>
-      <SectionFrame area="Locations" className="bg-surface-muted py-16" component="LocationDetailSection" sectionId={`locations.${location.slug}`} variant="location-detail">
-        <div className="container-shell">
-          <h1 className="font-display text-4xl font-semibold">{location.name}</h1>
-          <div className="mt-8 grid gap-6 md:grid-cols-[1fr_0.7fr]">
-            <div className="surface-card p-6">
-              <p className="text-secondary">{location.address}</p>
-              <p className="text-secondary">{location.locality}</p>
-              <p className="mt-4 font-semibold">{location.phone}</p>
-              <p className="text-secondary">{location.hours}</p>
-            </div>
-            <div className="surface-card p-6">
-              <h2 className="font-display text-xl font-semibold">Pickup and local delivery</h2>
-              <p className="mt-3 text-sm text-secondary">Contact the store to confirm current availability, pickup timing, or delivery options for your address.</p>
-            </div>
           </div>
         </div>
       </SectionFrame>

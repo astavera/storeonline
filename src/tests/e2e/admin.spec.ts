@@ -17,7 +17,6 @@ const topLevelAdminRoutes = [
   "/admin/holidays",
   "/admin/homepage",
   "/admin/locations",
-  "/admin/media-library",
   "/admin/navigation",
   "/admin/orders",
   "/admin/product-display",
@@ -52,12 +51,13 @@ test("all top-level admin screens load without an error boundary", async ({ page
 test("admin dashboard and responsive navigation load", async ({ page }) => {
   await page.goto("/admin", { waitUntil: "domcontentloaded" });
 
-  await expect(page.getByRole("heading", { level: 1, name: "Current admin work" })).toBeVisible();
-  await expect(page.getByRole("link", { name: "Open catalog publishing" })).toBeVisible();
+  await expect(page.getByRole("heading", { level: 1, name: "Store overview" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Open products" })).toBeVisible();
   await expect(page.getByRole("link", { name: "Website Editor" }).first()).toBeVisible();
 
   await page.setViewportSize({ width: 390, height: 844 });
-  await expect(page.getByRole("navigation", { name: "Admin navigation" }).first()).toBeVisible();
+  await page.getByRole("button", { name: "Open admin navigation" }).click();
+  await expect(page.getByRole("navigation", { name: "Admin navigation" })).toBeVisible();
   await expect(page.getByRole("link", { name: "Catalog Publishing" }).first()).toBeVisible();
 });
 

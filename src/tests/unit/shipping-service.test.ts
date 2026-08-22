@@ -4,11 +4,16 @@
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+const shippingState = vi.hoisted(() => ({
+  packageWeightLb: "0.50",
+  policyAvailable: true
+}));
+
 vi.mock("@/lib/validation/env", () => ({
   env: {
-    SHIPPO_API_TOKEN: "shippo_live_test-token-that-is-not-real",
+    SHIPPO_API_TOKEN: "shippo_test_token-that-is-not-real",
+    SHIPPO_TEST_MODE: "true",
     SHIPPO_ALLOWED_CARRIERS: "usps",
-    SHIPPO_PILOT_VARIATION_IDS: "variation-a,variation-b",
     SHIPPO_ORIGIN_NAME: "Sebastian",
     SHIPPO_ORIGIN_COMPANY: "State News",
     SHIPPO_ORIGIN_STREET1: "153 South Dean Street",
@@ -16,11 +21,7 @@ vi.mock("@/lib/validation/env", () => ({
     SHIPPO_ORIGIN_STATE: "NJ",
     SHIPPO_ORIGIN_ZIP: "07631",
     SHIPPO_ORIGIN_PHONE: "+12017508303",
-    SHIPPO_ORIGIN_EMAIL: "sebastian@statenewsnyc.com",
-    SHIPPO_PILOT_LENGTH_IN: "10",
-    SHIPPO_PILOT_WIDTH_IN: "5",
-    SHIPPO_PILOT_HEIGHT_IN: "6",
-    SHIPPO_PILOT_WEIGHT_LB: "0.50"
+    SHIPPO_ORIGIN_EMAIL: "sebastian@statenewsnyc.com"
   }
 }));
 
@@ -40,19 +41,34 @@ vi.mock("@/server/square/postgres-catalog-store", () => ({
     squareLocationId: "square-st72",
     pickupEnabled: true,
     localDeliveryEnabled: true,
-    shippingFulfillmentEnabled: false
+    shippingFulfillmentEnabled: true
   }],
   readPostgresInventorySyncSummary: async () => ({
     available: true,
     lastCompletedAt: new Date().toISOString(),
     latestTime: new Date().toISOString()
   }),
-  readPostgresStorefrontProductsByVariationIds: async () => [{
-    squareVariationId: "variation-a",
+  readPostgresStorefrontProductsByVariationIds: async (variationIds: string[]) => variationIds.map((squareVariationId) => ({
+    squareVariationId,
     fulfillmentModes: [],
     inventoryTracked: true,
-    availableQuantity: 1
-  }]
+    availableQuantity: 30
+  })),
+  readPublishedStorefrontShippingPoliciesByVariationIds: async (variationIds: string[]) => shippingState.policyAvailable
+    ? variationIds.map((squareVariationId) => squareVariationId === "variation-b" ? {
+      squareVariationId,
+      packageLengthIn: "8",
+      packageWidthIn: "7",
+      packageHeightIn: "4",
+      packageWeightLb: "1.25"
+    } : {
+      squareVariationId,
+      packageLengthIn: "10",
+      packageWidthIn: "5",
+      packageHeightIn: "6",
+      packageWeightLb: shippingState.packageWeightLb
+    })
+    : []
 }));
 
 const allocation = {
@@ -74,15 +90,18 @@ const allocation = {
   }]
 };
 
-vi.mock("@/server/orderpro/private-preview-client", () => ({
-  getOrderProPrivatePreviewClient: () => ({
-    previewShippingAllocation: async () => allocation
+vi.mock("@/server/orderpro/shipping-order-client", () => ({
+  orderProShippingCommandIdentity: () => "shipping-quote:v1:test-identity",
+  getOrderProShippingOrderClient: () => ({
+    quote: async () => allocation
   })
 }));
 
 describe("OrderPRO and Shippo shipping service", () => {
   beforeEach(() => {
     vi.stubEnv("ORDERPRO_SHIPPING_CHECKOUT_ENABLED", "true");
+    shippingState.packageWeightLb = "0.50";
+    shippingState.policyAvailable = true;
   });
 
   it("signs a live rate and revalidates the same Shippo rate before checkout", async () => {
@@ -91,17 +110,19 @@ describe("OrderPRO and Shippo shipping service", () => {
       const url = String(input);
       calls.push(url);
       if (url.includes("/carrier_accounts")) {
-        return Response.json([{ object_id: "carrier-usps-1", carrier: "usps", active: true }]);
+        return Response.json([{ object_id: "carrier-usps-1", carrier: "usps", active: true, test: true }]);
       }
       if (url.endsWith("/shipments/")) {
         return Response.json({
           object_id: "shipment-1",
           status: "SUCCESS",
+          test: true,
           rates: [{
             object_id: "rate-usps-ground-1",
             amount: "5.58",
             currency: "USD",
             provider: "USPS",
+            test: true,
             estimated_days: 2,
             duration_terms: "Delivery in 2 to 5 business days",
             servicelevel: { name: "Ground Advantage", token: "usps_ground_advantage" }
@@ -114,6 +135,7 @@ describe("OrderPRO and Shippo shipping service", () => {
           amount: "5.58",
           currency: "USD",
           provider: "USPS",
+          test: true,
           estimated_days: 2,
           servicelevel: { name: "Ground Advantage", token: "usps_ground_advantage" }
         });
@@ -142,7 +164,7 @@ describe("OrderPRO and Shippo shipping service", () => {
       serviceName: "Ground Advantage",
       readyToShipDate: "2026-07-27"
     });
-    expect(quoted.rates[0].quoteToken).not.toContain("shippo_live");
+    expect(quoted.rates[0].quoteToken).not.toContain("shippo_test");
 
     const verified = await validateShippingSelection({
       items,
@@ -165,6 +187,104 @@ describe("OrderPRO and Shippo shipping service", () => {
     expect(calls.every((url) => !url.includes("/transactions"))).toBe(true);
   });
 
+  it("consolidates two units into one Shippo parcel with combined weight", async () => {
+    let shipmentBody: { parcels: unknown[] } | undefined;
+    const fetchMock = vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
+      const url = String(input);
+      if (url.includes("/carrier_accounts")) {
+        return Response.json([{ object_id: "carrier-usps-1", carrier: "usps", active: true, test: true }]);
+      }
+      shipmentBody = JSON.parse(String(init?.body));
+      return Response.json({
+        object_id: "shipment-quantity-two",
+        status: "SUCCESS",
+        test: true,
+        rates: [{
+          object_id: "rate-usps-quantity-two",
+          amount: "6.57",
+          currency: "USD",
+          provider: "USPS",
+          test: true,
+          servicelevel: { name: "Ground Advantage" }
+        }]
+      }, { status: 201 });
+    });
+    const { quoteShippingRates } = await import("@/server/shipping/shipping-service");
+
+    const result = await quoteShippingRates({
+      items: [{ squareVariationId: "variation-a", quantity: 2 }],
+      locationId: "store-3rd-avenue",
+      address: {
+        line1: "500 E 80th St",
+        city: "New York",
+        state: "NY",
+        postalCode: "10075",
+        country: "US"
+      },
+      fetchImpl: fetchMock as typeof fetch
+    });
+
+    expect(shipmentBody?.parcels).toEqual([{
+      length: "10",
+      width: "5",
+      height: "12",
+      distance_unit: "in",
+      weight: "1",
+      mass_unit: "lb"
+    }]);
+    expect(result.rates[0]).toMatchObject({ amountCents: 657, carrier: "USPS" });
+  });
+
+  it("consolidates a mixed cart without undercounting dimensions or weight", async () => {
+    let shipmentBody: { parcels: unknown[] } | undefined;
+    const fetchMock = vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
+      const url = String(input);
+      if (url.includes("/carrier_accounts")) {
+        return Response.json([{ object_id: "carrier-usps-1", carrier: "usps", active: true, test: true }]);
+      }
+      shipmentBody = JSON.parse(String(init?.body));
+      return Response.json({
+        object_id: "shipment-mixed-cart",
+        status: "SUCCESS",
+        test: true,
+        rates: [{
+          object_id: "rate-usps-mixed-cart",
+          amount: "9.25",
+          currency: "USD",
+          provider: "USPS",
+          test: true,
+          servicelevel: { name: "Priority Mail" }
+        }]
+      }, { status: 201 });
+    });
+    const { quoteShippingRates } = await import("@/server/shipping/shipping-service");
+
+    await quoteShippingRates({
+      items: [
+        { squareVariationId: "variation-a", quantity: 2 },
+        { squareVariationId: "variation-b", quantity: 1 }
+      ],
+      locationId: "store-3rd-avenue",
+      address: {
+        line1: "500 E 80th St",
+        city: "New York",
+        state: "NY",
+        postalCode: "10075",
+        country: "US"
+      },
+      fetchImpl: fetchMock as typeof fetch
+    });
+
+    expect(shipmentBody?.parcels).toEqual([{
+      length: "10",
+      width: "7",
+      height: "16",
+      distance_unit: "in",
+      weight: "2.25",
+      mass_unit: "lb"
+    }]);
+  });
+
   it("rejects a rate if the client changes the amount", async () => {
     const { validateShippingSelection, ShippingUnavailableError } = await import("@/server/shipping/shipping-service");
     await expect(validateShippingSelection({
@@ -185,6 +305,112 @@ describe("OrderPRO and Shippo shipping service", () => {
           country: "US"
         }
       }
+    })).rejects.toBeInstanceOf(ShippingUnavailableError);
+  });
+
+  it("rejects products without a published shipping policy before calling Shippo", async () => {
+    shippingState.policyAvailable = false;
+    const fetchMock = vi.fn();
+    const { quoteShippingRates, ShippingUnavailableError } = await import("@/server/shipping/shipping-service");
+
+    await expect(quoteShippingRates({
+      items: [{ squareVariationId: "variation-a", quantity: 1 }],
+      locationId: "store-3rd-avenue",
+      address: {
+        line1: "500 E 80th St",
+        city: "New York",
+        state: "NY",
+        postalCode: "10075",
+        country: "US"
+      },
+      fetchImpl: fetchMock as typeof fetch
+    })).rejects.toBeInstanceOf(ShippingUnavailableError);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("invalidates a signed rate when authoritative package metadata changes", async () => {
+    const fetchMock = vi.fn(async (input: string | URL | Request) => {
+      const url = String(input);
+      if (url.includes("/carrier_accounts")) {
+        return Response.json([{ object_id: "carrier-usps-1", carrier: "usps", active: true, test: true }]);
+      }
+      if (url.endsWith("/shipments/")) {
+        return Response.json({
+          object_id: "shipment-1",
+          status: "SUCCESS",
+          test: true,
+          rates: [{
+            object_id: "rate-usps-ground-1",
+            amount: "5.58",
+            currency: "USD",
+            provider: "USPS",
+            test: true,
+            servicelevel: { name: "Ground Advantage" }
+          }]
+        }, { status: 201 });
+      }
+      return Response.json({
+        object_id: "rate-usps-ground-1",
+        amount: "5.58",
+        currency: "USD",
+        provider: "USPS",
+        test: true,
+        servicelevel: { name: "Ground Advantage" }
+      });
+    });
+    const { quoteShippingRates, validateShippingSelection, ShippingUnavailableError } = await import("@/server/shipping/shipping-service");
+    const address = {
+      line1: "500 E 80th St",
+      city: "New York",
+      state: "NY",
+      postalCode: "10075",
+      country: "US" as const
+    };
+    const items = [{ squareVariationId: "variation-a", quantity: 1 }];
+    const quoted = await quoteShippingRates({
+      items,
+      locationId: "store-3rd-avenue",
+      address,
+      fetchImpl: fetchMock as typeof fetch,
+      now: new Date("2026-07-23T17:00:00.000Z")
+    });
+
+    shippingState.packageWeightLb = "0.75";
+    await expect(validateShippingSelection({
+      items,
+      locationId: "store-3rd-avenue",
+      selection: {
+        quoteToken: quoted.rates[0].quoteToken,
+        rateId: quoted.rates[0].rateId,
+        amountCents: quoted.rates[0].amountCents,
+        carrier: quoted.rates[0].carrier,
+        serviceName: quoted.rates[0].serviceName,
+        readyToShipDate: quoted.rates[0].readyToShipDate,
+        address
+      },
+      fetchImpl: fetchMock as typeof fetch,
+      now: new Date("2026-07-23T17:05:00.000Z")
+    })).rejects.toBeInstanceOf(ShippingUnavailableError);
+    expect(fetchMock.mock.calls.filter(([url]) => String(url).includes("/rates/"))).toHaveLength(0);
+  });
+
+  it("rejects live Shippo objects while configured for test mode", async () => {
+    const fetchMock = vi.fn(async () => Response.json([
+      { object_id: "carrier-usps-live", carrier: "usps", active: true, test: false }
+    ]));
+    const { quoteShippingRates, ShippingUnavailableError } = await import("@/server/shipping/shipping-service");
+
+    await expect(quoteShippingRates({
+      items: [{ squareVariationId: "variation-a", quantity: 1 }],
+      locationId: "store-3rd-avenue",
+      address: {
+        line1: "500 E 80th St",
+        city: "New York",
+        state: "NY",
+        postalCode: "10075",
+        country: "US"
+      },
+      fetchImpl: fetchMock as typeof fetch
     })).rejects.toBeInstanceOf(ShippingUnavailableError);
   });
 });

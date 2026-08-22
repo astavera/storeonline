@@ -5,19 +5,49 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
 import { adminMediaUploadMaxBytes, buildAdminMediaUploadMetadata, validateAdminImageContent } from "@/server/admin/admin-media-service";
+import { readAdminMediaLibrary, recordAdminMediaAsset, updateAdminMediaAsset } from "@/server/admin/admin-media-library-service";
 import { getAdminRateLimiter } from "@/server/admin/admin-rate-limit";
-import { adminAuthorizationResponse, adminCapabilities, authorizeAdminRequest } from "@/server/admin/admin-security";
+import { adminAuthorizationResponse, authorizeAdminRequest } from "@/server/admin/admin-security";
 import { PersistenceUnavailableError } from "@/server/db/persistence-policy";
 import { storefrontAdminPreviewRouteResponse } from "@/server/storefront/admin-preview-response";
 
 export const runtime = "nodejs";
 
+const metadataMutation = z.object({ id: z.string().trim().min(1).max(100), altTextEn: z.string().max(300), hiddenFromWebsite: z.boolean() }).strict();
+
+export async function GET(request: NextRequest) {
+  const previewResponse = storefrontAdminPreviewRouteResponse(request);
+  if (previewResponse) return previewResponse;
+
+  const authorization = await authorizeAdminRequest(request, "media:read");
+  if (!authorization.ok) return adminAuthorizationResponse(authorization);
+  const library = await readAdminMediaLibrary({ q: request.nextUrl.searchParams.get("q") || undefined, page: Number(request.nextUrl.searchParams.get("page") || 1) });
+  return NextResponse.json({ ok: library.available, ...library }, { status: library.available ? 200 : 503, headers: { "Cache-Control": "private, no-store" } });
+}
+
+export async function PATCH(request: NextRequest) {
+  const previewResponse = storefrontAdminPreviewRouteResponse(request);
+  if (previewResponse) return previewResponse;
+
+  const authorization = await authorizeAdminRequest(request, "media:write");
+  if (!authorization.ok) return adminAuthorizationResponse(authorization);
+  const parsed = metadataMutation.safeParse(await request.json().catch(() => null));
+  if (!parsed.success) return NextResponse.json({ ok: false, error: "Enter valid media metadata." }, { status: 400 });
+  try {
+    const asset = await updateAdminMediaAsset({ ...parsed.data, actorSubject: authorization.session.subject });
+    return NextResponse.json({ ok: Boolean(asset), asset, error: asset ? undefined : "Media asset was not found." }, { status: asset ? 200 : 404, headers: { "Cache-Control": "private, no-store" } });
+  } catch {
+    return NextResponse.json({ ok: false, error: "Media metadata could not be saved." }, { status: 503, headers: { "Cache-Control": "private, no-store" } });
+  }
+}
+
 export async function POST(request: NextRequest) {
   const previewResponse = storefrontAdminPreviewRouteResponse(request);
   if (previewResponse) return previewResponse;
 
-  const authorization = await authorizeAdminRequest(request, adminCapabilities.mediaWrite);
+  const authorization = await authorizeAdminRequest(request, "media:write");
   if (!authorization.ok) return adminAuthorizationResponse(authorization);
 
   const contentLength = Number(request.headers.get("content-length") ?? 0);
@@ -84,6 +114,7 @@ export async function POST(request: NextRequest) {
 
     await mkdir(uploadDir, { recursive: true });
     await writeFile(uploadPath, bytes, { flag: "wx" });
+    const indexedId = await recordAdminMediaAsset({ fileName: metadata.asset.fileName, url: metadata.asset.url, mimeType: metadata.asset.mimeType, actorSubject: authorization.session.subject });
 
     return NextResponse.json({
       ok: true,
@@ -93,6 +124,8 @@ export async function POST(request: NextRequest) {
         persisted: true,
         message: "Uploaded to public uploads."
       },
+      indexed: Boolean(indexedId),
+      indexedId,
       errors: []
     });
   } catch (error) {

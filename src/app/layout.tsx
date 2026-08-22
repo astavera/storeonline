@@ -13,6 +13,9 @@ export const metadata: Metadata = {
     template: "%s | Modern State - State News NYC"
   },
   description: "A modern ecommerce storefront for Modern State - State News NYC on the Upper East Side.",
+  icons: {
+    icon: "/favicon.ico"
+  },
   openGraph: {
     type: "website",
     siteName: "Modern State - State News NYC"

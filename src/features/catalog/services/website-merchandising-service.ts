@@ -74,6 +74,18 @@ export type WebsiteHolidayAssignment = {
   endsAt: string;
 };
 
+export type WebsiteProductContent = {
+  displayName: string;
+  slug: string;
+  shortDescription: string;
+  description: string;
+  badge: string;
+  imageUrl: string;
+  imageAlt: string;
+  seoTitle: string;
+  seoDescription: string;
+};
+
 export type WebsiteProductPlacement = {
   squareVariationId: string;
   categoryIds: string[];
@@ -84,10 +96,12 @@ export type WebsiteProductPlacement = {
   surfaceIds: WebsiteSurface[];
   visible: boolean;
   sortOrder: number;
+  content?: WebsiteProductContent;
 };
 
 export type WebsiteMerchandisingConfig = {
   version: 3;
+  navigationCategorySeedVersion?: number;
   updatedAt: string;
   categories: WebsiteCategory[];
   brands: WebsiteBrand[];
@@ -109,11 +123,55 @@ export type ResolvedWebsiteCatalog = {
 export function createDefaultWebsiteMerchandising(products: StorefrontProduct[], updatedAt = new Date().toISOString()): WebsiteMerchandisingConfig {
   return {
     version: 3,
+    navigationCategorySeedVersion: 0,
     updatedAt,
     categories: [],
     brands: [],
     holidays: [],
     placements: products.map(createPendingPlacement)
+  };
+}
+
+export function createEmptyWebsiteProductContent(): WebsiteProductContent {
+  return {
+    displayName: "",
+    slug: "",
+    shortDescription: "",
+    description: "",
+    badge: "",
+    imageUrl: "",
+    imageAlt: "",
+    seoTitle: "",
+    seoDescription: ""
+  };
+}
+
+export function normalizeWebsiteProductContent(content?: Partial<WebsiteProductContent> | null): WebsiteProductContent {
+  const fallback = createEmptyWebsiteProductContent();
+
+  return Object.fromEntries(
+    Object.keys(fallback).map((key) => [key, content?.[key as keyof WebsiteProductContent]?.trim() ?? ""])
+  ) as WebsiteProductContent;
+}
+
+export function applyWebsiteProductContent(
+  product: StorefrontProduct,
+  content?: Partial<WebsiteProductContent> | null
+): StorefrontProduct {
+  const normalized = normalizeWebsiteProductContent(content);
+  const name = normalized.displayName || product.name;
+
+  return {
+    ...product,
+    name,
+    slug: normalized.slug || product.slug,
+    shortDescription: normalized.shortDescription || product.shortDescription,
+    description: normalized.description || product.description,
+    badge: normalized.badge || product.badge,
+    imageUrl: normalized.imageUrl || product.imageUrl,
+    imageAlt: normalized.imageAlt || product.imageAlt || name,
+    seoTitle: normalized.seoTitle || product.seoTitle,
+    seoDescription: normalized.seoDescription || product.seoDescription
   };
 }
 
@@ -144,6 +202,7 @@ export function reconcileWebsiteMerchandising(
 
   return {
     version: 3,
+    navigationCategorySeedVersion: config.navigationCategorySeedVersion,
     updatedAt,
     categories,
     brands: [...config.brands]
@@ -181,7 +240,8 @@ export function reconcileWebsiteMerchandising(
             fulfillmentModes: isBalloonWebsitePlacement({ ...placement, categoryIds }, categories)
               ? ["pickup" as const, "local-delivery" as const]
               : Array.from(new Set(placement.fulfillmentModes.filter(isFulfillmentMode))),
-            surfaceIds: Array.from(new Set(placement.surfaceIds.filter(isWebsiteSurface)))
+            surfaceIds: Array.from(new Set(placement.surfaceIds.filter(isWebsiteSurface))),
+            content: normalizeWebsiteProductContent(placement.content)
           };
         }),
       ...products
@@ -225,11 +285,13 @@ export function resolveWebsiteCatalog(
   const resolvedProducts: Array<{ product: StorefrontProduct; sortOrder: number }> = [];
 
   for (const placement of config.placements) {
-    const product = productById.get(placement.squareVariationId);
+    const sourceProduct = productById.get(placement.squareVariationId);
 
-    if (!product || !placement.visible || !isWebsitePlacementReady(placement)) {
+    if (!sourceProduct || !placement.visible || !isWebsitePlacementReady(placement)) {
       continue;
     }
+
+    const product = applyWebsiteProductContent(sourceProduct, placement.content);
 
     const visibleCategoryIdsForProduct = placement.categoryIds.filter((categoryId) => visibleCategoryIds.has(categoryId));
 
@@ -347,6 +409,30 @@ export function websitePlacementIssues(placement: WebsiteProductPlacement) {
   }
 
   return issues;
+}
+
+export function websiteProductReadinessIssues(
+  product: StorefrontProduct,
+  placement: WebsiteProductPlacement,
+  categories: WebsiteCategory[] = [],
+  holidays: WebsiteHoliday[] = []
+) {
+  const issues = websitePlacementReadinessIssues(placement, categories, holidays);
+  const resolved = applyWebsiteProductContent(product, placement.content);
+  const content = normalizeWebsiteProductContent(placement.content);
+
+  if (!resolved.name.trim()) issues.push("Add a customer-facing product title.");
+  if (!resolved.shortDescription.trim() && !resolved.description.trim()) {
+    issues.push("Add a product description.");
+  }
+  if (!resolved.imageUrl.trim() || resolved.imageUrl.endsWith("/images/product-fallback.svg")) {
+    issues.push("Add a product image before publishing.");
+  }
+  if (content.imageUrl && !content.imageAlt) {
+    issues.push("Add alt text for the website product image.");
+  }
+
+  return Array.from(new Set(issues));
 }
 
 export function websitePlacementReadinessIssues(

@@ -1,9 +1,36 @@
 /**
- * Renders the admin products page and prepares its route-level data.
+ * Provides the canonical authenticated products workspace.
  */
 
-import { AdminPageShell } from "@/components/admin/admin-page-shell";
+import { AdminCatalogBrowser } from "@/components/admin/admin-catalog-browser";
+import { AdminProductPublishingWorkspace } from "@/components/admin/admin-product-publishing-workspace";
+import {
+  AdminProductsWorkspace,
+  resolveAdminProductsTab
+} from "@/components/admin/admin-products-workspace";
+import { requireAdminSession } from "@/server/admin/admin-session";
 
-export default function AdminProductsPage() {
-  return <AdminPageShell description="Read-only Square catalog cache visibility with website-specific assignment controls." sectionId="admin.product-overrides" title="Products" />;
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
+export default async function AdminProductsPage({
+  searchParams
+}: {
+  searchParams?: Promise<{ tab?: string | string[] }>;
+}) {
+  const parameters = await searchParams;
+  const activeTab = resolveAdminProductsTab(parameters?.tab);
+  const returnTo = activeTab === "publishing"
+    ? "/admin/products?tab=publishing"
+    : "/admin/products";
+
+  await requireAdminSession({ capability: "catalog:read", returnTo });
+
+  return (
+    <AdminProductsWorkspace activeTab={activeTab}>
+      {activeTab === "publishing"
+        ? <AdminProductPublishingWorkspace />
+        : <AdminCatalogBrowser />}
+    </AdminProductsWorkspace>
+  );
 }

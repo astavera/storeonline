@@ -3,7 +3,9 @@
  */
 
 import { ContentPageTemplate } from "@/components/templates/content-page-template";
+import { getStorePolicyDefinition } from "@/config/store-administration.config";
 
 export default function SecurityPage() {
-  return <ContentPageTemplate area="Policy" body="Square tokens stay server-side. Raw card data is never collected or stored by the website." sectionId="policy.security" title="Security" />;
+  const policy = getStorePolicyDefinition("security")!;
+  return <ContentPageTemplate area="Policy" body={policy.defaultBody} sectionId="policy.security" title={policy.defaultTitle} />;
 }

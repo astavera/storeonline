@@ -22,9 +22,6 @@ const nextConfig = {
   distDir: process.env.NEXT_DIST_DIR?.trim() || ".next",
   output: "standalone",
   outputFileTracingRoot: projectRoot,
-  outputFileTracingIncludes: {
-    "/*": ["./prisma/prod-ca-2021.crt"]
-  },
   reactStrictMode: true,
   poweredByHeader: false,
   turbopack: {

@@ -224,10 +224,6 @@ export function MobileSiteNavigation({
 
                     {expanded && departmentMenu ? (
                       <div aria-label={departmentMenu.ariaLabel} className="border-y border-slate-200 bg-white py-1.5" role="group">
-                        <Link className="block px-4 py-2.5 text-sm font-black text-blue hover:bg-slate-50 hover:text-navy" href={departmentMenu.shopAllHref} onClick={() => setIsOpen(false)}>
-                          {departmentMenu.shopAllLabel}
-                        </Link>
-
                         {departmentMenu.items?.map((item) => (
                           <Link className="block px-4 py-2.5 text-sm font-bold text-primary hover:bg-slate-50 hover:text-blue" href={item.href} key={item.href} onClick={() => setIsOpen(false)}>
                             {item.label}
@@ -246,21 +242,25 @@ export function MobileSiteNavigation({
                               </button>
                               {groupExpanded ? (
                                 <div className="grid pb-2 pl-3">
-                                  {group.href ? (
-                                    <Link className="py-2 text-sm font-black text-blue hover:text-navy" href={group.href} onClick={() => setIsOpen(false)}>
-                                      Shop All {group.label}
-                                    </Link>
-                                  ) : null}
                                   {group.items.map((item) => (
                                     <Link className="py-2 text-sm font-semibold text-primary hover:text-blue" href={item.href} key={item.href} onClick={() => setIsOpen(false)}>
                                       {item.label}
                                     </Link>
                                   ))}
+                                  {group.href ? (
+                                    <Link className="py-2 text-sm font-black text-blue hover:text-navy" href={group.href} onClick={() => setIsOpen(false)}>
+                                      Shop All {group.label}
+                                    </Link>
+                                  ) : null}
                                 </div>
                               ) : null}
                             </section>
                           );
                         })}
+
+                        <Link className="block px-4 py-2.5 text-sm font-black text-blue hover:bg-slate-50 hover:text-navy" href={departmentMenu.shopAllHref} onClick={() => setIsOpen(false)}>
+                          {departmentMenu.shopAllLabel}
+                        </Link>
                       </div>
                     ) : null}
                   </div>

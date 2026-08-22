@@ -4,6 +4,14 @@
 
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { NextResponse } from "next/server";
+import {
+  isAdminPermission,
+  resolveAdminSessionToken,
+  roleSessionCapabilities,
+  type AdminLocationScope,
+  type AdminPermission,
+  type AdminRole
+} from "@/server/admin/identity";
 
 export const adminSessionCookieName = "modern_state_admin";
 
@@ -15,12 +23,16 @@ export const adminCapabilities = {
   merchandisingWrite: "admin:merchandising:write"
 } as const;
 
-export type AdminCapability = (typeof adminCapabilities)[keyof typeof adminCapabilities];
+export type AdminCapability = (typeof adminCapabilities)[keyof typeof adminCapabilities] | AdminPermission;
 
 export type AdminSession = {
   subject: string;
   capabilities: string[];
   expiresAt: number;
+  sessionId?: string;
+  role?: AdminRole;
+  mfaVerified?: boolean;
+  locationScope?: AdminLocationScope;
 };
 
 type AdminSessionPayload = {
@@ -38,7 +50,7 @@ export async function authorizeAdminRequest(
   request: Request,
   capability: AdminCapability = adminCapabilities.access
 ): Promise<AdminAuthorizationResult> {
-  const session = readDevelopmentSession(request) ?? verifyAdminSessionFromRequest(request);
+  const session = readDevelopmentSession(request) ?? await verifyAdminSessionFromRequest(request);
 
   if (!session) {
     return { ok: false, status: 401, code: "ADMIN_SESSION_REQUIRED", message: "A valid administrative session is required." };
@@ -56,13 +68,8 @@ export async function authorizeAdminRequest(
 }
 
 export function adminAuthorizationResponse(result: Exclude<AdminAuthorizationResult, { ok: true }>) {
-  const message = result.status === 401
-    ? "Authentication required."
-    : result.status === 429
-      ? "Too many requests."
-      : "Forbidden.";
   return NextResponse.json(
-    { ok: false, error: message, message, errors: [message] },
+    { ok: false, error: result.code, message: result.message, errors: [result.message] },
     { status: result.status, headers: { "Cache-Control": "private, no-store" } }
   );
 }
@@ -129,11 +136,33 @@ export function isTrustedMutationOrigin(request: Request) {
   return allowedAdminOrigins().has(parsedOrigin.origin);
 }
 
-function verifyAdminSessionFromRequest(request: Request) {
-  const secret = process.env.ADMIN_SESSION_SECRET;
-  if (!secret) return null;
+async function verifyAdminSessionFromRequest(request: Request) {
   const token = readCookie(request.headers.get("cookie"), adminSessionCookieName);
-  return token ? verifyAdminSessionToken(token, secret) : null;
+  if (!token) return null;
+
+  if (!token.includes(".")) {
+    if (!process.env.DATABASE_URL) return null;
+    try {
+      const resolved = await resolveAdminSessionToken(token);
+      if (!resolved) return null;
+      return {
+        subject: resolved.principal.id,
+        sessionId: resolved.sessionId,
+        role: resolved.principal.role,
+        mfaVerified: true,
+        locationScope: resolved.principal.locationScope,
+        capabilities: [...roleSessionCapabilities(resolved.principal.role)],
+        expiresAt: Math.floor(resolved.expiresAt.getTime() / 1000)
+      };
+    } catch (error) {
+      console.warn("[admin-session] Could not resolve the database session.", error);
+      return null;
+    }
+  }
+
+  if (process.env.ADMIN_IDENTITY_MODE === "DATABASE") return null;
+  const secret = process.env.ADMIN_SESSION_SECRET;
+  return secret ? verifyAdminSessionToken(token, secret) : null;
 }
 
 function readDevelopmentSession(request: Request): AdminSession | null {
@@ -142,13 +171,17 @@ function readDevelopmentSession(request: Request): AdminSession | null {
   if (host !== "localhost" && host !== "127.0.0.1" && host !== "[::1]") return null;
   return {
     subject: "local-development-admin",
-    capabilities: ["admin:*"],
+    capabilities: [...roleSessionCapabilities("OWNER")],
     expiresAt: Math.floor(Date.now() / 1000) + 300
   };
 }
 
 function hasCapability(session: AdminSession, capability: string) {
-  return session.capabilities.includes("admin:*") || session.capabilities.includes(capability);
+  if (session.capabilities.includes("admin:*") || session.capabilities.includes(capability)) return true;
+  // `admin:access` is the route-entry guard. Domain permissions still protect
+  // every data operation; possessing at least one approved permission is enough
+  // to enter the shell.
+  return capability === adminCapabilities.access && session.capabilities.some(isAdminPermission);
 }
 
 function allowedAdminOrigins() {

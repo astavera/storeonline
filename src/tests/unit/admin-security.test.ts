@@ -5,7 +5,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   adminCapabilities,
-  adminAuthorizationResponse,
   adminSessionCookieName,
   authorizeAdminRequest,
   createAdminSessionToken,
@@ -27,14 +26,6 @@ describe("admin security", () => {
     }), adminCapabilities.read);
 
     expect(result).toMatchObject({ ok: false, status: 401, code: "ADMIN_SESSION_REQUIRED" });
-    if (result.ok) throw new Error("Expected authorization to fail.");
-    const response = adminAuthorizationResponse(result);
-    await expect(response.json()).resolves.toEqual({
-      ok: false,
-      error: "Authentication required.",
-      message: "Authentication required.",
-      errors: ["Authentication required."]
-    });
   });
 
   it("accepts an unexpired signed session with the required capability", async () => {
@@ -94,5 +85,22 @@ describe("admin security", () => {
 
     expect(local.ok).toBe(true);
     expect(remote.ok).toBe(false);
+  });
+
+  it("rejects legacy signed wildcard sessions when database identity mode is enforced", async () => {
+    vi.stubEnv("NODE_ENV", "production");
+    vi.stubEnv("ADMIN_IDENTITY_MODE", "DATABASE");
+    vi.stubEnv("ADMIN_SESSION_SECRET", secret);
+    const token = createAdminSessionToken({
+      subject: "legacy-owner",
+      capabilities: ["admin:*"],
+      expiresAt: Math.floor(Date.now() / 1000) + 60,
+      secret
+    });
+    const result = await authorizeAdminRequest(new Request("https://shop.example.com/api/admin", {
+      headers: { host: "shop.example.com", cookie: `${adminSessionCookieName}=${token}` }
+    }));
+
+    expect(result).toMatchObject({ ok: false, status: 401, code: "ADMIN_SESSION_REQUIRED" });
   });
 });

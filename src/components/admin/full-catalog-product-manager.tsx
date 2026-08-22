@@ -73,7 +73,7 @@ const fulfillmentOptions: Array<{ id: FulfillmentMode; label: string }> = [
   { id: "shipping", label: "Shipping" }
 ];
 
-const inputClassName = "min-h-11 w-full rounded-md border border-border bg-surface px-3 text-sm outline-none focus:border-primary";
+const inputClassName = "admin-form-control min-h-11 w-full rounded-md border border-border bg-surface px-3 text-sm outline-none focus:border-primary";
 
 export function FullCatalogProductManager({
   brands,
@@ -453,22 +453,12 @@ export function FullCatalogProductManager({
   }
 
   return (
-    <section className="border-t border-border bg-surface p-4 md:p-6" aria-labelledby="full-catalog-products-heading" id="full-catalog-products">
-      <div className="flex flex-col justify-between gap-3 md:flex-row md:items-end">
-        <div>
-          <p className="text-xs font-black uppercase tracking-[0.14em] text-blue">Product publishing</p>
-          <h2 className="mt-1 font-display text-xl font-semibold" id="full-catalog-products-heading">Full Square catalog</h2>
-        </div>
-        <p className="text-sm font-semibold text-secondary">
-          {catalog?.summary.available ? `${formatCount(catalog.summary.variationCount)} variations · ${formatCount(catalog.summary.imageCount)} images` : "Catalog unavailable"}
-        </p>
-      </div>
-
-      <div className="mt-5 grid gap-3 lg:grid-cols-2 xl:grid-cols-3">
-        <form className="flex min-h-11 items-center gap-2 rounded-md border border-border bg-surface px-3 focus-within:border-border" onSubmit={submitSearch}>
-          <Search className="shrink-0 text-secondary" size={17} />
-          <input className="min-w-0 flex-1 bg-transparent py-3 text-sm outline-none" onChange={(event) => setQueryInput(event.target.value)} placeholder="Search name, SKU or GTIN" type="search" value={queryInput} />
-          <button className="rounded-md bg-primary px-3 py-2 text-xs font-semibold text-white disabled:opacity-50" disabled={isLoading} type="submit">Search</button>
+    <section aria-label="Full Square catalog" className="border-t border-border bg-surface p-4 md:p-6" id="full-catalog-products">
+      <div className="admin-catalog-filter-grid">
+        <form className="admin-catalog-search-control" onSubmit={submitSearch}>
+          <Search aria-hidden="true" className="admin-catalog-search-icon" size={17} />
+          <input className="admin-catalog-search-input" onChange={(event) => setQueryInput(event.target.value)} placeholder="Search name, SKU or GTIN" type="search" value={queryInput} />
+          <button className="admin-catalog-search-submit" disabled={isLoading} type="submit">Search</button>
         </form>
         <SearchableSingleSelect
           allLabel="All Square categories"
@@ -499,7 +489,7 @@ export function FullCatalogProductManager({
         />
         <select
           aria-label="Filter by website placement"
-          className={inputClassName}
+          className={`${inputClassName} admin-native-select`}
           onChange={(event) => {
             setIsLoading(true);
             setError("");
@@ -517,7 +507,7 @@ export function FullCatalogProductManager({
             </option>
           ))}
         </select>
-        <select aria-label="Filter by image" className={inputClassName} onChange={(event) => { setIsLoading(true); setError(""); setSuccess(""); setSelectedIds(new Set()); setImageFilter(event.target.value as ImageFilter); setPage(1); }} value={imageFilter}>
+        <select aria-label="Filter by image" className={`${inputClassName} admin-native-select`} onChange={(event) => { setIsLoading(true); setError(""); setSuccess(""); setSelectedIds(new Set()); setImageFilter(event.target.value as ImageFilter); setPage(1); }} value={imageFilter}>
           <option value="all">Image status: any</option>
           <option value="with">Image status: has image</option>
           <option value="without">Image status: missing image</option>

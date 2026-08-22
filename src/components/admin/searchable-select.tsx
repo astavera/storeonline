@@ -41,7 +41,7 @@ type SearchableMultiSelectProps<T extends string> = SharedSearchableSelectProps<
   values: readonly T[];
 };
 
-const controlClassName = "min-h-11 w-full rounded-md border border-border bg-surface px-3 text-sm outline-none";
+const controlClassName = "admin-form-control min-h-11 w-full rounded-md border border-border bg-surface px-3 text-sm outline-none";
 
 export function SearchableSingleSelect<T extends string>({
   allLabel,
@@ -162,7 +162,7 @@ export function SearchableSingleSelect<T extends string>({
       )}
 
       {open ? (
-        <div className="absolute left-0 right-0 z-50 mt-1 overflow-hidden rounded-md border border-border bg-surface p-1 shadow-xl">
+        <div className="admin-dropdown-panel absolute left-0 right-0 z-50 mt-1 overflow-hidden rounded-md border border-border bg-surface p-1 shadow-xl">
           <div aria-label={`${label} options`} className="max-h-64 overflow-y-auto" id={listboxId} role="listbox">
             {!search ? (
               <button aria-selected={!value} className={optionClassName(!value, activeOption?.id === "")} id={optionId(listboxId, "")} onClick={() => select("")} onMouseEnter={() => setActiveIndex(0)} role="option" type="button">
@@ -317,7 +317,7 @@ export function SearchableMultiSelect<T extends string>({
       )}
 
       {open ? (
-        <div className="absolute left-0 right-0 z-50 mt-1 overflow-hidden rounded-md border border-border bg-surface p-1 shadow-xl">
+        <div className="admin-dropdown-panel absolute left-0 right-0 z-50 mt-1 overflow-hidden rounded-md border border-border bg-surface p-1 shadow-xl">
           <div aria-label={`${label} options`} aria-multiselectable="true" className="max-h-64 overflow-y-auto" id={listboxId} role="listbox">
             {filteredOptions.map((option) => {
               const selected = values.includes(option.id);

@@ -5,7 +5,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { ZodError } from "zod";
 import { readWebsiteMerchandisingSnapshot, saveWebsiteMerchandisingSnapshot } from "@/server/admin/website-merchandising-store";
-import { adminAuthorizationResponse, adminCapabilities, authorizeAdminRequest } from "@/server/admin/admin-security";
+import { adminAuthorizationResponse, authorizeAdminRequest } from "@/server/admin/admin-security";
 import { readPostgresAdminCatalogSummary } from "@/server/square/postgres-admin-catalog-store";
 import { storefrontAdminPreviewRouteResponse } from "@/server/storefront/admin-preview-response";
 
@@ -13,7 +13,7 @@ export async function GET(request: NextRequest) {
   const previewResponse = storefrontAdminPreviewRouteResponse(request);
   if (previewResponse) return previewResponse;
 
-  const authorization = await authorizeAdminRequest(request, adminCapabilities.read);
+  const authorization = await authorizeAdminRequest(request, "catalog:read");
   if (!authorization.ok) return adminAuthorizationResponse(authorization);
 
   const [catalog, config] = await Promise.all([
@@ -36,7 +36,7 @@ export async function PUT(request: NextRequest) {
   const previewResponse = storefrontAdminPreviewRouteResponse(request);
   if (previewResponse) return previewResponse;
 
-  const authorization = await authorizeAdminRequest(request, adminCapabilities.merchandisingWrite);
+  const authorization = await authorizeAdminRequest(request, "catalog:publish");
   if (!authorization.ok) return adminAuthorizationResponse(authorization);
 
   try {

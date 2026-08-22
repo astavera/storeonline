@@ -10,6 +10,16 @@ const passwordScryptOptions = { N: 16_384, r: 8, p: 1, maxmem: 64 * 1024 * 1024 
 const dummyPasswordHash = hashAdminPassword("not-the-configured-admin-password", Buffer.alloc(16, 17));
 
 export function isAdminLoginConfigured() {
+  if (process.env.ADMIN_IDENTITY_MODE === "DATABASE") {
+    const encodedMfaKey = process.env.ADMIN_MFA_ENCRYPTION_KEY?.trim() ?? "";
+    const decodedMfaKey = /^[A-Za-z0-9_-]+$/.test(encodedMfaKey) ? Buffer.from(encodedMfaKey, "base64url") : Buffer.alloc(0);
+    return Boolean(
+      process.env.DATABASE_URL?.trim()
+      && decodedMfaKey.length === 32
+      && decodedMfaKey.toString("base64url") === encodedMfaKey
+      && Buffer.byteLength(process.env.ADMIN_RECOVERY_CODE_PEPPER?.trim() ?? "", "utf8") >= 32
+    );
+  }
   return Boolean(process.env.ADMIN_LOGIN_EMAIL?.trim() && process.env.ADMIN_PASSWORD_HASH?.trim() && process.env.ADMIN_SESSION_SECRET?.trim());
 }
 

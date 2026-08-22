@@ -35,7 +35,7 @@ describe("PostgreSQL role bootstrap", () => {
     expect(verifier).toContain("prisma_table_names || ARRAY['_prisma_migrations']");
   });
 
-  it("grants runtime only the reviewed catalog and pickup-checkout database surface", () => {
+  it("grants runtime the exact Store Admin database surface", () => {
     const expectedRuntimeReads = [
       "StoreLocation",
       "SquareCatalogObject",
@@ -43,25 +43,92 @@ describe("PostgreSQL role bootstrap", () => {
       "SquareInventoryCount",
       "SquareCatalogSyncState",
       "CmsContentVersion",
-      "CheckoutAttempt",
-      "AdminRateLimitBucket"
+      "MediaAsset",
+      "OrderMirror",
+      "WebhookInboxEvent",
+      "AdminRateLimitBucket",
+      "ReturnVerificationSession",
+      "ReturnRequest",
+      "ReturnRequestItem",
+      "ReturnStatusEvent",
+      "CustomerAccount",
+      "CustomerConsentEvent",
+      "CustomerNote",
+      "CustomerPrivacyRequest",
+      "AdminUser",
+      "AdminUserLocationScope",
+      "AdminSession",
+      "AdminRecoveryCode",
+      "AdminUserInvitation",
+      "AdminPasswordReset",
+      "NotificationTemplateVersion",
+      "NotificationDeliveryEvent",
+      "AuditLog"
     ];
-    const expectedRuntimeTypes = ["CmsPublishStatus", "CheckoutAttemptStatus"];
+    const expectedRuntimeInserts = [
+      "StoreLocation",
+      "CmsContentVersion",
+      "MediaAsset",
+      "WebhookInboxEvent",
+      "CustomerNote",
+      "CustomerPrivacyRequest",
+      "AdminUser",
+      "AdminUserLocationScope",
+      "AdminSession",
+      "AdminRecoveryCode",
+      "AdminUserInvitation",
+      "AdminPasswordReset",
+      "NotificationTemplateVersion",
+      "NotificationDeliveryEvent",
+      "AuditLog"
+    ];
+    const expectedRuntimeUpdates = [
+      "StoreLocation",
+      "MediaAsset",
+      "WebhookInboxEvent",
+      "CustomerPrivacyRequest",
+      "AdminUser",
+      "AdminSession",
+      "AdminRecoveryCode",
+      "AdminUserInvitation",
+      "AdminPasswordReset",
+      "NotificationTemplateVersion",
+      "NotificationDeliveryEvent"
+    ];
+    const expectedRuntimeDeletes = ["CmsContentVersion", "AdminUserLocationScope", "AdminRecoveryCode", "AdminPasswordReset"];
+    const expectedRuntimeTypes = [
+      "AdminRole",
+      "AdminUserStatus",
+      "AdminLocationScopeMode",
+      "OperationsRole",
+      "OperationsAccessStatus",
+      "NotificationChannel",
+      "NotificationTemplateStatus",
+      "NotificationDeliveryStatus",
+      "CustomerPrivacyRequestType",
+      "CustomerPrivacyRequestStatus",
+      "CmsPublishStatus",
+      "WebhookInboxStatus"
+    ];
 
     expect(sqlArray(bootstrap, "runtime_select_table_names")).toEqual(expectedRuntimeReads);
     expect(sqlArray(verifier, "runtime_select_table_names")).toEqual(expectedRuntimeReads);
-    expect(sqlArray(bootstrap, "runtime_usage_type_names")).toEqual(expectedRuntimeTypes);
-    expect(sqlArray(verifier, "runtime_usage_type_names")).toEqual(expectedRuntimeTypes);
+    expect(sqlArray(bootstrap, "runtime_insert_table_names")).toEqual(expectedRuntimeInserts);
+    expect(sqlArray(verifier, "runtime_insert_table_names")).toEqual(expectedRuntimeInserts);
+    expect(sqlArray(bootstrap, "runtime_update_table_names")).toEqual(expectedRuntimeUpdates);
+    expect(sqlArray(verifier, "runtime_update_table_names")).toEqual(expectedRuntimeUpdates);
+    expect(sqlArray(bootstrap, "runtime_delete_table_names")).toEqual(expectedRuntimeDeletes);
+    expect(sqlArray(verifier, "runtime_delete_table_names")).toEqual(expectedRuntimeDeletes);
+    expect(sqlArray(bootstrap, "runtime_type_names")).toEqual(expectedRuntimeTypes);
+    expect(sqlArray(verifier, "runtime_type_names")).toEqual(expectedRuntimeTypes);
     expect(bootstrap).toContain('GRANT INSERT ON TABLE public."AdminRateLimitBucket" TO storefront_runtime');
-    expect(bootstrap).toContain('GRANT INSERT ON TABLE public."CheckoutAttempt" TO storefront_runtime');
     expect(bootstrap).toContain('GRANT UPDATE ("count", "expiresAt", "updatedAt")');
-    expect(bootstrap).toContain("FOREACH object_name IN ARRAY runtime_usage_type_names LOOP");
+    expect(bootstrap).toContain("FOREACH object_name IN ARRAY runtime_type_names LOOP");
 
     const previewPolicy = readRepositoryFile("src/server/storefront/admin-preview.ts");
     const catalogStore = readRepositoryFile("src/server/square/postgres-catalog-store.ts");
     const cmsStore = readRepositoryFile("src/server/db/cms-version-repository.ts");
     const rateLimitStore = readRepositoryFile("src/server/admin/admin-rate-limit.ts");
-    const checkoutAttemptStore = readRepositoryFile("src/server/checkout/checkout-attempt-repository.ts");
     const cartRoute = readRepositoryFile("src/app/api/cart/route.ts");
 
     expect(previewPolicy).toContain('"GET /api/admin/full-catalog-products"');
@@ -74,22 +141,31 @@ describe("PostgreSQL role bootstrap", () => {
     expect(catalogStore).toContain("prisma.storeLocation.findMany");
     expect(cmsStore).toContain("getPrismaClient().cmsContentVersion.findFirst");
     expect(rateLimitStore).toContain("getPrismaClient().adminRateLimitBucket.upsert");
-    expect(checkoutAttemptStore).toContain("prisma.checkoutAttempt.findUnique");
-    expect(checkoutAttemptStore).toContain("prisma.checkoutAttempt.create");
     expect(cartRoute).toContain("quoteCartFromOperationalCatalog");
     expect(cartRoute).not.toMatch(/\.(?:cart|cartItem)\.(?:create|upsert|update)/u);
 
     for (const deniedTable of [
-      "AdminUser",
       "Cart",
       "CartItem",
-      "CustomerAccount",
+      "CheckoutAttempt",
       "CustomerSession",
-      "OrderMirror",
-      "ReturnRequest",
-      "WebhookInboxEvent"
+      "CustomerLoginChallenge",
+      "CapacityHold",
+      "BalloonOrderDraft"
     ]) {
       expect(expectedRuntimeReads).not.toContain(deniedTable);
+    }
+
+    for (const squareOwnedTable of [
+      "SquareCatalogObject",
+      "SquareItemVariation",
+      "SquareInventoryCount",
+      "SquareCatalogSyncState",
+      "OrderMirror"
+    ]) {
+      expect(expectedRuntimeInserts).not.toContain(squareOwnedTable);
+      expect(expectedRuntimeUpdates).not.toContain(squareOwnedTable);
+      expect(expectedRuntimeDeletes).not.toContain(squareOwnedTable);
     }
   });
 

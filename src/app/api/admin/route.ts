@@ -6,7 +6,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { revalidatePath } from "next/cache";
 import { adminModules, externallyManagedAdminModuleIds } from "@/config/admin-control-plane";
 import { buildAdminControlOperation, getAdminControlReadiness, persistAdminControlOperation } from "@/server/admin/admin-control-plane-service";
-import { adminAuthorizationResponse, adminCapabilities, authorizeAdminRequest } from "@/server/admin/admin-security";
+import { adminAuthorizationResponse, authorizeAdminRequest } from "@/server/admin/admin-security";
 import { getAdminRateLimiter } from "@/server/admin/admin-rate-limit";
 import { isStorefrontAdminPreviewModuleAllowed } from "@/server/storefront/admin-preview";
 import { storefrontAdminPreviewRouteResponse } from "@/server/storefront/admin-preview-response";
@@ -15,7 +15,7 @@ export async function GET(request: NextRequest) {
   const previewResponse = storefrontAdminPreviewRouteResponse(request);
   if (previewResponse) return previewResponse;
 
-  const authorization = await authorizeAdminRequest(request, adminCapabilities.read);
+  const authorization = await authorizeAdminRequest(request, "storefront:read");
   if (!authorization.ok) return adminAuthorizationResponse(authorization);
 
   return NextResponse.json(
@@ -42,7 +42,7 @@ export async function POST(request: NextRequest) {
   const previewResponse = storefrontAdminPreviewRouteResponse(request);
   if (previewResponse) return previewResponse;
 
-  const authorization = await authorizeAdminRequest(request, adminCapabilities.write);
+  const authorization = await authorizeAdminRequest(request, "storefront:write");
   if (!authorization.ok) return adminAuthorizationResponse(authorization);
 
   try {

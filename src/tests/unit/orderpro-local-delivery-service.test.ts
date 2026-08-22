@@ -8,6 +8,7 @@ import { earliestNewYorkDeliveryDate } from "@/features/fulfillment/utils/new-yo
 import {
   checkMockBalloonPostalEligibility,
   checkOrderProBalloonPostalEligibility,
+  isCurrentOrderProLocalDeliverySelection,
   isOrderProDeliveryTestMode,
   quoteOrderProLocalDelivery,
   quoteMockLocalDelivery,
@@ -106,46 +107,73 @@ describe("OrderPro local delivery test gateway", () => {
     }
   });
 
-  it("maps a production OrderPRO preview quote without enabling checkout", async () => {
+  it("maps a production durable OrderPRO quote", async () => {
     vi.stubEnv("NODE_ENV", "production");
-    vi.stubEnv("ORDERPRO_STOREFRONT_PREVIEW_BASE_URL", "http://orderpro:3000");
-    vi.stubEnv("ORDERPRO_STOREFRONT_PREVIEW_SHARED_SECRET", "test-orderpro-preview-key-that-is-long-enough");
+    vi.stubEnv("ORDERPRO_STOREFRONT_FULFILLMENT_BASE_URL", "http://orderpro:3000");
+    vi.stubEnv("ORDERPRO_STOREFRONT_FULFILLMENT_AUTH_MODE", "AUTH0");
+    vi.stubEnv("ORDERPRO_AUTH0_ISSUER", "https://tenant.auth0.com/");
+    vi.stubEnv("ORDERPRO_AUTH0_AUDIENCE", "https://api.orderpro.internal/storefront");
+    vi.stubEnv("ORDERPRO_AUTH0_CLIENT_ID", "storefront-client");
+    vi.stubEnv("ORDERPRO_AUTH0_CLIENT_SECRET", "server-secret");
+    vi.stubEnv("ORDERPRO_STOREFRONT_FULFILLMENT_AUTH0_SCOPES", "local-delivery:quote local-delivery:reserve local-delivery:settle pickup:quote pickup:reserve pickup:settle");
     const requestedDate = earliestNewYorkDeliveryDate();
-    vi.stubGlobal("fetch", vi.fn<typeof fetch>(async () => new Response(JSON.stringify({
-      ok: true,
-      eligible: true,
-      bookable: true,
-      reasonCode: "ELIGIBLE",
-      normalizedAddress: {
-        line1: "500 EAST 80 STREET",
-        line2: null,
-        city: "New York",
-        state: "NY",
+    const startsAt = new Date(Date.now() + 24 * 60 * 60_000).toISOString();
+    const endsAt = new Date(Date.parse(startsAt) + 60 * 60_000).toISOString();
+    const fetchMock = vi.fn<typeof fetch>(async (url, init) => {
+      if (String(url).endsWith("/oauth/token")) {
+        return new Response(JSON.stringify({
+          access_token: "header.payload.signature",
+          token_type: "Bearer",
+          expires_in: 3600,
+          scope: "local-delivery:quote local-delivery:reserve local-delivery:settle pickup:quote pickup:reserve pickup:settle"
+        }), { status: 200, headers: { "content-type": "application/json" } });
+      }
+      const correlationId = new Headers(init?.headers).get("x-correlation-id") ?? "";
+      return new Response(JSON.stringify({
+        ok: true,
+        quoteId: "20000000-0000-4000-8000-000000000001",
+        quoteClientId: "storefront-staging",
+        replayed: false,
+        eligible: true,
+        bookable: true,
+        reservationCapability: "HOLD_READY",
+        reasonCode: "ELIGIBLE",
+        normalizedAddress: {
+          line1: "500 EAST 80 STREET",
+          line2: null,
+          city: "New York",
+          state: "NY",
+          postalCode: "10075",
+          country: "US",
+          borough: "Manhattan"
+        },
         postalCode: "10075",
-        country: "US"
-      },
-      selectedLocationId: "third_avenue",
-      selectedLocationName: "3rd Avenue Store",
-      walkingDistanceFeet: 4261,
-      walkingDurationSeconds: 1020,
-      feeCents: 2500,
-      currency: "USD",
-      availableSlots: [{
-        slotId: "delivery-third_avenue-slot-1",
-        startsAt: "2026-07-24T21:30:00.000Z",
-        endsAt: "2026-07-24T22:30:00.000Z"
-      }],
-      candidateRoutes: [{
-        locationId: "third_avenue",
+        selectedLocationId: "third_avenue",
+        selectedLocationName: "3rd Avenue Store",
+        assignmentRule: "NEAREST_WALKING_ROUTE",
         walkingDistanceFeet: 4261,
-        walkingDurationSeconds: 1020
-      }, {
-        locationId: "east_86th_street",
-        walkingDistanceFeet: 4800,
-        walkingDurationSeconds: 1200
-      }],
-      expiresAt: "2026-07-23T18:05:00.000Z"
-    }), { status: 200, headers: { "content-type": "application/json" } })));
+        walkingDurationSeconds: 1020,
+        estimatedRoundTripDurationSeconds: 2520,
+        feeCents: 2500,
+        currency: "USD",
+        feeTierId: "whole-zone-25",
+        availableSlots: [{
+          slotId: "delivery-third_avenue-slot-1",
+          slotClass: "STANDARD",
+          startsAt,
+          endsAt,
+          capacityOrders: 2,
+          remainingOrders: 1,
+          pickupUntilAt: null
+        }],
+        zoneVersionId: "zone-v1",
+        feePolicyVersionId: "fee-v1",
+        routingProvider: "osrm",
+        expiresAt: new Date(Date.now() + 15 * 60_000).toISOString(),
+        correlationId
+      }), { status: 200, headers: { "content-type": "application/json", "x-correlation-id": correlationId } });
+    });
+    vi.stubGlobal("fetch", fetchMock);
 
     const quote = await quoteOrderProLocalDelivery(request("500 E 80th St", "10075"));
 
@@ -160,6 +188,32 @@ describe("OrderPro local delivery test gateway", () => {
         id: "delivery-third_avenue-slot-1"
       }]
     });
+
+    const refreshedQuote = await quoteOrderProLocalDelivery(request("500 E 80th St", "10075"));
+    expect(refreshedQuote).toMatchObject({ eligible: true, source: "ORDERPRO" });
+    await quoteOrderProLocalDelivery(
+      request("500 E 80th St", "10075"),
+      { quoteRequestId: "checkout-request-stable-001" }
+    );
+    await quoteOrderProLocalDelivery(
+      request("500 E 80th St", "10075"),
+      { quoteRequestId: "checkout-request-stable-001" }
+    );
+
+    const quoteCalls = fetchMock.mock.calls.filter(([url]) =>
+      String(url).endsWith("/api/internal/storefront/durable-local-delivery-quote")
+    );
+    expect(quoteCalls).toHaveLength(8);
+    const idempotencyKeys = quoteCalls.map(([, init]) =>
+      new Headers(init?.headers).get("idempotency-key")
+    );
+    for (const key of idempotencyKeys) {
+      expect(key).toMatch(/^delivery-quote:[a-f0-9]{64}$/);
+    }
+    expect(idempotencyKeys[2]).not.toBe(idempotencyKeys[0]);
+    expect(idempotencyKeys[3]).not.toBe(idempotencyKeys[1]);
+    expect(idempotencyKeys[6]).toBe(idempotencyKeys[4]);
+    expect(idempotencyKeys[7]).toBe(idempotencyKeys[5]);
   });
 
   it("fails closed for an address outside the published test ZIPs", () => {
@@ -189,8 +243,37 @@ describe("OrderPro local delivery test gateway", () => {
       feeCents: quote.feeCents,
       requestedDate: quote.requestedDate,
       address: quote.normalizedAddress,
-      locationId: quote.selectedLocationId
-    })).resolves.toMatchObject({ valid: false });
+      locationId: quote.selectedLocationId,
+      cartLines: [{ squareVariationId: "variation-1", quantity: 1, source: "storefront" }]
+    })).resolves.toEqual({
+      valid: false,
+      message: "The local delivery quote or time slot is no longer valid. Check the address again."
+    });
+  });
+
+  it("accepts a fresh checkout quote id when location, fee, slot and expiry still match", () => {
+    const preview = quoteMockLocalDelivery(request("316 E 82nd St", "10028"));
+    expect(preview.eligible).toBe(true);
+    if (!preview.eligible) return;
+    const startsAt = new Date(Date.now() + 24 * 60 * 60_000).toISOString();
+    const slot = {
+      id: "delivery-checkout-fresh-slot",
+      startsAt,
+      endsAt: new Date(Date.parse(startsAt) + 60 * 60_000).toISOString(),
+      label: "10:00 AM–11:00 AM"
+    };
+
+    expect(isCurrentOrderProLocalDeliverySelection({
+      slotId: slot.id,
+      feeCents: preview.feeCents,
+      locationId: preview.selectedLocationId
+    }, {
+      ...preview,
+      quoteId: "fresh-checkout-quote-id",
+      availableSlots: [slot],
+      expiresAt: new Date(Date.now() + 15 * 60_000).toISOString()
+    })).toBe(true);
+    expect(preview.quoteId).not.toBe("fresh-checkout-quote-id");
   });
 });
 
@@ -204,6 +287,7 @@ function request(line1: string, postalCode: string): LocalDeliveryQuoteRequest {
       postalCode,
       country: "US"
     },
-    requestedDate: earliestNewYorkDeliveryDate()
+    requestedDate: earliestNewYorkDeliveryDate(),
+    cartLines: [{ squareVariationId: "variation-1", quantity: 1 }]
   };
 }

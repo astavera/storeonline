@@ -24,12 +24,17 @@ export const productAgeGroups: ReadonlyArray<{ id: ProductAgeGroup; label: strin
 export type StorefrontProduct = {
   id: string;
   squareVariationId: string;
+  sku?: string;
+  upc?: string;
   slug: string;
   name: string;
   department: string;
   shortDescription: string;
   description: string;
   imageUrl: string;
+  imageAlt?: string;
+  seoTitle?: string;
+  seoDescription?: string;
   priceCents: number;
   badge?: string;
   fulfillmentModes: FulfillmentMode[];

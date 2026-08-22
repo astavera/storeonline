@@ -14,6 +14,7 @@ import {
 } from "@/features/catalog/services/bulk-merchandising-service";
 import {
   MAX_WEBSITE_CATEGORY_DEPTH,
+  createEmptyWebsiteProductContent,
   createDefaultWebsiteMerchandising,
   reconcileWebsiteMerchandising,
   websiteCategoryKindIds,
@@ -21,6 +22,7 @@ import {
   websiteSurfaceIds,
   type WebsiteMerchandisingConfig
 } from "@/features/catalog/services/website-merchandising-service";
+import { upgradeStorefrontNavigationTaxonomy } from "@/features/catalog/services/storefront-navigation-taxonomy";
 import { createDatabaseCmsVersion, readLatestDatabaseCmsVersion } from "@/server/db/cms-version-repository";
 import { isDevelopmentLocalPersistenceEnabled, PersistenceUnavailableError, requireDatabaseOrDevelopmentFallback } from "@/server/db/persistence-policy";
 
@@ -75,6 +77,18 @@ const websiteHolidayAssignmentSchema = z
   })
   .refine((assignment) => assignment.startsAt <= assignment.endsAt, { message: "Assignment end date must be on or after its start date.", path: ["endsAt"] });
 
+const websiteProductContentSchema = z.object({
+  displayName: z.string().trim().max(120).default(""),
+  slug: z.string().trim().max(120).regex(/^$|^[a-z0-9]+(?:-[a-z0-9]+)*$/, "Use lowercase letters, numbers and hyphens.").default(""),
+  shortDescription: z.string().trim().max(240).default(""),
+  description: z.string().trim().max(5_000).default(""),
+  badge: z.string().trim().max(40).default(""),
+  imageUrl: z.string().trim().max(500).refine((value) => !value || value.startsWith("/") || /^https:\/\//i.test(value), "Use an internal path or HTTPS image URL.").default(""),
+  imageAlt: z.string().trim().max(160).default(""),
+  seoTitle: z.string().trim().max(70).default(""),
+  seoDescription: z.string().trim().max(180).default("")
+});
+
 const websitePlacementSchema = z.object({
   squareVariationId: z.string().min(1).max(160),
   categoryIds: z.array(z.string().min(1).max(120)).max(30),
@@ -84,12 +98,14 @@ const websitePlacementSchema = z.object({
   fulfillmentModes: z.array(z.enum(["pickup", "local-delivery", "shipping"])).max(3),
   surfaceIds: z.array(z.enum(websiteSurfaceIds)).max(websiteSurfaceIds.length),
   visible: z.boolean(),
-  sortOrder: z.number().int().min(0).max(1_000_000)
+  sortOrder: z.number().int().min(0).max(1_000_000),
+  content: websiteProductContentSchema.default(createEmptyWebsiteProductContent())
 });
 
 const websiteMerchandisingSchema = z
   .object({
     version: z.literal(3),
+    navigationCategorySeedVersion: z.number().int().min(0).max(1).default(0),
     updatedAt: z.string().datetime(),
     categories: z.array(websiteCategorySchema).max(500),
     brands: z.array(websiteBrandSchema).max(500),
@@ -107,6 +123,12 @@ const websiteMerchandisingSchema = z
     reportDuplicates(value.holidays.map((holiday) => holiday.id), "Holiday ids must be unique.", ["holidays"], context);
     reportDuplicates(value.holidays.map((holiday) => holiday.slug), "Holiday slugs must be unique.", ["holidays"], context);
     reportDuplicates(value.placements.map((placement) => placement.squareVariationId), "Product placements must be unique.", ["placements"], context);
+    reportDuplicates(
+      value.placements.map((placement) => placement.content.slug).filter(Boolean),
+      "Website product slugs must be unique.",
+      ["placements"],
+      context
+    );
 
     const categoryById = new Map(value.categories.map((category) => [category.id, category]));
     for (const [index, category] of value.categories.entries()) {
@@ -167,7 +189,7 @@ const versionTwoMerchandisingSchema = z.object({
   updatedAt: z.string().datetime(),
   categories: z.array(websiteCategorySchema).max(500),
   holidays: z.array(websiteHolidaySchema).max(100),
-  placements: z.array(websitePlacementSchema.omit({ brandIds: true })).max(100_000)
+  placements: z.array(websitePlacementSchema.omit({ brandIds: true, content: true })).max(100_000)
 });
 
 const legacyPlacementSchema = z.object({
@@ -192,11 +214,12 @@ const merchandisingEntityId = "global";
 
 export async function readWebsiteMerchandising(products: StorefrontProduct[]): Promise<WebsiteMerchandisingConfig> {
   const parsed = await readSavedWebsiteMerchandising();
-  return parsed ? reconcileWebsiteMerchandising(parsed, products) : createDefaultWebsiteMerchandising(products);
+  const config = parsed ?? upgradeStorefrontNavigationTaxonomy(createDefaultWebsiteMerchandising(products));
+  return reconcileWebsiteMerchandising(config, products);
 }
 
 export async function readWebsiteMerchandisingSnapshot(): Promise<WebsiteMerchandisingConfig> {
-  return await readSavedWebsiteMerchandising() ?? createDefaultWebsiteMerchandising([]);
+  return await readSavedWebsiteMerchandising() ?? upgradeStorefrontNavigationTaxonomy(createDefaultWebsiteMerchandising([]));
 }
 
 export async function readDevelopmentLocalWebsiteMerchandisingSnapshot(): Promise<WebsiteMerchandisingConfig> {
@@ -204,11 +227,11 @@ export async function readDevelopmentLocalWebsiteMerchandisingSnapshot(): Promis
     throw new PersistenceUnavailableError("Local website merchandising");
   }
 
-  return await readLocalWebsiteMerchandising() ?? createDefaultWebsiteMerchandising([]);
+  return await readLocalWebsiteMerchandising() ?? upgradeStorefrontNavigationTaxonomy(createDefaultWebsiteMerchandising([]));
 }
 
 export async function saveWebsiteMerchandising(input: unknown, products: StorefrontProduct[]) {
-  const parsed = websiteMerchandisingSchema.parse(input);
+  const parsed = upgradeStorefrontNavigationTaxonomy(websiteMerchandisingSchema.parse(input));
   const updatedAt = new Date().toISOString();
   const subset = reconcileWebsiteMerchandising(parsed, products, updatedAt);
   const existing = await readSavedWebsiteMerchandising() ?? createDefaultWebsiteMerchandising([]);
@@ -225,7 +248,7 @@ export async function saveWebsiteMerchandising(input: unknown, products: Storefr
 }
 
 export async function saveWebsiteMerchandisingSnapshot(input: unknown) {
-  const parsed = websiteMerchandisingSchema.parse(input);
+  const parsed = upgradeStorefrontNavigationTaxonomy(websiteMerchandisingSchema.parse(input));
   const updatedAt = new Date().toISOString();
   const config = normalizeWebsiteMerchandisingReferences(parsed, updatedAt);
 
@@ -307,7 +330,7 @@ export function parseWebsiteMerchandising(input: unknown): WebsiteMerchandisingC
   const current = websiteMerchandisingSchema.safeParse(input);
 
   if (current.success) {
-    return current.data;
+    return upgradeStorefrontNavigationTaxonomy(current.data);
   }
 
   const versionTwo = versionTwoMerchandisingSchema.safeParse(input);
@@ -323,8 +346,9 @@ function migrateLegacyMerchandising(legacy: z.infer<typeof legacyMerchandisingSc
   const categories = legacy.categories.filter((category) => !category.id.startsWith("square-"));
   const categoryIds = new Set(categories.map((category) => category.id));
 
-  return {
+  return upgradeStorefrontNavigationTaxonomy({
     version: 3,
+    navigationCategorySeedVersion: 0,
     updatedAt: legacy.updatedAt,
     categories,
     brands: [],
@@ -338,20 +362,26 @@ function migrateLegacyMerchandising(legacy: z.infer<typeof legacyMerchandisingSc
       fulfillmentModes: [],
       surfaceIds: [],
       visible: false,
-      sortOrder: placement.sortOrder
+      sortOrder: placement.sortOrder,
+      content: createEmptyWebsiteProductContent()
     }))
-  };
+  });
 }
 
 function migrateVersionTwoMerchandising(versionTwo: z.infer<typeof versionTwoMerchandisingSchema>): WebsiteMerchandisingConfig {
-  return {
+  return upgradeStorefrontNavigationTaxonomy({
     version: 3,
+    navigationCategorySeedVersion: 0,
     updatedAt: versionTwo.updatedAt,
     categories: versionTwo.categories,
     brands: [],
     holidays: versionTwo.holidays,
-    placements: versionTwo.placements.map((placement) => ({ ...placement, brandIds: [] }))
-  };
+    placements: versionTwo.placements.map((placement) => ({
+      ...placement,
+      brandIds: [],
+      content: createEmptyWebsiteProductContent()
+    }))
+  });
 }
 
 function reportDuplicates(values: string[], message: string, pathParts: Array<string | number>, context: z.RefinementCtx) {
@@ -436,7 +466,8 @@ function normalizeWebsiteMerchandisingReferences(
         ...placement,
         categoryIds: Array.from(new Set(placement.categoryIds.filter((id) => categoryIds.has(id)))),
         brandIds: Array.from(new Set(placement.brandIds.filter((id) => brandIds.has(id)))),
-        holidayAssignments: placement.holidayAssignments.filter((assignment) => holidayIds.has(assignment.holidayId))
+        holidayAssignments: placement.holidayAssignments.filter((assignment) => holidayIds.has(assignment.holidayId)),
+        content: websiteProductContentSchema.parse(placement.content ?? createEmptyWebsiteProductContent())
       };
 
       return next.visible && websitePlacementReadinessIssues(next, config.categories, config.holidays).length > 0

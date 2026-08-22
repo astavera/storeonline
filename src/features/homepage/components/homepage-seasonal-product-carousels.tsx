@@ -13,6 +13,7 @@ import type { StorefrontProduct } from "@/features/catalog/product-catalog";
 import type { HomepageSectionConfig } from "@/features/homepage/config/homepage.config";
 import { resolveHomepageCarouselProducts } from "@/features/homepage/utils/homepage-carousel-products";
 import { isHomepageSectionElementVisible } from "@/features/homepage/utils/homepage-section-styles";
+import { HomepageProductCardPlaceholders } from "./homepage-product-card-placeholders";
 
 type HomepageSeasonalProductCarouselsProps = {
   editorPreviewSectionId?: string;
@@ -25,26 +26,34 @@ export function HomepageSeasonalProductCarousels({
   products,
   sections
 }: HomepageSeasonalProductCarouselsProps) {
-  const visibleRows = sections
+  const preparedRows = sections
     .filter(
       (section) =>
         (section.isVisible || section.sectionId === editorPreviewSectionId) &&
         section.variant === "seasonal-product-carousel" &&
         isHomepageSectionElementVisible(section, "items")
     )
-    .sort((first, second) => first.sortOrder - second.sortOrder);
+    .sort((first, second) => first.sortOrder - second.sortOrder)
+    .map((section) => ({
+      editorPreview: section.sectionId === editorPreviewSectionId,
+      products: resolveHomepageCarouselProducts({ products, section }),
+      section
+    }))
+    .filter(({ editorPreview, products: selectedProducts }) =>
+      editorPreview || selectedProducts.length > 0
+    );
 
-  if (visibleRows.length === 0) {
+  if (preparedRows.length === 0) {
     return null;
   }
 
   return (
     <div className="bg-surface py-3 sm:py-4">
-      {visibleRows.map((section) => (
+      {preparedRows.map(({ editorPreview, products: selectedProducts, section }) => (
         <SeasonalProductRow
-          editorPreview={section.sectionId === editorPreviewSectionId}
+          editorPreview={editorPreview}
           key={section.sectionId}
-          products={products}
+          selectedProducts={selectedProducts}
           section={section}
         />
       ))}
@@ -54,18 +63,14 @@ export function HomepageSeasonalProductCarousels({
 
 function SeasonalProductRow({
   editorPreview,
-  products,
+  selectedProducts,
   section
 }: {
   editorPreview: boolean;
-  products: StorefrontProduct[];
+  selectedProducts: StorefrontProduct[];
   section: HomepageSectionConfig;
 }) {
   const carouselRef = useRef<HTMLDivElement>(null);
-  const selectedProducts = resolveHomepageCarouselProducts({
-    products,
-    section
-  });
 
   function moveCarousel(direction: -1 | 1) {
     const carousel = carouselRef.current;
@@ -147,16 +152,16 @@ function SeasonalProductRow({
             ))}
           </div>
         ) : editorPreview ? (
-          <div className="grid min-h-40 place-items-center rounded-[20px] border border-dashed border-black/20 bg-[#f7f7f7] px-6 text-center">
-            <div className="max-w-md">
+          <div className="space-y-4">
+            <div className="rounded-[20px] border border-dashed border-black/20 bg-[#f7f7f7] px-6 py-4 text-center">
               <p className="font-display text-lg font-black text-primary">
-                This row is ready for products
+                This row is ready for catalog products
               </p>
-              <p className="mt-2 text-sm leading-relaxed text-secondary">
-                Choose a Catalog Publishing category or add individual products
-                in the editor. The actual product cards will appear here.
+              <p className="mt-1 text-sm leading-relaxed text-secondary">
+                Its public version stays hidden until a category or individual products are connected.
               </p>
             </div>
+            <HomepageProductCardPlaceholders />
           </div>
         ) : null}
       </div>

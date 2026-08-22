@@ -12,6 +12,7 @@
 @import "../design/themes/balloons.theme.css";
 @import "../design/themes/holiday.theme.css";
 @import "../design/themes/premium.theme.css";
+@import "../design/themes/admin.theme.css";
 
 @tailwind base;
 @tailwind components;
@@ -99,6 +100,18 @@ select:not([multiple]):focus-visible {
 .container-shell {
   width: min(100% - 2rem, var(--container-width));
   margin-inline: auto;
+}
+
+.department-commerce-shell {
+  width: min(100% - 2rem, 1280px);
+  margin-inline: auto;
+}
+
+/* Checkout uses a focused payment shell without storefront navigation noise. */
+body:has([data-checkout-focus-page]) [data-store-section="layout.header"],
+body:has([data-checkout-focus-page]) [data-store-component="StorefrontRouteMap"],
+body:has([data-checkout-focus-page]) [data-store-section="layout.footer"] {
+  display: none;
 }
 
 /* Keeps all major storefront bands on one deliberate, retail-friendly grid. */
@@ -649,6 +662,16 @@ select:not([multiple]):focus-visible {
 
 .department-product-grid {
   grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+/* Keep the cart page editorial header for filled/error states, but let the
+   empty-cart illustration become the only page message once hydration ends. */
+[data-cart-page]:has([data-cart-empty-state]) [data-cart-page-header] {
+  display: none;
+}
+
+[data-cart-page]:has([data-cart-empty-state]) [data-cart-page-content] {
+  margin-top: 0;
 }
 
 @media (max-width: 639px) {

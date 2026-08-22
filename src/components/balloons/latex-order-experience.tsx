@@ -393,8 +393,12 @@ function OrderSummary({ isLatex, lines, onUpdate, subtotal }: { isLatex: boolean
 
 function mergeCartItem(items: StoredCartItem[], squareVariationId: string, quantity: number) {
   const existing = items.find((item) => item.squareVariationId === squareVariationId);
-  if (existing) existing.quantity = Math.min(99, existing.quantity + quantity);
-  else items.push({ squareVariationId, quantity: Math.min(99, quantity) });
+  if (existing) {
+    existing.quantity = Math.min(99, existing.quantity + quantity);
+    existing.source = "balloons";
+  } else {
+    items.push({ squareVariationId, quantity: Math.min(99, quantity), source: "balloons" });
+  }
 }
 
 function productFinish(name: string): Exclude<FinishFilter, "All"> {

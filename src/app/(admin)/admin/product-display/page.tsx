@@ -2,8 +2,8 @@
  * Renders the admin product display page and prepares its route-level data.
  */
 
-import { AdminPageShell } from "@/components/admin/admin-page-shell";
+import { redirect } from "next/navigation";
 
 export default function AdminProductDisplayPage() {
-  return <AdminPageShell description="Edit web title, short description, full website description, badges, web status, product card style, and visibility without changing Square source data." sectionId="admin.product-display" title="Product display" />;
+  redirect("/admin/products");
 }

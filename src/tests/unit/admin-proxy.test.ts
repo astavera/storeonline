@@ -78,6 +78,19 @@ describe("admin route proxy", () => {
     expect(response.headers.get("x-middleware-next")).toBe("1");
   });
 
+  it("keeps password recovery pages and endpoints public", async () => {
+    for (const [pathname, method] of [
+      ["/admin/forgot-password", "GET"],
+      ["/admin/reset-password?token=invalid", "GET"],
+      ["/api/admin/auth/forgot-password", "POST"],
+      ["/api/admin/auth/reset-password", "POST"]
+    ] as const) {
+      const response = await proxy(new NextRequest(`https://shop.example${pathname}`, { method }));
+      expect(response.status).toBe(200);
+      expect(response.headers.get("x-middleware-next")).toBe("1");
+    }
+  });
+
   it("allows an authenticated admin session", async () => {
     vi.stubEnv("ADMIN_SESSION_SECRET", sessionSecret);
     const token = createAdminSessionToken({
@@ -92,32 +105,6 @@ describe("admin route proxy", () => {
 
     expect(response.status).toBe(200);
     expect(response.headers.get("x-middleware-next")).toBe("1");
-  });
-});
-
-describe("storefront maintenance proxy", () => {
-  it("rewrites customer pages to the static maintenance page", async () => {
-    vi.stubEnv("STOREFRONT_MAINTENANCE_MODE", "true");
-
-    const response = await proxy(new NextRequest("https://shop.example/products/teddy-bear?ref=home"));
-
-    expect(response.status).toBe(200);
-    expect(response.headers.get("x-middleware-rewrite")).toBe(
-      "https://shop.example/maintenance.html"
-    );
-    expect(response.headers.get("cache-control")).toBe("private, no-store");
-    expect(response.headers.get("x-robots-tag")).toBe("noindex, nofollow, noarchive");
-  });
-
-  it("keeps admin pages and APIs available during maintenance", async () => {
-    vi.stubEnv("STOREFRONT_MAINTENANCE_MODE", "true");
-
-    for (const pathname of ["/admin/login", "/api/health"]) {
-      const response = await proxy(new NextRequest(`https://shop.example${pathname}`));
-      expect(response.status).toBe(200);
-      expect(response.headers.get("x-middleware-next")).toBe("1");
-      expect(response.headers.get("x-middleware-rewrite")).toBeNull();
-    }
   });
 });
 
@@ -253,10 +240,13 @@ function stubAdminPreviewEnvironment() {
 }
 
 const adminPreviewForbiddenSecrets = [
+  "ADMIN_MFA_ENCRYPTION_KEY",
+  "ADMIN_RECOVERY_CODE_PEPPER",
   "NEXT_PUBLIC_SQUARE_APPLICATION_ID",
   "NEXT_PUBLIC_SQUARE_LOCATION_ID",
   "ORDERPRO_AUTH0_CLIENT_ID",
   "ORDERPRO_AUTH0_CLIENT_SECRET",
+  "OPERATIONS_ACCESS_API_TOKEN",
   "ORDERPRO_STOREFRONT_PREVIEW_SHARED_SECRET",
   "ORDERPRO_STOREFRONT_RETURNS_SHARED_SECRET",
   "ORDERPRO_STOREFRONT_SHIPPING_SHARED_SECRET",

@@ -5,7 +5,7 @@
 import { ExternalLink, ShieldCheck } from "lucide-react";
 import { SectionFrame } from "@/components/sections/section-frame";
 
-export function OrderProManagedPanel({ description, title }: { description: string; title: string }) {
+export function OrderProManagedPanel({ description }: { description: string }) {
   const orderProUrl = process.env.ORDERPRO_ADMIN_URL;
 
   return (
@@ -14,7 +14,6 @@ export function OrderProManagedPanel({ description, title }: { description: stri
         <div className="mx-auto max-w-2xl py-8">
           <span className="inline-flex h-11 w-11 items-center justify-center rounded-full bg-blue/10 text-blue"><ShieldCheck aria-hidden="true" size={21} /></span>
           <p className="mt-5 text-xs font-semibold uppercase tracking-[0.14em] text-blue">Managed by OrderPro</p>
-          <h1 className="mt-2 font-display text-3xl font-semibold">{title}</h1>
           <p className="mt-3 text-secondary">{description}</p>
           <p className="mt-3 text-sm text-secondary">This store reads availability and operational status from OrderPro. Changes are intentionally disabled here to avoid duplicate or conflicting records.</p>
           {orderProUrl ? (

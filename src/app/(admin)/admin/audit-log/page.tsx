@@ -1,9 +1,38 @@
-/**
- * Renders the admin audit log page and prepares its route-level data.
- */
+/** Renders the authenticated, read-only administrative audit trail. */
 
-import { AdminPageShell } from "@/components/admin/admin-page-shell";
+import { AdminAuditLog } from "@/components/admin/admin-audit-log";
+import {
+  parseAdminAuditLogQuery,
+  readAdminAuditLog,
+  type AdminAuditLogResult
+} from "@/server/admin/admin-audit-log-service";
+import { requireAdminSession } from "@/server/admin/admin-session";
 
-export default function AdminAuditLogPage() {
-  return <AdminPageShell description="Every admin change to content, zones, slots, fulfillment, product overrides, and theme settings is audit logged." sectionId="admin.fulfillment-dashboard" title="Audit log" />;
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
+type AuditLogSearchParams = Record<string, string | string[] | undefined>;
+
+export default async function AdminAuditLogPage({
+  searchParams
+}: {
+  searchParams?: Promise<AuditLogSearchParams>;
+}) {
+  const session = await requireAdminSession({ capability: "audit:read", returnTo: "/admin/audit-log" });
+  const query = parseAdminAuditLogQuery((await searchParams) ?? {});
+  let result: AdminAuditLogResult;
+  let error: string | undefined;
+
+  try {
+    result = await readAdminAuditLog(query);
+  } catch {
+    result = emptyAuditLogResult(query.pageSize);
+    error = "Confirm the database connection and try again.";
+  }
+
+  return <AdminAuditLog canExport={session.capabilities.includes("admin:*") || session.capabilities.includes("audit:export")} error={error} query={query} result={result} />;
+}
+
+function emptyAuditLogResult(pageSize: number): AdminAuditLogResult {
+  return { entries: [], pagination: { page: 1, pageSize, pageCount: 1, total: 0 } };
 }

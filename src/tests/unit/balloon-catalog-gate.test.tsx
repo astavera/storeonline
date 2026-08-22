@@ -11,12 +11,9 @@ vi.mock("next/navigation", () => ({ useRouter: () => ({ push: pushMock }) }));
 
 describe("BalloonCatalogGate", () => {
   beforeEach(() => {
-    vi.stubGlobal("fetch", vi.fn().mockImplementation(async (input) => {
-      if (String(input).includes("pickup-slots")) {
-        return { json: async () => ({ availability: pickupAvailability() }) } as Response;
-      }
-      return { json: async () => ({ eligibility: approvedEligibility("10075") }) } as Response;
-    }));
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({
+      json: async () => ({ eligibility: approvedEligibility("10075") })
+    } as Response));
   });
 
   afterEach(() => {
@@ -63,11 +60,11 @@ describe("BalloonCatalogGate", () => {
     expect(JSON.parse(window.sessionStorage.getItem("modern-state-balloon-fulfillment") ?? "null")).toMatchObject({ mode: "delivery", postalCode: "10075" });
   });
 
-  it("requires an OrderPro slot and continues with store pickup", async () => {
+  it("keeps store and date before choosing a real pickup slot at checkout", async () => {
     render(<BalloonCatalogGate />);
     fireEvent.click(screen.getByRole("button", { name: "Shop latex balloons" }));
     fireEvent.click(screen.getByRole("button", { name: "Store pickup" }));
-    fireEvent.click(await screen.findByRole("button", { name: "10:00 AM–12:00 PM" }));
+    expect(screen.getByText("Choose an available pickup time at checkout after adding balloons to your cart.")).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Shop Latex balloons" }));
 
     await waitFor(() => expect(pushMock).toHaveBeenCalledTimes(1));
@@ -75,7 +72,35 @@ describe("BalloonCatalogGate", () => {
     expect(destination).toContain("collection=latex");
     expect(destination).toContain("fulfillment=pickup");
     expect(destination).toContain("location=3rd-avenue");
-    expect(JSON.parse(window.sessionStorage.getItem("modern-state-balloon-fulfillment") ?? "null")).toMatchObject({ mode: "pickup" });
+    expect(destination).toContain(`pickupDate=${earliestNewYorkDeliveryDate()}`);
+    expect(JSON.parse(window.sessionStorage.getItem("modern-state-balloon-fulfillment") ?? "null")).toMatchObject({
+      mode: "pickup",
+      requestedDate: earliestNewYorkDeliveryDate()
+    });
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it("stays interactive-free inside the CMS preview", () => {
+    render(<BalloonCatalogGate previewMode />);
+
+    expect(screen.queryByRole("dialog")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Shop latex balloons" }));
+    expect(screen.queryByRole("dialog")).toBeNull();
+  });
+
+  it("opens the pickup calendar and selects a day without the native mobile date picker", () => {
+    render(<BalloonCatalogGate />);
+    fireEvent.click(screen.getByRole("button", { name: "Shop latex balloons" }));
+    fireEvent.click(screen.getByRole("button", { name: "Store pickup" }));
+    fireEvent.click(screen.getByRole("button", { name: /Choose pickup date/ }));
+
+    expect(screen.getByRole("dialog", { name: "Choose pickup date" })).toBeTruthy();
+
+    const nextDate = dateAfter(earliestNewYorkDeliveryDate(), 1);
+    fireEvent.click(screen.getByRole("button", { name: calendarDateLabel(nextDate) }));
+
+    expect(screen.queryByRole("dialog", { name: "Choose pickup date" })).toBeNull();
+    expect(screen.getByRole("button", { name: `Choose pickup date, currently ${shortDateLabel(nextDate)}` })).toBeTruthy();
   });
 
   it("offers store contact when local delivery is unavailable", async () => {
@@ -105,14 +130,19 @@ function approvedEligibility(postalCode: string) {
   return { eligible: true as const, source: "MOCK" as const, postalCode, approvalId: "approved", expiresAt: new Date(Date.now() + 15 * 60_000).toISOString() };
 }
 
-function pickupAvailability() {
-  const requestedDate = earliestNewYorkDeliveryDate();
-  return {
-    available: true as const,
-    source: "MOCK" as const,
-    locationId: "location-third-avenue",
-    requestedDate,
-    expiresAt: new Date(Date.now() + 15 * 60_000).toISOString(),
-    availableSlots: [{ id: `pickup-${requestedDate}-1000`, startsAt: `${requestedDate}T10:00:00-04:00`, endsAt: `${requestedDate}T12:00:00-04:00`, label: "10:00 AM–12:00 PM" }]
-  };
+function dateAfter(value: string, days: number) {
+  const [year, month, day] = value.split("-").map(Number);
+  return new Date(Date.UTC(year, month - 1, day + days)).toISOString().slice(0, 10);
+}
+
+function calendarDateLabel(value: string) {
+  const [year, month, day] = value.split("-").map(Number);
+  return new Intl.DateTimeFormat("en-US", { day: "numeric", month: "long", weekday: "long", year: "numeric", timeZone: "UTC" })
+    .format(new Date(Date.UTC(year, month - 1, day)));
+}
+
+function shortDateLabel(value: string) {
+  const [year, month, day] = value.split("-").map(Number);
+  return new Intl.DateTimeFormat("en-US", { day: "numeric", month: "short", timeZone: "UTC" })
+    .format(new Date(Date.UTC(year, month - 1, day)));
 }

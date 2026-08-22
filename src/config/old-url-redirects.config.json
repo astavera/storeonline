@@ -13,19 +13,19 @@
   },
   {
     "source": "/read/48/stationery",
-    "destination": "/stationery",
+    "destination": "/shop?department=stationery",
     "permanent": true,
     "note": "Legacy Stationery department."
   },
   {
     "source": "/read/49/arts-crafts",
-    "destination": "/arts-and-crafts",
+    "destination": "/shop?department=arts-and-crafts",
     "permanent": true,
     "note": "Legacy Arts & Crafts department."
   },
   {
     "source": "/read/50/greeting-cards",
-    "destination": "/greeting-cards",
+    "destination": "/shop?department=greeting-cards",
     "permanent": true,
     "note": "Legacy Greeting Cards department."
   },
@@ -37,13 +37,13 @@
   },
   {
     "source": "/read/51/gifts",
-    "destination": "/gifts",
+    "destination": "/shop?department=gifts",
     "permanent": true,
     "note": "Legacy Gifts department."
   },
   {
     "source": "/read/58/seasonal-specials",
-    "destination": "/holidays",
+    "destination": "/holidays/halloween",
     "permanent": true,
     "note": "Legacy Seasonal Specials maps to editable Holidays."
   },
@@ -61,13 +61,13 @@
   },
   {
     "source": "/read/59/store-on-3rd-avenue",
-    "destination": "/locations/3rd-avenue",
+    "destination": "/locations",
     "permanent": true,
     "note": "Legacy 3rd Avenue location page."
   },
   {
     "source": "/read/60/store-on-86th-street",
-    "destination": "/locations/86th-street",
+    "destination": "/locations",
     "permanent": true,
     "note": "Legacy 86th Street location page."
   },

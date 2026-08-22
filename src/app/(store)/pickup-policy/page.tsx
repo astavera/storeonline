@@ -3,7 +3,9 @@
  */
 
 import { ContentPageTemplate } from "@/components/templates/content-page-template";
+import { getStorePolicyDefinition } from "@/config/store-administration.config";
 
 export default function PickupPolicyPage() {
-  return <ContentPageTemplate area="Policy" body="Choose your preferred store and contact us to confirm item availability and a convenient pickup time." sectionId="policy.pickup" title="Pickup Policy" />;
+  const policy = getStorePolicyDefinition("pickup")!;
+  return <ContentPageTemplate area="Policy" body={policy.defaultBody} sectionId="policy.pickup" title={policy.defaultTitle} />;
 }

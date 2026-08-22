@@ -123,21 +123,16 @@ export function PartyMerchandisingManager({ categories, placements, disabled, on
 
   return (
     <section className="overflow-hidden rounded-md border border-border bg-surface">
-      <header className="border-b border-border p-5">
-        <div className="flex flex-col justify-between gap-4 md:flex-row md:items-center">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.12em] text-blue">Catalog Publishing</p>
-            <h2 className="mt-1 font-display text-2xl font-semibold">Party Supplies</h2>
-            <p className="mt-1 text-sm text-secondary">One product can belong to a theme and a product type. Solid Colors only accepts plain, single-color tableware.</p>
+      <header className="border-b border-border p-3 sm:p-4">
+        <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
+          <div className="flex flex-wrap gap-2" role="tablist" aria-label="Party merchandising categories">
+            {sections.map((section) => {
+              const Icon = section.icon;
+              const active = activeKind === section.kind;
+              return <button aria-selected={active} className={`inline-flex min-h-10 items-center rounded-md border px-4 text-sm font-semibold ${active ? "border-primary bg-primary text-white" : "border-border text-secondary hover:bg-surface-muted hover:text-primary"}`} key={section.kind} onClick={() => chooseKind(section.kind)} role="tab" type="button"><Icon className="mr-2" size={16} />{section.label}</button>;
+            })}
           </div>
           <button className="inline-flex min-h-10 items-center justify-center rounded-md border border-border px-4 text-sm font-semibold hover:bg-surface-muted" disabled={disabled} onClick={onInitialize} type="button">Complete structure</button>
-        </div>
-        <div className="mt-5 flex flex-wrap gap-2" role="tablist" aria-label="Party merchandising categories">
-          {sections.map((section) => {
-            const Icon = section.icon;
-            const active = activeKind === section.kind;
-            return <button aria-selected={active} className={`inline-flex min-h-10 items-center rounded-md border px-4 text-sm font-semibold ${active ? "border-primary bg-primary text-white" : "border-border text-secondary hover:bg-surface-muted hover:text-primary"}`} key={section.kind} onClick={() => chooseKind(section.kind)} role="tab" type="button"><Icon className="mr-2" size={16} />{section.label}</button>;
-          })}
         </div>
       </header>
 

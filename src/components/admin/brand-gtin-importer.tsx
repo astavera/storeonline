@@ -153,7 +153,7 @@ export function BrandGtinImporter({ brand, disabled, onApplied }: {
             {preview.unmatchedGtins.length ? <p className="mt-3 break-words text-xs text-secondary"><strong>Not found:</strong> {preview.unmatchedGtins.slice(0, 12).join(", ")}{preview.unmatchedGtins.length > 12 ? ` +${preview.unmatchedGtins.length - 12} more` : ""}</p> : null}
 
             <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <label className="flex items-center gap-2 text-sm font-semibold">Action<select className="rounded-md border border-border bg-surface px-3 py-2" onChange={(event) => setOperation(event.target.value as "assign" | "remove")} value={operation}><option value="assign">Add to Brand</option><option value="remove">Remove from Brand</option></select></label>
+              <label className="flex items-center gap-2 text-sm font-semibold">Action<select className="admin-form-control admin-form-control--compact admin-native-select w-auto rounded-md border border-border bg-surface px-3 py-2" onChange={(event) => setOperation(event.target.value as "assign" | "remove")} value={operation}><option value="assign">Add to Brand</option><option value="remove">Remove from Brand</option></select></label>
               <button className="inline-flex min-h-10 items-center justify-center rounded-md bg-green px-4 text-sm font-semibold text-primary disabled:opacity-40" disabled={disabled || isLoading || preview.matchedVariationCount === 0} onClick={() => void applyImport()} type="button"><Check className="mr-2" size={15} />{operation === "assign" ? "Add" : "Remove"} {preview.matchedVariationCount.toLocaleString()} variations</button>
             </div>
           </div>

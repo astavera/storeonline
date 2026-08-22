@@ -1,0 +1,611 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark">
+  <meta name="robots" content="noindex,nofollow">
+  <title>Storeonline · Project Map</title>
+  <style>
+    :root {
+      --bg: #07110f;
+      --panel: #0d1916;
+      --panel-2: #11211d;
+      --line: #254038;
+      --line-hot: #4e796b;
+      --ink: #edf6f0;
+      --muted: #9bb4aa;
+      --lime: #c7f36b;
+      --mint: #73e3b3;
+      --cyan: #69d8e7;
+      --amber: #ffca72;
+      --red: #ff7f72;
+      --violet: #b9a3ff;
+      --p0: #ff776b;
+      --p1: #ffbd5c;
+      --p2: #73d8e8;
+      --p3: #8ba69c;
+      --shadow: 0 24px 70px rgba(0,0,0,.32);
+      --radius: 16px;
+    }
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background:
+        radial-gradient(circle at 13% -4%, rgba(115,227,179,.14), transparent 27rem),
+        radial-gradient(circle at 94% 16%, rgba(105,216,231,.09), transparent 30rem),
+        var(--bg);
+      color: var(--ink);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      line-height: 1.5;
+    }
+    button, input, select { font: inherit; }
+    button { color: inherit; }
+    a { color: var(--mint); }
+    code, .mono { font-family: "Cascadia Code", "SFMono-Regular", Consolas, monospace; }
+    .shell { display: grid; grid-template-columns: 270px minmax(0,1fr); min-height: 100vh; }
+    .sidebar {
+      position: sticky; top: 0; height: 100vh; overflow: auto;
+      padding: 28px 18px; border-right: 1px solid var(--line);
+      background: rgba(7,17,15,.91); backdrop-filter: blur(18px); z-index: 20;
+    }
+    .brand { padding: 0 10px 26px; border-bottom: 1px solid var(--line); }
+    .eyebrow { color: var(--lime); font: 700 11px/1.2 "Cascadia Code",monospace; letter-spacing: .14em; text-transform: uppercase; }
+    .brand h1 { margin: 8px 0 5px; font-size: 22px; letter-spacing: -.03em; }
+    .brand p { margin: 0; color: var(--muted); font-size: 12px; }
+    .nav { display: grid; gap: 5px; padding: 20px 0; }
+    .nav button {
+      cursor: pointer; border: 1px solid transparent; background: transparent;
+      border-radius: 10px; padding: 10px 12px; text-align: left; color: var(--muted);
+      font: 650 12px/1.2 "Cascadia Code",monospace; letter-spacing: .04em;
+    }
+    .nav button:hover { color: var(--ink); background: var(--panel); }
+    .nav button.active { color: var(--lime); border-color: var(--line); background: var(--panel-2); }
+    .sidebar-foot { color: var(--muted); font-size: 11px; padding: 14px 10px; border-top: 1px solid var(--line); }
+    .sidebar-foot a { display: block; margin: 7px 0; text-decoration: none; }
+    main { min-width: 0; padding: 32px clamp(22px,4vw,58px) 80px; }
+    .topbar { display: flex; gap: 16px; justify-content: space-between; align-items: center; margin-bottom: 24px; }
+    .global-search { position: relative; flex: 0 1 560px; }
+    .global-search input, .control {
+      width: 100%; color: var(--ink); border: 1px solid var(--line); background: rgba(13,25,22,.84);
+      border-radius: 12px; padding: 11px 14px; outline: none;
+    }
+    .global-search input:focus, .control:focus { border-color: var(--mint); box-shadow: 0 0 0 3px rgba(115,227,179,.1); }
+    #searchResults {
+      position: absolute; top: calc(100% + 7px); left: 0; right: 0; z-index: 50;
+      background: #10201c; border: 1px solid var(--line-hot); border-radius: 12px; box-shadow: var(--shadow);
+      max-height: 360px; overflow: auto; display: none;
+    }
+    .search-hit { display: block; width: 100%; border: 0; border-bottom: 1px solid var(--line); background: transparent; text-align: left; padding: 11px 13px; cursor: pointer; }
+    .search-hit:hover { background: #182b26; }
+    .search-hit small { display: block; color: var(--muted); margin-top: 3px; }
+    .stamp { color: var(--muted); font: 11px/1.3 "Cascadia Code",monospace; text-align: right; }
+    .view { display: none; animation: rise .25s ease; }
+    .view.active { display: block; }
+    @keyframes rise { from { opacity: 0; transform: translateY(5px); } }
+    .view-head { display: flex; align-items: end; justify-content: space-between; gap: 24px; margin: 10px 0 26px; }
+    .view-head h2 { margin: 5px 0 0; font-size: clamp(28px,4vw,50px); line-height: 1; letter-spacing: -.055em; }
+    .view-head p { max-width: 670px; color: var(--muted); margin: 8px 0 0; }
+    .legend { display: flex; flex-wrap: wrap; gap: 8px; }
+    .pill, .tag {
+      display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--line);
+      border-radius: 999px; padding: 4px 9px; color: var(--muted); background: rgba(17,33,29,.74);
+      font: 650 10px/1.4 "Cascadia Code",monospace; text-transform: uppercase; letter-spacing: .04em;
+    }
+    .dot { width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+    .p0 { color: var(--p0); }.p1 { color: var(--p1); }.p2 { color: var(--p2); }.p3 { color: var(--p3); }
+    .grid { display: grid; gap: 15px; }
+    .stats { grid-template-columns: repeat(6, minmax(0,1fr)); margin-bottom: 20px; }
+    .stat, .card {
+      background: linear-gradient(145deg, rgba(17,33,29,.94), rgba(10,22,19,.94));
+      border: 1px solid var(--line); border-radius: var(--radius); box-shadow: 0 8px 30px rgba(0,0,0,.11);
+    }
+    .stat { padding: 17px; }
+    .stat strong { display: block; font-size: 26px; line-height: 1; color: var(--lime); letter-spacing: -.04em; }
+    .stat span { display: block; color: var(--muted); font-size: 11px; margin-top: 8px; }
+    .card { padding: 20px; }
+    .card h3 { margin: 0 0 7px; font-size: 16px; }
+    .card p { color: var(--muted); margin: 0; font-size: 13px; }
+    .system-map {
+      display: grid; grid-template-columns: 1fr 54px 1.15fr 54px 1.15fr 54px 1fr; align-items: center;
+      gap: 7px; padding: 24px; min-height: 360px;
+    }
+    .stack { display: grid; gap: 10px; }
+    .node {
+      position: relative; border: 1px solid var(--line-hot); background: #12241f;
+      border-radius: 12px; padding: 13px; min-width: 0;
+    }
+    button.node { width: 100%; text-align: left; cursor: pointer; }
+    button.node:hover { border-color: var(--lime); transform: translateY(-1px); }
+    .node strong { display: block; font-size: 12px; }
+    .node small { display: block; color: var(--muted); font-size: 10px; margin-top: 4px; overflow-wrap: anywhere; }
+    .node.critical { border-color: rgba(255,119,107,.65); box-shadow: inset 3px 0 0 var(--red); }
+    .node.external { border-color: rgba(185,163,255,.55); }
+    .arrow { color: var(--mint); text-align: center; font-size: 28px; font-weight: 200; }
+    .callout { border-left: 3px solid var(--amber); background: rgba(255,202,114,.07); padding: 14px 16px; border-radius: 0 12px 12px 0; color: #eadcbf; font-size: 13px; }
+    .two { grid-template-columns: repeat(2,minmax(0,1fr)); }
+    .three { grid-template-columns: repeat(3,minmax(0,1fr)); }
+    .four { grid-template-columns: repeat(4,minmax(0,1fr)); }
+    .lanes { overflow-x: auto; padding-bottom: 6px; }
+    .lane-grid { display: grid; grid-template-columns: repeat(5,minmax(190px,1fr)); gap: 12px; min-width: 980px; }
+    .lane { border-top: 3px solid var(--cyan); }
+    .lane:nth-child(2) { border-color: var(--lime); }.lane:nth-child(3) { border-color: var(--amber); }
+    .lane:nth-child(4) { border-color: var(--violet); }.lane:nth-child(5) { border-color: var(--mint); }
+    .lane ul { padding-left: 17px; margin: 12px 0 0; color: var(--muted); font-size: 12px; }
+    details.tree { border: 1px solid var(--line); border-radius: 12px; background: rgba(12,27,23,.8); margin: 9px 0; overflow: hidden; }
+    details.tree summary { cursor: pointer; list-style: none; padding: 14px 16px; display: flex; gap: 12px; align-items: center; }
+    details.tree summary::-webkit-details-marker { display:none; }
+    details.tree summary::before { content: "+"; color: var(--lime); font: 700 16px monospace; }
+    details.tree[open] summary::before { content: "−"; }
+    .folder-meta { margin-left: auto; color: var(--muted); font-size: 11px; }
+    .tree-body { border-top: 1px solid var(--line); padding: 15px 17px; color: var(--muted); font-size: 13px; }
+    .tree-files { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 12px; }
+    .file-link, .relation {
+      cursor: pointer; border: 1px solid var(--line); border-radius: 8px; background: #0b1815;
+      color: var(--cyan); padding: 6px 9px; font: 11px/1.3 "Cascadia Code",monospace;
+    }
+    .file-link:hover, .relation:hover { border-color: var(--cyan); }
+    .toolbar { display: grid; grid-template-columns: minmax(240px,1fr) 180px 180px; gap: 10px; margin-bottom: 14px; }
+    select.control { appearance: none; }
+    .table-wrap { overflow: auto; border: 1px solid var(--line); border-radius: 14px; }
+    table { border-collapse: collapse; width: 100%; min-width: 860px; background: rgba(11,24,21,.83); }
+    th { position: sticky; top: 0; z-index: 2; color: var(--muted); background: #10201c; text-align: left; font: 700 10px/1.2 "Cascadia Code",monospace; letter-spacing: .07em; text-transform: uppercase; }
+    td, th { padding: 12px 13px; border-bottom: 1px solid var(--line); }
+    td { font-size: 12px; vertical-align: top; }
+    tbody tr { cursor: pointer; }
+    tbody tr:hover { background: #132720; }
+    .path { color: var(--cyan); font-family: "Cascadia Code",monospace; overflow-wrap:anywhere; }
+    .flow-tabs { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px; }
+    .flow-tabs button { cursor:pointer; border:1px solid var(--line); background:var(--panel); color:var(--muted); padding:9px 12px; border-radius:10px; }
+    .flow-tabs button.active { color:var(--lime); border-color:var(--lime); }
+    .flow-line { display: grid; grid-template-columns: repeat(9,minmax(120px,1fr)); gap: 30px; min-width: 1320px; padding: 22px 6px 24px; }
+    .flow-scroll { overflow-x:auto; }
+    .flow-step { position: relative; min-height: 150px; }
+    .flow-step::after { content:"→"; position:absolute; right:-24px; top:46px; color:var(--mint); font-size:22px; }
+    .flow-step:last-child::after { display:none; }
+    .flow-step b { display:block; color:var(--lime); font:700 10px monospace; margin-bottom:8px; }
+    .flow-step strong { display:block; font-size:12px; }
+    .flow-step small { display:block; color:var(--muted); font-size:10px; margin-top:7px; overflow-wrap:anywhere; }
+    .dep-map { position:relative; min-height:560px; overflow:auto; }
+    .dep-grid { display:grid; grid-template-columns:repeat(4,minmax(190px,1fr)); gap:18px 42px; min-width:900px; align-items:start; }
+    .dep-col h3 { color:var(--muted); font:700 10px monospace; letter-spacing:.1em; text-transform:uppercase; }
+    .dep-node { margin:10px 0; }
+    .warning-edge { border: 1px dashed var(--red); color:#ffd1cd; background:rgba(255,119,107,.05); border-radius:12px; padding:12px; font-size:12px; }
+    .db-domain { min-height:160px; cursor:pointer; }
+    .db-domain:hover { border-color:var(--mint); }
+    .models { display:flex; flex-wrap:wrap; gap:6px; margin-top:12px; }
+    .model { border:1px solid var(--line); color:var(--cyan); border-radius:6px; padding:4px 7px; font:10px monospace; }
+    .integration { position:relative; overflow:hidden; }
+    .integration::after { content:""; position:absolute; width:90px; height:90px; border:1px solid var(--line); border-radius:50%; right:-35px; top:-35px; }
+    .integration h3 { color:var(--violet); }
+    .kv { display:grid; grid-template-columns:110px 1fr; gap:7px 12px; margin-top:14px; font-size:12px; }
+    .kv dt { color:var(--muted); }.kv dd { margin:0; overflow-wrap:anywhere; }
+    .security-ring { display:grid; grid-template-columns:repeat(4,1fr); gap:12px; }
+    .security-ring .card { border-top:3px solid var(--mint); }
+    .security-ring .card:nth-child(2n) { border-color:var(--cyan); }
+    .risk-card { position:relative; padding-left:28px; }
+    .risk-card::before { content:""; position:absolute; left:15px; top:20px; bottom:20px; width:3px; border-radius:2px; background:var(--p2); }
+    .risk-card[data-p="P0"]::before { background:var(--p0); }.risk-card[data-p="P1"]::before { background:var(--p1); }.risk-card[data-p="P3"]::before { background:var(--p3); }
+    .detail {
+      position:fixed; inset:0 0 0 auto; width:min(520px,100%); z-index:100; padding:24px;
+      background:#0a1714; border-left:1px solid var(--line-hot); box-shadow:var(--shadow);
+      transform:translateX(102%); transition:transform .22s ease; overflow:auto;
+    }
+    .detail.open { transform:translateX(0); }
+    .detail-close { float:right; border:1px solid var(--line); background:var(--panel); border-radius:9px; cursor:pointer; padding:7px 10px; }
+    .detail h2 { margin:35px 0 7px; font-size:20px; overflow-wrap:anywhere; }
+    .detail .lead { color:var(--muted); font-size:13px; }
+    .detail dl { display:grid; grid-template-columns:130px 1fr; gap:10px 13px; margin-top:24px; }
+    .detail dt { color:var(--muted); font-size:11px; }.detail dd { margin:0; font-size:12px; overflow-wrap:anywhere; }
+    .detail-rel { display:flex; flex-wrap:wrap; gap:7px; }
+    .empty { padding:28px; color:var(--muted); text-align:center; }
+    @media (max-width:1100px) {
+      .stats { grid-template-columns:repeat(3,1fr); }
+      .system-map { grid-template-columns:1fr; }
+      .system-map > .arrow { transform:rotate(90deg); }
+      .security-ring, .four { grid-template-columns:repeat(2,1fr); }
+    }
+    @media (max-width:760px) {
+      .shell { grid-template-columns:1fr; }
+      .sidebar { position:relative; height:auto; padding:18px; }
+      .nav { display:flex; overflow:auto; padding:14px 0 0; }
+      .nav button { white-space:nowrap; }
+      .sidebar-foot { display:none; }
+      main { padding:22px 16px 60px; }
+      .topbar, .view-head { align-items:flex-start; flex-direction:column; }
+      .global-search { width:100%; }
+      .stamp { text-align:left; }
+      .stats, .two, .three, .four, .security-ring { grid-template-columns:1fr; }
+      .toolbar { grid-template-columns:1fr; }
+      .view-head h2 { font-size:36px; }
+    }
+    @media print {
+      .sidebar,.topbar,.detail { display:none!important; }
+      .shell { display:block; }.view { display:block!important; page-break-before:always; }
+      body { background:white; color:#111; }.card,.stat,.node { color:#111; background:white; box-shadow:none; }
+    }
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="eyebrow">Technical radiography</div>
+        <h1>storeonline</h1>
+        <p>Mapa navegable basado en el árbol real</p>
+      </div>
+      <nav class="nav" aria-label="Vistas">
+        <button data-view="overview" class="active">01 · OVERVIEW</button>
+        <button data-view="architecture">02 · ARCHITECTURE</button>
+        <button data-view="folders">03 · FOLDERS</button>
+        <button data-view="files">04 · FILES</button>
+        <button data-view="flows">05 · BUSINESS FLOWS</button>
+        <button data-view="dependencies">06 · DEPENDENCIES</button>
+        <button data-view="database">07 · DATABASE</button>
+        <button data-view="integrations">08 · INTEGRATIONS</button>
+        <button data-view="security">09 · SECURITY</button>
+        <button data-view="critical">10 · CRITICAL COMPONENTS</button>
+      </nav>
+      <div class="sidebar-foot">
+        <strong>EVIDENCIA</strong>
+        <p>HECHO: código/config observado.<br>INFERRED: relación indirecta.<br>UNKNOWN: requiere contexto externo.</p>
+        <a href="./TECHNICAL_PROJECT_MAP.md">↗ Mapa escrito</a>
+        <a href="./PROJECT_INDEX.md">↗ Índice rápido</a>
+      </div>
+    </aside>
+
+    <main>
+      <div class="topbar">
+        <div class="global-search">
+          <input id="globalSearch" type="search" autocomplete="off" placeholder="Buscar archivo, carpeta, símbolo o integración…" aria-label="Buscar en el mapa">
+          <div id="searchResults"></div>
+        </div>
+        <div class="stamp">SNAPSHOT · 2026-08-20<br>WORKING TREE · READ ONLY ANALYSIS</div>
+      </div>
+
+      <section id="overview" class="view active">
+        <div class="view-head"><div><div class="eyebrow">Level 1 · System</div><h2>Una app, cuatro planos.</h2><p>Next.js sirve storefront, admin, APIs y workers. PostgreSQL conserva estado; Square manda sobre comercio/pago; OrderPRO manda sobre operaciones; Shippo resuelve transporte.</p></div></div>
+        <div class="grid stats">
+          <div class="stat"><strong>662</strong><span>archivos bajo src</span></div>
+          <div class="stat"><strong>63</strong><span>páginas App Router</span></div>
+          <div class="stat"><strong>56</strong><span>route handlers API</span></div>
+          <div class="stat"><strong>56</strong><span>modelos Prisma</span></div>
+          <div class="stat"><strong>22</strong><span>migraciones</span></div>
+          <div class="stat"><strong>175</strong><span>archivos de tests</span></div>
+        </div>
+        <div class="card system-map" aria-label="Mapa general del sistema">
+          <div class="stack">
+            <div class="node"><strong>Cliente</strong><small>storefront, cart, checkout, returns</small></div>
+            <div class="node"><strong>Administrador</strong><small>admin, CMS, orders, identity</small></div>
+            <div class="node"><strong>systemd</strong><small>sync 8m · worker 15s</small></div>
+          </div>
+          <div class="arrow">→</div>
+          <div class="stack">
+            <button class="node" data-file="src/app/(store)/layout.tsx"><strong>Next.js storefront</strong><small>src/app/(store)</small></button>
+            <button class="node critical" data-file="src/app/api/checkout/route.ts"><strong>Internal API</strong><small>src/app/api · checkout P0</small></button>
+            <button class="node critical" data-file="src/proxy.ts"><strong>Admin security</strong><small>proxy + layout + RBAC</small></button>
+          </div>
+          <div class="arrow">→</div>
+          <div class="stack">
+            <button class="node" data-file="src/server/checkout/cart-service.ts"><strong>Domain services</strong><small>cart · CMS · returns · admin</small></button>
+            <button class="node critical" data-file="src/server/checkout/checkout-attempt-repository.ts"><strong>Repositories</strong><small>Prisma stores + inbox</small></button>
+            <button class="node" data-file="src/server/square/website-catalog-store.ts"><strong>Read projections</strong><small>Square catalog + published CMS</small></button>
+          </div>
+          <div class="arrow">→</div>
+          <div class="stack">
+            <button class="node critical" data-file="prisma/schema.prisma"><strong>PostgreSQL</strong><small>56 models · 22 migrations</small></button>
+            <div class="node external"><strong>Square</strong><small>catalog · inventory · hosted payment</small></div>
+            <div class="node external"><strong>OrderPRO</strong><small>fulfillment · paid order authority</small></div>
+            <div class="node external"><strong>Shippo / Resend</strong><small>shipping · labels · email</small></div>
+          </div>
+        </div>
+        <div class="grid two" style="margin-top:15px">
+          <div class="callout"><strong>P0 launch gate.</strong> Los grants runtime actuales son deliberadamente de admin-preview y niegan varias tablas transaccionales. Reconciliar ACL antes de activar checkout/cuentas/returns con ese rol.</div>
+          <div class="callout"><strong>Payment invariant.</strong> Un redirect no confirma pago: el worker relee Square, valida evidencia completa y entonces confirma OrderPRO/CheckoutAttempt.</div>
+        </div>
+      </section>
+
+      <section id="architecture" class="view">
+        <div class="view-head"><div><div class="eyebrow">Level 2 · Domains</div><h2>Arquitectura real.</h2><p>Monolito modular: las fronteras son convenciones de carpetas y contratos, no procesos desplegables independientes.</p></div></div>
+        <div class="lanes"><div class="lane-grid">
+          <article class="card lane"><h3>Presentation</h3><p>App Router + React Server/Client Components</p><ul><li>storefront</li><li>checkout</li><li>admin</li><li>returns portal</li></ul></article>
+          <article class="card lane"><h3>HTTP control</h3><p>Route handlers, proxy, guards</p><ul><li>Zod/manual schemas</li><li>RBAC + origin</li><li>idempotency</li><li>webhook ingress</li></ul></article>
+          <article class="card lane"><h3>Domain</h3><p>Cart, CMS, checkout, returns, identity</p><ul><li>services/use cases</li><li>publication</li><li>quotes</li><li>payment evidence</li></ul></article>
+          <article class="card lane"><h3>Adapters</h3><p>Repositories + external clients</p><ul><li>Prisma</li><li>Square SDK</li><li>OrderPRO</li><li>Shippo/Resend REST</li></ul></article>
+          <article class="card lane"><h3>Authority</h3><p>Where truth ultimately lives</p><ul><li>PostgreSQL: app state</li><li>Square: commerce/payment</li><li>OrderPRO: operations</li><li>filesystem: media</li></ul></article>
+        </div></div>
+        <div class="grid three" style="margin-top:18px">
+          <div class="card"><div class="eyebrow">Frontend boundary</div><h3>Server-first, interactive islands</h3><p>Catálogo/CMS se resuelven server-side; cart, checkout, builders y returns son clientes stateful.</p></div>
+          <div class="card"><div class="eyebrow">Backend boundary</div><h3>No es clean architecture uniforme</h3><p>Returns/admin/checkout sí separan repos; otros dominios mezclan facade, store y integration clients.</p></div>
+          <div class="card"><div class="eyebrow">Async boundary</div><h3>Postgres inbox, no broker</h3><p>Webhooks se persisten, se leasean y reintentan desde un endpoint interno llamado por systemd.</p></div>
+        </div>
+      </section>
+
+      <section id="folders" class="view">
+        <div class="view-head"><div><div class="eyebrow">Level 2–4 · Physical map</div><h2>Carpetas con contexto.</h2><p>Expande un dominio para ver responsabilidad, dependientes y archivos representativos.</p></div></div>
+        <div id="folderTree"></div>
+      </section>
+
+      <section id="files" class="view">
+        <div class="view-head"><div><div class="eyebrow">Level 4–5 · Explorer</div><h2>Archivos relevantes.</h2><p>Inventario curado de entry points, módulos centrales y superficies sensibles. Tests, assets y archivos homogéneos están agrupados.</p></div></div>
+        <div class="toolbar">
+          <input id="fileSearch" class="control" type="search" placeholder="Filtrar path, responsabilidad o símbolo…">
+          <select id="typeFilter" class="control" aria-label="Filtrar por tipo"><option value="">Todos los tipos</option></select>
+          <select id="priorityFilter" class="control" aria-label="Filtrar por criticidad"><option value="">Toda criticidad</option><option>P0</option><option>P1</option><option>P2</option><option>P3</option></select>
+        </div>
+        <div class="table-wrap"><table><thead><tr><th>Path</th><th>Type</th><th>Responsibility</th><th>Criticality</th><th>Touches</th></tr></thead><tbody id="fileRows"></tbody></table></div>
+      </section>
+
+      <section id="flows" class="view">
+        <div class="view-head"><div><div class="eyebrow">Level 2–5 · Runtime paths</div><h2>Business flows.</h2><p>Cada paso está anclado a una página, endpoint, servicio, tabla o sistema externo real.</p></div></div>
+        <div id="flowTabs" class="flow-tabs"></div>
+        <div class="card flow-scroll"><div id="flowLine" class="flow-line"></div></div>
+        <div id="flowNote" class="callout" style="margin-top:14px"></div>
+      </section>
+
+      <section id="dependencies" class="view">
+        <div class="view-head"><div><div class="eyebrow">Static import map</div><h2>Dependencias y presión.</h2><p>Flechas conceptuales construidas a partir de imports y llamadas. Los ciclos problemáticos están separados del camino normal.</p></div></div>
+        <div class="card dep-map"><div class="dep-grid">
+          <div class="dep-col"><h3>Pages / UI</h3><button class="node dep-node" data-file="src/app/(store)/page.tsx"><strong>App pages</strong><small>routes and layouts</small></button><button class="node dep-node" data-file="src/features/homepage/components/homepage-template.tsx"><strong>Templates</strong><small>homepage · department · CMS</small></button><button class="node dep-node" data-file="src/components/checkout/checkout-client.tsx"><strong>Checkout UI</strong><small>stateful client</small></button></div>
+          <div class="dep-col"><h3>Central modules →</h3><button class="node dep-node" data-file="src/features/catalog/product-catalog.ts"><strong>product-catalog</strong><small>53 incoming · central</small></button><button class="node dep-node" data-file="src/lib/cms/index.ts"><strong>lib/cms barrel</strong><small>34 incoming · cycle</small></button><button class="node dep-node critical" data-file="src/app/api/checkout/route.ts"><strong>checkout route</strong><small>12 internal imports · god orchestrator</small></button></div>
+          <div class="dep-col"><h3>Services / repos →</h3><button class="node dep-node" data-file="src/features/catalog/services/website-merchandising-service.ts"><strong>merchandising service</strong><small>37 incoming</small></button><button class="node dep-node" data-file="src/server/checkout/cart-service.ts"><strong>cart service</strong><small>quote/revalidate</small></button><button class="node dep-node critical" data-file="src/server/checkout/checkout-attempt-repository.ts"><strong>checkout repository</strong><small>state + correlation</small></button></div>
+          <div class="dep-col"><h3>Adapters / authority</h3><button class="node dep-node critical" data-file="src/server/db/prisma.ts"><strong>Prisma singleton</strong><small>43 incoming</small></button><div class="node external dep-node"><strong>Square / OrderPRO</strong><small>commercial + operational authority</small></div><div class="node external dep-node"><strong>PostgreSQL</strong><small>application state + inbox</small></div></div>
+        </div></div>
+        <div class="grid two" style="margin-top:15px">
+          <div class="warning-edge"><strong>CYCLE 01 · CMS/homepage barrel</strong><br>homepage-template → components/cms → page-renderer → lib/cms → homepage-adapter → features/homepage.</div>
+          <div class="warning-edge"><strong>CYCLE 02 · Checkout UI type</strong><br>checkout-client → split-checkout-client → type CheckoutLocation from checkout-client.</div>
+        </div>
+        <div class="grid three" style="margin-top:15px">
+          <div class="card"><h3>High fan-in</h3><p>product-catalog 53 · Prisma 43 · utils 39 · merchandising 37 · persistence-policy 35.</p></div>
+          <div class="card"><h3>High fan-out</h3><p>Homepage/builder modules, CMS barrel, admin nav and checkout route.</p></div>
+          <div class="card"><h3>Boundary concern</h3><p>UI y DB tienen fronteras convencionales; no existe enforcement automático uniforme.</p></div>
+        </div>
+      </section>
+
+      <section id="database" class="view">
+        <div class="view-head"><div><div class="eyebrow">PostgreSQL · Prisma 6</div><h2>Modelo por bounded context.</h2><p>56 modelos agrupados para legibilidad. Selecciona un dominio para ver relaciones, acceso y nivel de autoridad.</p></div></div>
+        <div id="dbGrid" class="grid three"></div>
+        <div class="callout" style="margin-top:15px"><strong>ACL evidence.</strong> Migrator, sync y runtime tienen grants separados. El runtime actual niega tablas transaccionales clave; es un boundary canary, no una matriz final de lanzamiento.</div>
+      </section>
+
+      <section id="integrations" class="view">
+        <div class="view-head"><div><div class="eyebrow">Outbound + inbound</div><h2>Integraciones externas.</h2><p>Dirección, autenticación, persistencia y comportamiento de fallo sin exponer secretos.</p></div></div>
+        <div id="integrationGrid" class="grid three"></div>
+      </section>
+
+      <section id="security" class="view">
+        <div class="view-head"><div><div class="eyebrow">Trust boundaries</div><h2>La seguridad vive en capas.</h2><p>Proxy y layout reducen exposición; cada API sensible vuelve a autorizar. Pagos y webhooks tienen evidencia independiente.</p></div></div>
+        <div class="security-ring">
+          <div class="card"><h3>1 · Edge</h3><p>Caddy, CSP/headers, body limits, HTTPS, noindex gates.</p></div>
+          <div class="card"><h3>2 · Identity</h3><p>Admin scrypt/TOTP/sessions; customer passwordless; return handles.</p></div>
+          <div class="card"><h3>3 · Request</h3><p>Zod, RBAC, location scopes, same-origin, rate buckets, idempotency.</p></div>
+          <div class="card"><h3>4 · Evidence</h3><p>Square HMAC + re-read payment/order; worker bearer; durable inbox.</p></div>
+        </div>
+        <div class="grid three" style="margin-top:16px">
+          <div class="card risk-card" data-p="P0"><h3>Admin auth</h3><p><span class="path">admin-security.ts · identity/** · proxy.ts</span><br>Legacy y DB mode coexisten. Cookie HttpOnly/Secure/Strict; sesión DB hasheada.</p></div>
+          <div class="card risk-card" data-p="P0"><h3>Payment verification</h3><p><span class="path">shipping-payment-confirmation.ts · split-*.ts</span><br>Relee Square y valida monto, location, metadata, cart y destino.</p></div>
+          <div class="card risk-card" data-p="P0"><h3>Webhooks</h3><p><span class="path">api/webhooks · server/webhooks</span><br>Square HMAC; Shippo secret path; inbox durable/lease/retry/dead-letter.</p></div>
+          <div class="card risk-card" data-p="P1"><h3>CSRF & authorization</h3><p>Same-origin exacto en mutaciones protegidas y RBAC API. Cobertura no global en APIs públicas.</p></div>
+          <div class="card risk-card" data-p="P0"><h3>Rate limiting gap</h3><p>Admin/account/returns tienen bucket. Checkout, shipping rates y fulfillment quotes no muestran limiter.</p></div>
+          <div class="card risk-card" data-p="P0"><h3>Database grants</h3><p>Revokes estrictos y roles por workload; falta reconciliar writes transaccionales de runtime.</p></div>
+        </div>
+      </section>
+
+      <section id="critical" class="view">
+        <div class="view-head"><div><div class="eyebrow">Blast-radius map</div><h2>Componentes críticos.</h2><p>Prioridad por impacto potencial en pagos, órdenes, identidad, datos, disponibilidad y operación.</p></div><div class="legend"><span class="pill p0"><i class="dot"></i>P0 critical</span><span class="pill p1"><i class="dot"></i>P1 high</span><span class="pill p2"><i class="dot"></i>P2 medium</span><span class="pill p3"><i class="dot"></i>P3 low</span></div></div>
+        <div id="criticalGrid" class="grid three"></div>
+      </section>
+    </main>
+  </div>
+
+  <aside id="detail" class="detail" aria-live="polite" aria-label="Detalle de componente">
+    <button id="detailClose" class="detail-close" aria-label="Cerrar detalle">✕</button>
+    <div id="detailBody"></div>
+  </aside>
+
+  <script>
+    const files = [
+      {path:'src/proxy.ts',type:'Middleware / Authorization',p:'P0',r:'Gate global, sesión y permiso mínimo por ruta admin.',imports:'admin preview/design gates; route permissions; admin security',used:'Next.js framework entry',db:'Admin session indirecta',ext:'—',sec:'AuthN, AuthZ, route gate',symbols:'proxy, config'},
+      {path:'src/app/layout.tsx',type:'Entry Point',p:'P1',r:'Layout, metadata y shell raíz.',imports:'global CSS, config/SEO',used:'Todo App Router',db:'—',ext:'—',sec:'metadata/headers indirectos',symbols:'RootLayout, metadata'},
+      {path:'src/app/(store)/layout.tsx',type:'Page / Entry Point',p:'P1',r:'Shell storefront dinámico y datos publicados.',imports:'header/footer, catalog/CMS',used:'Páginas storefront',db:'Catálogo/CMS indirecto',ext:'Square projection',sec:'public surface',symbols:'StoreLayout, force-dynamic'},
+      {path:'src/app/(admin)/admin/layout.tsx',type:'Page / Authentication',p:'P0',r:'Exige sesión admin y monta navegación protegida.',imports:'admin session, navigation',used:'Todo /admin',db:'AdminSession indirecta',ext:'—',sec:'AuthN/AuthZ + noindex',symbols:'AdminLayout'},
+      {path:'src/app/api/checkout/route.ts',type:'API Endpoint / God Orchestrator',p:'P0',r:'Checkout v1/split v2: revalida, reserva, crea Square link, persiste y compensa.',imports:'cart, checkout repo, Square, OrderPRO, Shippo',used:'checkout-client / split-checkout-client',db:'CheckoutAttempt, capacity correlation',ext:'Square · OrderPRO · Shippo',sec:'Zod, idempotency, payment boundary',symbols:'POST, handleSplitCheckout'},
+      {path:'src/components/checkout/checkout-client.tsx',type:'UI / State Management',p:'P1',r:'Formulario/state machine del checkout regular.',imports:'cart local, fulfillment panels, SplitCheckoutClient',used:'/checkout',db:'—',ext:'internal APIs',sec:'client input only; server revalidates',symbols:'CheckoutClient, CheckoutLocation'},
+      {path:'src/components/checkout/split-checkout-client.tsx',type:'UI / State Management',p:'P1',r:'Checkout por grupos regular/balloons.',imports:'CheckoutLocation type, fulfillment panels',used:'checkout-client',db:'—',ext:'internal APIs',sec:'client input only',symbols:'SplitCheckoutClient'},
+      {path:'src/components/commerce/add-to-cart-button.tsx',type:'UI / State Management',p:'P1',r:'Lee/escribe carrito browser en modern-state-cart.',imports:'React/UI',used:'product cards/detail, cart, checkout',db:'No usa Cart/CartItem',ext:'—',sec:'datos no confiables; server revalida',symbols:'readCartItems, StoredCartItem'},
+      {path:'src/server/checkout/cart-service.ts',type:'Domain Service',p:'P0',r:'Quote, precio, cantidad, inventario, modes, grupos e impuesto.',imports:'catalog projection, store settings',used:'/api/cart y /api/checkout',db:'Square*, StoreLocation, CMS',ext:'Square projection',sec:'server-side revalidation',symbols:'quoteCart, quoteCartFromOperationalCatalog'},
+      {path:'src/server/checkout/checkout-attempt-repository.ts',type:'Repository',p:'P0',r:'Idempotencia, snapshots, correlaciones y lifecycle del checkout.',imports:'Prisma, persistence policy',used:'checkout route y confirmation workers',db:'CheckoutAttempt',ext:'—',sec:'idempotency/state integrity',symbols:'create/update/find/complete attempt'},
+      {path:'src/server/square/hosted-checkout.ts',type:'Integration / Service',p:'P0',r:'Crea/elimina Square Payment Link con items verificados.',imports:'Square client, env',used:'checkout route',db:'indirect via caller',ext:'Square Orders/Payment Links',sec:'host allowlist square.link; no raw cards',symbols:'createSquareHostedCheckout, deleteSquareHostedCheckoutLink'},
+      {path:'src/server/webhooks/shipping-payment-confirmation.ts',type:'Use Case / Payment Verification',p:'P0',r:'Relee Square, verifica evidencia y confirma shipping OrderPRO.',imports:'Square, OrderPRO, checkout repo',used:'square webhook handler',db:'CheckoutAttempt',ext:'Square · OrderPRO',sec:'payment evidence',symbols:'confirmCompletedShippingPayment'},
+      {path:'src/server/webhooks/split-checkout-payment-confirmation.ts',type:'Use Case / Payment Verification',p:'P0',r:'Verifica split y emite orderpro.paid-checkout.v1.',imports:'Square, paid-checkout client, repo',used:'square webhook handler',db:'CheckoutAttempt',ext:'Square · OrderPRO',sec:'payment evidence + correlation',symbols:'confirmCompletedSplitCheckoutPayment'},
+      {path:'src/server/webhooks/webhook-inbox.ts',type:'Queue / Repository',p:'P0',r:'Inbox durable con lease, retries, backoff y dead letter.',imports:'Prisma',used:'webhook routes, worker, admin',db:'WebhookInboxEvent',ext:'provider events',sec:'dedupe + controlled retry',symbols:'enqueue, lease, markProcessed, markFailed'},
+      {path:'src/server/webhooks/square-webhook-handler.ts',type:'Webhook',p:'P0',r:'Dispatch inventory/catalog/payment/refund.',imports:'checkout confirmation, Square sync',used:'internal webhook worker',db:'via services',ext:'Square',sec:'expects verified ingress',symbols:'handleSquareWebhookEvent'},
+      {path:'src/app/api/webhooks/square/route.ts',type:'API Endpoint / Webhook',p:'P0',r:'Body raw limitado, verificación HMAC e ingreso durable.',imports:'Square verifier, webhook inbox',used:'Square webhook delivery',db:'WebhookInboxEvent',ext:'Square inbound',sec:'HMAC URL+body, 512KB',symbols:'POST'},
+      {path:'src/app/api/webhooks/shippo/[secret]/route.ts',type:'API Endpoint / Webhook',p:'P0',r:'Valida secreto opaco y persiste evento Shippo.',imports:'Shippo handler/inbox',used:'Shippo webhook delivery',db:'WebhookInboxEvent',ext:'Shippo inbound',sec:'secret path, timing-safe, 512KB',symbols:'POST'},
+      {path:'src/app/api/internal/webhooks/process/route.ts',type:'Worker / API Endpoint',p:'P0',r:'Procesa inbox, reintenta y limpia reservas/links expirados.',imports:'webhook worker, checkout cleanup, Sentry',used:'systemd timer',db:'WebhookInboxEvent, CheckoutAttempt',ext:'Square · OrderPRO · Sentry',sec:'internal bearer',symbols:'POST'},
+      {path:'src/server/square/website-catalog-store.ts',type:'Repository / Read Model',p:'P1',r:'Combina proyección Square con merchandising publicado.',imports:'Prisma, merchandising service',used:'storefront/cart/admin preview',db:'Square*, CmsContentVersion',ext:'Square data projected',sec:'publication boundary',symbols:'readResolvedSquareWebsiteCatalog'},
+      {path:'src/features/catalog/product-catalog.ts',type:'Domain Facade',p:'P1',r:'Tipos/fallbacks/facade de catálogo; mayor fan-in.',imports:'catalog config/services',used:'53 módulos aprox.',db:'indirect',ext:'indirect',sec:'—',symbols:'StorefrontProduct, catalog helpers'},
+      {path:'src/features/catalog/services/website-merchandising-service.ts',type:'Domain Service',p:'P1',r:'Resuelve visibilidad, categorías, brands y placements.',imports:'catalog types/CMS contracts',used:'37 módulos aprox.',db:'documento CMS indirecto',ext:'—',sec:'publication visibility',symbols:'resolveWebsiteMerchandising'},
+      {path:'src/server/admin/website-merchandising-store.ts',type:'Repository / Service',p:'P1',r:'Versiona merchandising WEBSITE_MERCHANDISING/global.',imports:'Prisma, JSON helpers, fallback policy',used:'admin API/publication/scripts',db:'CmsContentVersion',ext:'—',sec:'admin writes',symbols:'read/save merchandising'},
+      {path:'src/server/admin/website-merchandising-publication.ts',type:'Use Case',p:'P1',r:'Valida, publica y hace rollback de merchandising.',imports:'store, validation',used:'admin + scripts',db:'CmsContentVersion',ext:'—',sec:'authorization by caller',symbols:'publish, rollback'},
+      {path:'src/lib/cms/index.ts',type:'Domain Barrel',p:'P2',r:'Reexporta contratos, registry, adapters, defaults y validation CMS.',imports:'todos los módulos lib/cms',used:'34 módulos aprox.',db:'—',ext:'—',sec:'—',symbols:'barrel exports; circular dependency'},
+      {path:'src/components/cms/page-renderer.tsx',type:'UI / Renderer',p:'P1',r:'Renderiza documento CMS por registry y tokens.',imports:'@/lib/cms',used:'CMS pages/homepage',db:'—',ext:'—',sec:'safe registry/content rendering review',symbols:'PageRenderer'},
+      {path:'src/features/homepage/components/homepage-template.tsx',type:'UI / Page Template',p:'P1',r:'Elige render homepage CMS/fallback y secciones.',imports:'components/cms, catalog, homepage config',used:'home page',db:'indirect CMS/catalog',ext:'—',sec:'—',symbols:'HomePageTemplate'},
+      {path:'src/features/homepage/components/admin/homepage-studio-editor.tsx',type:'Admin UI / God Component',p:'P1',r:'Editor visual completo de homepage (3.273 líneas).',imports:'builder, CMS, preview, UI',used:'/admin/homepage',db:'via admin API',ext:'—',sec:'admin mutation surface',symbols:'HomepageStudioEditor'},
+      {path:'src/components/admin/product-placement-manager.tsx',type:'Admin UI / God Component',p:'P1',r:'Gestiona placement e importación XLSX (1.396 líneas).',imports:'admin API, dynamic read-excel-file',used:'admin product display',db:'via APIs',ext:'—',sec:'file/input validation',symbols:'ProductPlacementManager'},
+      {path:'src/server/orderpro/client.ts',type:'Integration',p:'P0',r:'Auth0 M2M y API v1 local delivery holds/quotes.',imports:'token provider, Zod, config',used:'local delivery services/canary',db:'—',ext:'OrderPRO',sec:'server token, validation',symbols:'authCheck, quote, create/confirm/release hold'},
+      {path:'src/server/orderpro/storefront-fulfillment-client.ts',type:'Integration',p:'P0',r:'Pickup/delivery quotes y capacity reservations/bind/release.',imports:'versioned contracts/auth',used:'checkout + fulfillment APIs',db:'—',ext:'OrderPRO internal',sec:'shared secret/Auth0 contract',symbols:'quote, reserve, bind, release'},
+      {path:'src/server/orderpro/shipping-order-client.ts',type:'Integration',p:'P0',r:'Quote/create/bind/confirm/release de shipping operativo.',imports:'contracts/config/auth',used:'checkout/payment confirmation',db:'—',ext:'OrderPRO internal',sec:'versioned auth/correlation',symbols:'quote, create, bind, confirm, release'},
+      {path:'src/server/orderpro/paid-checkout-client.ts',type:'Integration',p:'P0',r:'Ingiere evidencia de orden pagada split.',imports:'contract, fetch',used:'split payment confirmation',db:'—',ext:'OrderPRO /paid-checkouts',sec:'signed/versioned request',symbols:'ingestPaidCheckout'},
+      {path:'src/server/orderpro/returns-client.ts',type:'Integration',p:'P1',r:'Verificación, preview, create, status y evidence de returns.',imports:'Zod/config/auth',used:'return service',db:'—',ext:'OrderPRO returns API',sec:'server-only, handles',symbols:'verificationStart/Confirm, createReturn'},
+      {path:'src/server/shipping/shipping-service.ts',type:'Domain Service / Integration',p:'P1',r:'Crea Shippo shipment, lee rates y verifica selección.',imports:'Shippo REST, config',used:'shipping API/checkout',db:'—',ext:'Shippo',sec:'token server-only; address PII',symbols:'quoteShippingRates, validateShippingSelection'},
+      {path:'src/server/returns/return-service.ts',type:'Domain Service',p:'P0',r:'Orquesta verificación, quote, RMA, evidence y lifecycle.',imports:'return repo, OrderPRO, Shippo',used:'returns APIs/internal events',db:'Return*',ext:'OrderPRO · Shippo',sec:'PII, signed handles, rate limit by caller',symbols:'return use cases'},
+      {path:'src/server/returns/return-repository.ts',type:'Repository',p:'P0',r:'Persistencia de verificación, RMA, items y eventos.',imports:'Prisma',used:'return-service',db:'ReturnVerificationSession, ReturnRequest, Items, Events',ext:'—',sec:'PII/data integrity',symbols:'create/update/find return records'},
+      {path:'src/server/returns/shippo-return-label.ts',type:'Integration',p:'P1',r:'Cotiza, compra y obtiene label de devolución.',imports:'Shippo REST',used:'return service/routes',db:'correlation via caller',ext:'Shippo shipments/rates/transactions',sec:'PII + label token',symbols:'quote/purchase/read label'},
+      {path:'src/components/returns/returns-portal.tsx',type:'UI / Workflow',p:'P1',r:'Portal stateful de verificación a status (1.062 líneas).',imports:'returns APIs/contracts',used:'/returns',db:'—',ext:'internal APIs',sec:'client handles; server authorizes',symbols:'ReturnsPortal'},
+      {path:'src/server/admin/admin-security.ts',type:'Authentication / Authorization / CSRF',p:'P0',r:'Bootstrap legacy, tokens/cookies y authorizeAdminRequest con RBAC/same-origin.',imports:'crypto, env, session/permissions',used:'proxy/session/auth and admin route handlers',db:'identity indirect',ext:'—',sec:'scrypt/HMAC/cookie/RBAC/CSRF',symbols:'authenticate, issue/verify token, authorizeAdminRequest'},
+      {path:'src/server/admin/admin-session.ts',type:'Authentication / Authorization',p:'P0',r:'Resuelve sesión, permisos y scope admin.',imports:'legacy + DB identity',used:'layouts/pages/APIs',db:'AdminSession/AdminUser',ext:'—',sec:'session/RBAC',symbols:'requireAdminSession'},
+      {path:'src/server/admin/admin-rate-limit.ts',type:'Security / Database',p:'P0',r:'Fixed window Postgres en prod; memoria en dev.',imports:'Prisma, env',used:'admin/account/returns sensitive APIs',db:'AdminRateLimitBucket',ext:'—',sec:'abuse protection',symbols:'consumeAdminRateLimit'},
+      {path:'src/server/admin/identity/admin-database-login.ts',type:'Authentication Service',p:'P0',r:'Login DB con password/TOTP/recovery y emisión de sesión.',imports:'session store, MFA, crypto',used:'admin auth APIs',db:'AdminUser/Session/Recovery',ext:'—',sec:'scrypt, TOTP, hashes',symbols:'authenticateDatabaseAdmin'},
+      {path:'src/server/customers/customer-account-service.ts',type:'Authentication / Domain Service',p:'P0',r:'Passwordless customer login, profile y consent.',imports:'customer repo, email provider, crypto',used:'account APIs',db:'CustomerAccount/Challenge/Session/Consent',ext:'Resend',sec:'code limits, opaque session',symbols:'start/verify login, resolve session'},
+      {path:'src/server/db/prisma.ts',type:'ORM / Database',p:'P0',r:'Singleton server-only de Prisma.',imports:'@prisma/client, persistence policy',used:'43 módulos aprox.',db:'todas las tablas accedidas',ext:'PostgreSQL',sec:'credential/boundary',symbols:'getPrismaClient'},
+      {path:'prisma/schema.prisma',type:'Schema / Database',p:'P0',r:'Fuente de verdad: 56 modelos, enums, relaciones e índices.',imports:'Prisma generator/datasource',used:'migrations/client/tests',db:'PostgreSQL',ext:'—',sec:'data model',symbols:'models/enums'},
+      {path:'infrastructure/postgres/bootstrap-storefront-roles.sql',type:'Infrastructure / Security',p:'P0',r:'Crea migrator/sync/runtime y grants/revokes exactos.',imports:'psql variables',used:'database bootstrap/runbook/tests',db:'roles + ACL',ext:'Supabase-managed PostgreSQL possible',sec:'least privilege',symbols:'GRANT, REVOKE, ALTER DEFAULT PRIVILEGES'},
+      {path:'Dockerfile',type:'Infrastructure',p:'P1',r:'Targets migrations, square-sync y Next standalone runner.',imports:'npm/build artifacts',used:'deployment/compose',db:'migration/sync connections',ext:'container runtime',sec:'non-root/read-only compatible',symbols:'multi-stage targets'},
+      {path:'infrastructure/production/compose.yml',type:'Infrastructure',p:'P0',r:'App, migrate, redes privadas, tmpfs y media volume.',imports:'images/env files',used:'VPS deployment',db:'runtime/migrator roles',ext:'Caddy/OrderPRO networks',sec:'drop caps/read-only/network isolation',symbols:'services, networks, volumes'},
+      {path:'scripts/sync-square-postgres-read-only.ts',type:'Script / Integration',p:'P1',r:'Sincroniza catálogo/inventario Square a proyección PG.',imports:'Square sync store/client',used:'square-sync image/systemd',db:'Square* + sync state',ext:'Square',sec:'read-only Square token + sync DB role',symbols:'main sync'},
+      {path:'src/lib/validation/env.ts',type:'Configuration / Validation',p:'P0',r:'Valida variables y feature flags server.',imports:'Zod/process env',used:'servicios server',db:'DATABASE_URL contract',ext:'all integration config',sec:'secret presence/flags',symbols:'env schema/getters'},
+      {path:'next.config.mjs',type:'Configuration / Security',p:'P1',r:'CSP/headers, redirects, Square image hosts y standalone.',imports:'old redirects JSON',used:'Next build/runtime',db:'—',ext:'Square/Mapbox CSP hosts',sec:'CSP/frame/connect headers',symbols:'nextConfig'},
+      {path:'src/config/admin-route-registry.ts',type:'Configuration',p:'P2',r:'Registry canónico de páginas admin, redirects y external ownership.',imports:'route metadata',used:'navigation/tests/config consumers',db:'—',ext:'OrderPRO links',sec:'permissions described separately',symbols:'adminRouteRegistry'},
+      {path:'src/tests',type:'Testing (grouped)',p:'P2',r:'175 archivos unit/integration/e2e/live agrupados.',imports:'Vitest/Playwright/app modules',used:'CI and local quality',db:'PG integration fixtures',ext:'live configs optional',sec:'contracts/ACL/auth tests',symbols:'test suites'}
+    ];
+
+    const folders = [
+      {path:'src/app',kind:'ENTRY · FRONTEND · API',count:'135 files',r:'App Router: layouts, 63 pages and 56 route handlers.',depends:'Next runtime; components, features and server modules.',files:['src/app/layout.tsx','src/app/api/checkout/route.ts','src/app/(admin)/admin/layout.tsx']},
+      {path:'src/components',kind:'UI · STATE',count:'111 files',r:'Reusable and composed UI for commerce, admin, checkout, fulfillment and returns.',depends:'Pages/templates; calls internal APIs. Some business workflow is mixed in large clients.',files:['src/components/checkout/checkout-client.tsx','src/components/returns/returns-portal.tsx','src/components/admin/product-placement-manager.tsx']},
+      {path:'src/features/catalog',kind:'DOMAIN · UI · SERVICE',count:'catalog domain',r:'Catalog facade, product shapes, merchandising and spreadsheet processing.',depends:'Storefront, checkout and admin. Highest fan-in module lives here.',files:['src/features/catalog/product-catalog.ts','src/features/catalog/services/website-merchandising-service.ts']},
+      {path:'src/features/homepage',kind:'DOMAIN · UI · CONFIG',count:'homepage domain',r:'Public templates, sections, themes and full admin studio.',depends:'Home page, CMS and admin. Contains the largest TSX file.',files:['src/features/homepage/components/homepage-template.tsx','src/features/homepage/components/admin/homepage-studio-editor.tsx']},
+      {path:'src/server/checkout',kind:'P0 · SERVICE · REPOSITORY',count:'checkout core',r:'Cart quote, attempt state, compatibility service and cleanup.',depends:'Checkout API, Square hosted checkout, webhook confirmation, OrderPRO and Prisma.',files:['src/server/checkout/cart-service.ts','src/server/checkout/checkout-attempt-repository.ts','src/server/checkout/shipping-checkout-cleanup.ts']},
+      {path:'src/server/square',kind:'INTEGRATION · READ MODEL',count:'Square domain',r:'Catalog/inventory sync, Square client, projection and webhook support.',depends:'Storefront, cart, checkout, admin and sync worker.',files:['src/server/square/website-catalog-store.ts']},
+      {path:'src/server/orderpro',kind:'INTEGRATION · AUTHORITY',count:'OrderPRO clients',r:'Versioned clients for fulfillment, shipping, returns, paid checkout and preview.',depends:'Fulfillment APIs, checkout, returns and workers.',files:['src/server/orderpro/client.ts','src/server/orderpro/storefront-fulfillment-client.ts','src/server/orderpro/shipping-order-client.ts','src/server/orderpro/paid-checkout-client.ts']},
+      {path:'src/server/admin',kind:'CONTROL PLANE · AUTH',count:'admin services',r:'Identity, RBAC, CMS, merchandising, customers, audit, media and settings.',depends:'Admin pages/APIs; Prisma and Resend/Operations adapters.',files:['src/server/admin/admin-security.ts','src/server/admin/admin-session.ts','src/server/admin/admin-rate-limit.ts','src/server/admin/identity/admin-database-login.ts']},
+      {path:'src/server/returns',kind:'DOMAIN · REPOSITORY · INTEGRATION',count:'returns domain',r:'Customer verification, RMA, evidence, lifecycle and Shippo labels.',depends:'Returns portal/APIs; OrderPRO, Shippo and Prisma.',files:['src/server/returns/return-service.ts','src/server/returns/return-repository.ts','src/server/returns/shippo-return-label.ts']},
+      {path:'src/server/webhooks',kind:'WEBHOOK · QUEUE · WORKER',count:'async core',r:'Durable inbox, lease/retry/dead-letter and provider dispatch.',depends:'Webhook ingress, internal worker, checkout confirmation and sync.',files:['src/server/webhooks/webhook-inbox.ts','src/server/webhooks/square-webhook-handler.ts']},
+      {path:'src/lib/cms',kind:'DOMAIN LIBRARY',count:'21 lib files total',r:'CMS documents, scopes, storage, versioning, registry, defaults and adapters.',depends:'Public renderers, homepage, config and admin. Barrel cycle present.',files:['src/lib/cms/index.ts','src/components/cms/page-renderer.tsx']},
+      {path:'prisma',kind:'DATABASE · MIGRATIONS',count:'56 models · 22 migrations',r:'PostgreSQL schema and forward migration history.',depends:'Prisma client, repositories, CI and deployment.',files:['prisma/schema.prisma']},
+      {path:'infrastructure',kind:'DEPLOYMENT · SECURITY',count:'19 files',r:'Caddy, Docker Compose, PostgreSQL roles, systemd timers and operations scripts.',depends:'VPS deployment, DB bootstrap and workers.',files:['infrastructure/production/compose.yml','infrastructure/postgres/bootstrap-storefront-roles.sql']},
+      {path:'scripts',kind:'CLI · OPERATIONS',count:'17 files',r:'Sync, audit, bootstrap, publish, rollback, import, reconcile and release.',depends:'Admin/catalog services and dedicated credentials.',files:['scripts/sync-square-postgres-read-only.ts']},
+      {path:'src/tests',kind:'TESTING',count:'175 files',r:'Unit, integration, E2E and live suites.',depends:'Vitest, Playwright, PostgreSQL service in CI.',files:['src/tests']},
+      {path:'public',kind:'ASSETS · DEV DATA · DOCUMENTATION',count:'public + data + docs grouped',r:'Static assets/uploads bootstrap; ignored local CMS/cache; runbooks and plans.',depends:'Next static serving, dev fallback and operator onboarding.',files:[]}
+    ];
+
+    const flows = [
+      {id:'checkout',name:'Checkout + payment',note:'P0 · El navegador nunca marca paid. Square webhook + re-read de payment/order son la evidencia autoritativa.',steps:[['ACTION','Confirmar compra','checkout-client.tsx'],['PAGE','/checkout','cart local + selections'],['API','POST /api/checkout','Zod + Idempotency-Key'],['VALIDATE','quoteCart','price · inventory · modes'],['DATABASE','CheckoutAttempt','snapshot + correlation'],['RESERVE','OrderPRO','shipping/capacity hold'],['PAYMENT','Square Payment Link','hosted-checkout.ts'],['WEBHOOK','durable inbox','payment.updated'],['RESULT','Confirm OrderPRO','evidence → COMPLETED']]},
+      {id:'catalog',name:'Square catalog sync',note:'P1 · Storefront no consulta Square por cada request: lee una proyección PostgreSQL combinada con merchandising publicado.',steps:[['TRIGGER','systemd 8m','square sync timer'],['WORKER','sync endpoint/CLI','internal bearer'],['EXTERNAL','Square SDK','catalog + inventory'],['VALIDATE','sync contracts','location/object shapes'],['DATABASE','Square* projection','upsert + sync state'],['CMS','published JSON','WEBSITE_MERCHANDISING'],['SERVICE','website catalog store','merge visibility'],['PAGE','storefront','server components'],['RESULT','Current catalog','fail closed if stale']]},
+      {id:'returns',name:'Customer return',note:'P0/P1 · La autoridad de elegibilidad/disposición vive en OrderPRO; el portal conserva sesión, RMA, evidencia y estado local correlacionado.',steps:[['ACTION','Enter order/contact','returns-portal'],['API','verification/start','origin + rate limit'],['EXTERNAL','OrderPRO verify','challenge'],['DATABASE','VerificationSession','opaque handle'],['API','quote/create','validated selection'],['SERVICE','return-service','policy + orchestration'],['DATABASE','ReturnRequest*','items + events'],['EXTERNAL','Shippo label','when required'],['RESULT','RMA/status','admin + customer view']]},
+      {id:'admin',name:'Admin sign-in',note:'P0 · DB identity agrega TOTP/recovery y sesiones opacas; legacy bootstrap sigue coexistiendo como modo temporal.',steps:[['ACTION','Login / activate','admin UI'],['EDGE','proxy gate','route protection'],['API','auth route','origin + limiter'],['VERIFY','scrypt + TOTP','or invitation/recovery'],['DATABASE','AdminUser/Session','only token hash'],['COOKIE','HttpOnly Secure Strict','opaque token'],['AUTHZ','RBAC','permission matrix'],['SCOPE','locations','AdminUserLocationScope'],['RESULT','Admin page/API','defense in depth']]},
+      {id:'cms',name:'Publish merchandising',note:'P1 · La fuente runtime es un documento JSON versionado en CmsContentVersion, no las tablas relacionales históricas de merchandising.',steps:[['ACTION','Edit placement','admin manager'],['API','admin merchandising','session + permission'],['VALIDATE','document schemas','catalog references'],['DATABASE','DRAFT version','CmsContentVersion'],['USE CASE','publication service','publish/rollback'],['DATABASE','PUBLISHED version','single resolved state'],['SERVICE','website catalog store','merge Square projection'],['PAGE','dynamic storefront','read published'],['RESULT','Visible catalog','versioned + auditable']]}
+    ];
+
+    const dbDomains = [
+      {name:'Square projection',p:'P1',models:['StoreLocation','SquareCatalogObject','SquareItemVariation','SquareInventoryCount','SquareCatalogSyncState'],rel:'CatalogObject 1→N variations; variation/location→inventory.',access:'Square sync writes; storefront/cart/admin read.',authority:'Square is external authority; PostgreSQL is read model.'},
+      {name:'CMS + media',p:'P1',models:['CmsContentVersion','MediaAsset','ProductImagePreference'],rel:'Version self-link for rollback; scope/entity/version indexes.',access:'Admin/stores/scripts write; storefront reads PUBLISHED.',authority:'PostgreSQL published version.'},
+      {name:'Checkout + capacity',p:'P0',models:['CheckoutAttempt','CapacityHold','SlotOccurrence'],rel:'Attempt correlates cart/payment/order/reservations; holds link occurrence/order.',access:'Checkout repository and workers.',authority:'Local state + Square payment + OrderPRO operations.'},
+      {name:'Webhook queue',p:'P0',models:['WebhookInboxEvent','WebhookEvent'],rel:'provider+eventId unique; status/lease/attempt indexes.',access:'Ingress writes; worker leases/updates; admin reads/requeues.',authority:'InboxEvent active; WebhookEvent likely legacy.'},
+      {name:'Admin identity',p:'P0',models:['AdminUser','AdminSession','AdminRecoveryCode','AdminUserInvitation','AdminUserLocationScope','AuditLog'],rel:'User→sessions/recovery/scopes/audit; authVersion invalidation.',access:'Identity services and admin APIs.',authority:'PostgreSQL; legacy mode is separate.'},
+      {name:'Customer identity',p:'P0',models:['CustomerAccount','CustomerLoginChallenge','CustomerSession','CustomerConsentEvent','CustomerNote','CustomerPrivacyRequest'],rel:'Account→sessions/consent/notes/privacy; challenge keyed by email.',access:'Account service and admin privacy/customers.',authority:'PostgreSQL + Resend delivery.'},
+      {name:'Returns',p:'P0',models:['ReturnVerificationSession','ReturnRequest','ReturnRequestItem','ReturnStatusEvent'],rel:'Verification→requests→items/events.',access:'Return repository/service and internal events.',authority:'OrderPRO operational; local portal projection/state.'},
+      {name:'Order mirror',p:'P1',models:['OrderMirror','OrderItemMirror','FulfillmentTask'],rel:'Order→items/tasks/holds.',access:'Admin/analytics read; local writer UNKNOWN.',authority:'Likely external sync — requires investigation.'},
+      {name:'Balloon workflow',p:'P1',models:['BalloonOrderDraft','BalloonDraftLine','BalloonQuote'],rel:'Draft→lines/quotes, location scoped.',access:'Balloon draft services under flags.',authority:'Transitional/local draft.'},
+      {name:'Merchandising relational',p:'P2',models:['Department','Holiday','WebsiteBrand','ProductOverride','WebsiteProductPlacement','ProductPlacementRule'],rel:'Assignments connect variations to dimensions/overrides.',access:'Little/no direct Prisma runtime access found.',authority:'Likely legacy/transition; CMS JSON dominates.'},
+      {name:'Fulfillment scaffold',p:'P2',models:['DeliveryZone','DeliveryZoneVersion','DeliveryRateRule','SlotTemplate','SlotHold','ShippingRateQuote'],rel:'Zone→versions→rules; template→holds/occurrences.',access:'No authoritative checkout use confirmed.',authority:'OrderPRO supersedes operational decision.'},
+      {name:'Browser cart scaffold',p:'P2',models:['Cart','CartItem'],rel:'Cart→items/attempts/holds in schema.',access:'No runtime access; browser uses localStorage.',authority:'Browser cart is active behavior.'}
+    ];
+
+    const integrations = [
+      {name:'Square',direction:'↔',auth:'Server token + HMAC webhook',modules:'server/square · checkout · webhooks',apis:'Catalog, Inventory, Orders, Payments, Payment Links',tables:'Square* · CheckoutAttempt · WebhookInboxEvent',failure:'Fail closed/stale checks; retries and compensation.',p:'P0'},
+      {name:'OrderPRO',direction:'→',auth:'Auth0 M2M / versioned private secret',modules:'server/orderpro · checkout · returns',apis:'local-delivery, capacity, shipping, paid-checkouts, returns',tables:'CheckoutAttempt · CapacityHold · Return* correlations',failure:'No link without reservation; release/worker retry.',p:'P0'},
+      {name:'Shippo',direction:'↔',auth:'Bearer REST + opaque webhook path',modules:'server/shipping · returns · webhook',apis:'shipments, rates, transactions',tables:'WebhookInboxEvent + return correlation',failure:'Normalized error; durable inbound; fail closed.',p:'P1'},
+      {name:'Resend',direction:'→',auth:'Bearer REST',modules:'customer identity · admin notifications',apis:'POST /emails',tables:'CustomerLoginChallenge · NotificationDeliveryEvent',failure:'No successful-delivery claim on provider failure.',p:'P1'},
+      {name:'PostgreSQL',direction:'↔',auth:'Distinct migrator/sync/runtime credentials',modules:'Prisma repositories · sync · migrations',apis:'PostgreSQL protocol via Prisma/psql',tables:'56 models',failure:'App fail/feature fail-closed; backup/restore operational.',p:'P0'},
+      {name:'Sentry',direction:'→',auth:'DSN/config environment',modules:'two internal worker routes',apis:'captureException',tables:'—',failure:'Business flow continues; global instrumentation not found.',p:'P2'},
+      {name:'Operations access',direction:'→',auth:'Bearer adapter contract',modules:'server/operations-access · admin identity',apis:'/access-assignments/sync|revoke',tables:'Admin identity/audit correlation',failure:'Adapter intentionally disabled until contract.',p:'P1'},
+      {name:'Filesystem media',direction:'↔',auth:'Admin RBAC at upload route',modules:'admin media · public/uploads',apis:'local filesystem / named Docker volume',tables:'MediaAsset',failure:'Upload/read error; no external object store fallback.',p:'P1'},
+      {name:'Mapbox',direction:'?',auth:'Environment token configured',modules:'dependency + CSP only',apis:'No runtime calls found',tables:'—',failure:'Not applicable until usage confirmed.',p:'P3'}
+    ];
+
+    const critical = [
+      {p:'P0',name:'Checkout orchestration',path:'src/app/api/checkout/route.ts',why:'Money, reservation and compensation boundary.'},
+      {p:'P0',name:'Payment evidence',path:'src/server/checkout/*payment-confirmation.ts',why:'Only safe transition from pending to paid/confirmed.'},
+      {p:'P0',name:'Webhook inbox + worker',path:'src/server/webhooks · api/internal/webhooks',why:'Durability, retry and eventual confirmation.'},
+      {p:'P0',name:'Admin identity + RBAC',path:'src/server/admin · src/proxy.ts',why:'Control-plane access and privileged mutations.'},
+      {p:'P0',name:'Database model + grants',path:'prisma/schema.prisma · infrastructure/postgres',why:'Data integrity and least privilege.'},
+      {p:'P0',name:'OrderPRO reservation clients',path:'src/server/orderpro',why:'Operational authority and capacity/shipping lifecycle.'},
+      {p:'P1',name:'Cart revalidation',path:'src/server/checkout/cart-service.ts',why:'Prevents trusting browser price/inventory/mode.'},
+      {p:'P1',name:'Square catalog projection',path:'src/server/square',why:'All product visibility and fresh inventory.'},
+      {p:'P1',name:'Returns workflow',path:'src/server/returns',why:'PII, RMA, evidence, labels and dispositions.'},
+      {p:'P1',name:'CMS publication',path:'website-merchandising-* · lib/cms',why:'Controls public catalog and content.'},
+      {p:'P1',name:'Deployment runtime',path:'Dockerfile · compose · Caddy · systemd',why:'Availability, isolation and workers.'},
+      {p:'P2',name:'Admin editors',path:'homepage-studio-editor · product-placement-manager',why:'High complexity; blast radius limited by RBAC/publication.'},
+      {p:'P2',name:'Config registries',path:'src/config',why:'Routes, fallback content and feature behavior.'},
+      {p:'P3',name:'Visual primitives/assets',path:'src/components/ui · public',why:'Mostly presentation; lower transactional impact.'}
+    ];
+
+    const byPath = new Map(files.map(f => [f.path,f]));
+    const escapeHtml = s => String(s ?? '').replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
+    const priority = p => `<span class="pill ${p.toLowerCase()}"><i class="dot"></i>${p}</span>`;
+
+    function switchView(id) {
+      document.querySelectorAll('.view').forEach(v => v.classList.toggle('active',v.id===id));
+      document.querySelectorAll('.nav button').forEach(b => b.classList.toggle('active',b.dataset.view===id));
+      location.hash = id;
+      window.scrollTo({top:0,behavior:'smooth'});
+    }
+    document.querySelectorAll('.nav button').forEach(b => b.addEventListener('click',()=>switchView(b.dataset.view)));
+
+    function showFile(path) {
+      const f = byPath.get(path) || {path,type:'Grouped / referenced component',p:'P2',r:'Elemento referenciado por el mapa. Consulta TECHNICAL_PROJECT_MAP.md para contexto ampliado.',imports:'See source',used:'See source/import graph',db:'Unknown at this granularity',ext:'—',sec:'Review by domain',symbols:'—'};
+      const localHref = '../' + f.path.replaceAll('\\','/');
+      document.getElementById('detailBody').innerHTML = `<div class="eyebrow">${escapeHtml(f.type)} · ${escapeHtml(f.p)}</div><h2>${escapeHtml(f.path)}</h2><p class="lead">${escapeHtml(f.r)}</p><a href="${escapeHtml(localHref)}">Abrir ruta relativa ↗</a><dl><dt>Responsibility</dt><dd>${escapeHtml(f.r)}</dd><dt>Imports / uses</dt><dd>${escapeHtml(f.imports)}</dd><dt>Used by</dt><dd>${escapeHtml(f.used)}</dd><dt>Database access</dt><dd>${escapeHtml(f.db)}</dd><dt>External</dt><dd>${escapeHtml(f.ext)}</dd><dt>Security</dt><dd>${escapeHtml(f.sec)}</dd><dt>Symbols</dt><dd>${escapeHtml(f.symbols)}</dd><dt>Evidence</dt><dd>HECHO salvo texto marcado UNKNOWN/indirecto. Ver código fuente y mapa escrito.</dd></dl>`;
+      document.getElementById('detail').classList.add('open');
+    }
+    document.addEventListener('click',e=>{ const el=e.target.closest('[data-file]'); if(el) showFile(el.dataset.file); });
+    document.getElementById('detailClose').addEventListener('click',()=>document.getElementById('detail').classList.remove('open'));
+    document.addEventListener('keydown',e=>{ if(e.key==='Escape') document.getElementById('detail').classList.remove('open'); });
+
+    function renderFolders() {
+      document.getElementById('folderTree').innerHTML = folders.map((f,i)=>`<details class="tree" ${i<2?'open':''}><summary><span class="mono">${escapeHtml(f.path)}/</span><span class="tag">${escapeHtml(f.kind)}</span><span class="folder-meta">${escapeHtml(f.count)}</span></summary><div class="tree-body"><strong>Responsibility.</strong> ${escapeHtml(f.r)}<br><strong>Depends / used by.</strong> ${escapeHtml(f.depends)}<div class="tree-files">${f.files.map(p=>`<button class="file-link" data-file="${escapeHtml(p)}">${escapeHtml(p)}</button>`).join('') || '<span class="tag">homogeneous files grouped</span>'}</div></div></details>`).join('');
+    }
+
+    function renderFiles() {
+      const q=document.getElementById('fileSearch').value.toLowerCase();
+      const type=document.getElementById('typeFilter').value;
+      const p=document.getElementById('priorityFilter').value;
+      const filtered=files.filter(f=>(!q || Object.values(f).join(' ').toLowerCase().includes(q)) && (!type || f.type===type) && (!p || f.p===p));
+      document.getElementById('fileRows').innerHTML = filtered.length ? filtered.map(f=>`<tr data-file="${escapeHtml(f.path)}"><td class="path">${escapeHtml(f.path)}</td><td>${escapeHtml(f.type)}</td><td>${escapeHtml(f.r)}</td><td>${priority(f.p)}</td><td>${escapeHtml([f.db,f.ext].filter(x=>x&&x!=='—').join(' · ')||'—')}</td></tr>`).join('') : '<tr><td colspan="5" class="empty">Sin resultados para estos filtros.</td></tr>';
+    }
+    [...new Set(files.map(f=>f.type))].sort().forEach(t=>document.getElementById('typeFilter').insertAdjacentHTML('beforeend',`<option>${escapeHtml(t)}</option>`));
+    ['fileSearch','typeFilter','priorityFilter'].forEach(id=>document.getElementById(id).addEventListener('input',renderFiles));
+
+    function renderFlow(id='checkout') {
+      const f=flows.find(x=>x.id===id) || flows[0];
+      document.getElementById('flowTabs').innerHTML=flows.map(x=>`<button class="${x.id===f.id?'active':''}" data-flow="${x.id}">${escapeHtml(x.name)}</button>`).join('');
+      document.getElementById('flowLine').innerHTML=f.steps.map((s,i)=>`<div class="node flow-step"><b>${String(i+1).padStart(2,'0')} · ${escapeHtml(s[0])}</b><strong>${escapeHtml(s[1])}</strong><small>${escapeHtml(s[2])}</small></div>`).join('');
+      document.getElementById('flowNote').textContent=f.note;
+      document.querySelectorAll('[data-flow]').forEach(b=>b.addEventListener('click',()=>renderFlow(b.dataset.flow)));
+    }
+
+    function showDb(d) {
+      document.getElementById('detailBody').innerHTML=`<div class="eyebrow">Database domain · ${escapeHtml(d.p)}</div><h2>${escapeHtml(d.name)}</h2><p class="lead">${escapeHtml(d.authority)}</p><dl><dt>Models</dt><dd>${d.models.map(escapeHtml).join(' · ')}</dd><dt>Relationships</dt><dd>${escapeHtml(d.rel)}</dd><dt>Readers/writers</dt><dd>${escapeHtml(d.access)}</dd><dt>Authority</dt><dd>${escapeHtml(d.authority)}</dd><dt>Source</dt><dd>prisma/schema.prisma + static repository access map</dd></dl>`;
+      document.getElementById('detail').classList.add('open');
+    }
+    function renderDb() {
+      const el=document.getElementById('dbGrid');
+      el.innerHTML=dbDomains.map((d,i)=>`<article class="card db-domain" data-db="${i}"><div class="eyebrow">${d.p} · ${escapeHtml(d.name)}</div><div class="models">${d.models.map(m=>`<span class="model">${escapeHtml(m)}</span>`).join('')}</div><p style="margin-top:12px">${escapeHtml(d.authority)}</p></article>`).join('');
+      el.querySelectorAll('[data-db]').forEach(x=>x.addEventListener('click',()=>showDb(dbDomains[+x.dataset.db])));
+    }
+    function renderIntegrations() {
+      document.getElementById('integrationGrid').innerHTML=integrations.map(i=>`<article class="card integration"><div class="eyebrow">${escapeHtml(i.direction)} · ${escapeHtml(i.p)}</div><h3>${escapeHtml(i.name)}</h3><dl class="kv"><dt>Auth</dt><dd>${escapeHtml(i.auth)}</dd><dt>Modules</dt><dd>${escapeHtml(i.modules)}</dd><dt>APIs</dt><dd>${escapeHtml(i.apis)}</dd><dt>Persistence</dt><dd>${escapeHtml(i.tables)}</dd><dt>On failure</dt><dd>${escapeHtml(i.failure)}</dd></dl></article>`).join('');
+    }
+    function renderCritical() {
+      document.getElementById('criticalGrid').innerHTML=critical.map(c=>`<article class="card risk-card" data-p="${c.p}">${priority(c.p)}<h3 style="margin-top:12px">${escapeHtml(c.name)}</h3><div class="path">${escapeHtml(c.path)}</div><p style="margin-top:9px">${escapeHtml(c.why)}</p></article>`).join('');
+    }
+
+    const gs=document.getElementById('globalSearch'), results=document.getElementById('searchResults');
+    const searchIndex=[...files.map(f=>({kind:'FILE',label:f.path,sub:`${f.type} · ${f.symbols}`,action:()=>{switchView('files');showFile(f.path)}})),...folders.map(f=>({kind:'FOLDER',label:f.path,sub:f.r,action:()=>switchView('folders')})),...integrations.map(i=>({kind:'INTEGRATION',label:i.name,sub:i.modules,action:()=>switchView('integrations')})),...flows.map(f=>({kind:'FLOW',label:f.name,sub:f.note,action:()=>{switchView('flows');renderFlow(f.id)}}))];
+    gs.addEventListener('input',()=>{
+      const q=gs.value.trim().toLowerCase(); if(!q){results.style.display='none';return;}
+      const hits=searchIndex.filter(x=>(x.label+' '+x.sub+' '+x.kind).toLowerCase().includes(q)).slice(0,12);
+      results.innerHTML=hits.length?hits.map((x,i)=>`<button class="search-hit" data-hit="${i}"><span class="eyebrow">${x.kind}</span> ${escapeHtml(x.label)}<small>${escapeHtml(x.sub)}</small></button>`).join(''):'<div class="empty">No encontrado.</div>';
+      results.style.display='block';
+      results.querySelectorAll('[data-hit]').forEach(b=>b.addEventListener('click',()=>{hits[+b.dataset.hit].action();results.style.display='none';gs.value='';}));
+    });
+    document.addEventListener('click',e=>{if(!e.target.closest('.global-search')) results.style.display='none';});
+
+    renderFolders(); renderFiles(); renderFlow(); renderDb(); renderIntegrations(); renderCritical();
+    const initial=location.hash.slice(1); if(document.getElementById(initial)?.classList.contains('view')) switchView(initial);
+  </script>
+</body>
+</html>

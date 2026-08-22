@@ -34,6 +34,8 @@ describe("checkout attempt repository", () => {
 
     expect(first.replayed).toBe(false);
     expect(replay).toMatchObject({ attemptId: first.attemptId, replayed: true });
+    await expect(repository.findValidation({ idempotencyKey: "checkout-key-1", requestHash: "hash-1" }))
+      .resolves.toMatchObject({ attemptId: first.attemptId, replayed: true });
     await expect(repository.recordValidation({
       idempotencyKey: "checkout-key-1",
       requestHash: "different-hash",
@@ -61,18 +63,48 @@ describe("checkout attempt repository", () => {
     const bound = await repository.recordHostedCheckout({
       attemptId: attempt.attemptId,
       squareOrderId: "square-order-1",
-      squarePaymentLinkId: "square-link-1"
+      squarePaymentLinkId: "square-link-1",
+      checkoutUrl: "https://square.link/u/shipping-1"
     });
 
     expect(bound).toMatchObject({
       orderproShippingOrderId: orderproId,
       squareOrderId: "square-order-1",
-      squarePaymentLinkId: "square-link-1"
+      squarePaymentLinkId: "square-link-1",
+      checkoutUrl: "https://square.link/u/shipping-1"
     });
     await expect(repository.recordHostedCheckout({
       attemptId: attempt.attemptId,
       squareOrderId: "different-square-order",
-      squarePaymentLinkId: "square-link-1"
+      squarePaymentLinkId: "square-link-1",
+      checkoutUrl: "https://square.link/u/shipping-1"
     })).rejects.toBeInstanceOf(CheckoutIdempotencyConflictError);
+  });
+
+  it("lists and expires an abandoned split checkout without losing active correlations early", async () => {
+    const repository = new InMemoryCheckoutAttemptRepository();
+    const quote = quoteCart({ items: [{ squareVariationId: "seed-toy-building-set", quantity: 1 }] });
+    const attempt = await repository.recordValidation({
+      idempotencyKey: "split-checkout-key-1",
+      requestHash: "split-hash-1",
+      quote,
+      errors: []
+    });
+    await repository.recordSplitCheckoutContext({
+      attemptId: attempt.attemptId,
+      context: { schemaVersion: "storefront.split-checkout.v2", groups: [{ id: "regular" }] }
+    });
+    await repository.recordSplitHostedCheckout({
+      attemptId: attempt.attemptId,
+      squareOrderId: "square-order-split-1",
+      squarePaymentLinkId: "square-link-split-1",
+      checkoutUrl: "https://square.link/u/split-1"
+    });
+
+    await expect(repository.listExpiredSplitCheckouts({ now: new Date() })).resolves.toEqual([]);
+    await expect(repository.listExpiredSplitCheckouts({ now: new Date(Date.now() + 16 * 60_000) }))
+      .resolves.toEqual([expect.objectContaining({ attemptId: attempt.attemptId })]);
+    await repository.markSplitCheckoutExpired(attempt.attemptId);
+    await expect(repository.findSplitCheckout(attempt.attemptId)).resolves.toBeNull();
   });
 });

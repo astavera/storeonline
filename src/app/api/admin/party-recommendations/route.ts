@@ -9,7 +9,7 @@ import {
   recommendPartyProduct
 } from "@/features/catalog/services/party-merchandising-service";
 import { websiteCategoryKindIds, type WebsiteCategory } from "@/features/catalog/services/website-merchandising-service";
-import { adminAuthorizationResponse, adminCapabilities, authorizeAdminRequest } from "@/server/admin/admin-security";
+import { adminAuthorizationResponse, authorizeAdminRequest } from "@/server/admin/admin-security";
 import { readPartyRecommendationCandidates } from "@/server/admin/party-merchandising-recommendation-store";
 import { storefrontAdminPreviewRouteResponse } from "@/server/storefront/admin-preview-response";
 
@@ -40,7 +40,7 @@ export async function POST(request: NextRequest) {
   const previewResponse = storefrontAdminPreviewRouteResponse(request);
   if (previewResponse) return previewResponse;
 
-  const authorization = await authorizeAdminRequest(request, adminCapabilities.read);
+  const authorization = await authorizeAdminRequest(request, "catalog:read");
   if (!authorization.ok) return adminAuthorizationResponse(authorization);
 
   try {

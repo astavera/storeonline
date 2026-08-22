@@ -3,7 +3,6 @@
  */
 
 import { BalloonsPageTemplate } from "@/components/templates/balloons-page-template";
-import { isOrderProDeliveryTestMode } from "@/server/orderpro/orderpro-local-delivery-service";
 
 export const metadata = {
   title: "Balloons",
@@ -20,7 +19,6 @@ export default async function BalloonsPage({ searchParams }: BalloonsPageProps) 
   return (
     <BalloonsPageTemplate
       initialCollection={collection}
-      orderProDeliveryTestMode={isOrderProDeliveryTestMode()}
     />
   );
 }

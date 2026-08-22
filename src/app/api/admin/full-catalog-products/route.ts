@@ -7,7 +7,10 @@ import { z, ZodError } from "zod";
 import { productAgeGroupIds } from "@/features/catalog/product-catalog";
 import { partyAssignmentIssues } from "@/features/catalog/services/party-merchandising-service";
 import type { WebsiteProductPlacement } from "@/features/catalog/services/website-merchandising-service";
-import { websitePlacementReadinessIssues, websiteSurfaceIds } from "@/features/catalog/services/website-merchandising-service";
+import {
+  websiteProductReadinessIssues,
+  websiteSurfaceIds
+} from "@/features/catalog/services/website-merchandising-service";
 import {
   applyBulkWebsiteMerchandisingToVariationIds,
   readWebsiteMerchandisingSnapshot,
@@ -19,7 +22,7 @@ import {
   readPostgresAdminVariationSelection,
   type PostgresCatalogImageFilter
 } from "@/server/square/postgres-admin-catalog-store";
-import { adminAuthorizationResponse, adminCapabilities, authorizeAdminRequest } from "@/server/admin/admin-security";
+import { adminAuthorizationResponse, authorizeAdminRequest } from "@/server/admin/admin-security";
 import { storefrontAdminPreviewRouteResponse } from "@/server/storefront/admin-preview-response";
 
 export const dynamic = "force-dynamic";
@@ -71,7 +74,7 @@ export async function GET(request: NextRequest) {
   const previewResponse = storefrontAdminPreviewRouteResponse(request);
   if (previewResponse) return previewResponse;
 
-  const authorization = await authorizeAdminRequest(request, adminCapabilities.read);
+  const authorization = await authorizeAdminRequest(request, "catalog:read");
   if (!authorization.ok) return adminAuthorizationResponse(authorization);
 
   const page = readPositiveInteger(request.nextUrl.searchParams.get("page"));
@@ -124,11 +127,17 @@ export async function GET(request: NextRequest) {
     ...pageData,
     websiteCategoryId,
     websiteSurfaceId,
-    records: products.map((product, index) => ({
-      product,
-      placement: placementByVariationId.get(product.squareVariationId) ?? createPendingPlacement(product.squareVariationId, (catalogPage.page - 1) * catalogPage.pageSize + index),
-      saved: placementByVariationId.has(product.squareVariationId)
-    }))
+    records: products.map((product, index) => {
+      const placement = placementByVariationId.get(product.squareVariationId)
+        ?? createPendingPlacement(product.squareVariationId, (catalogPage.page - 1) * catalogPage.pageSize + index);
+
+      return {
+        product,
+        placement,
+        saved: placementByVariationId.has(product.squareVariationId),
+        readinessIssues: websiteProductReadinessIssues(product, placement, config.categories, config.holidays)
+      };
+    })
   }, { headers: { "Cache-Control": "private, no-store" } });
 }
 
@@ -136,7 +145,7 @@ export async function POST(request: NextRequest) {
   const previewResponse = storefrontAdminPreviewRouteResponse(request);
   if (previewResponse) return previewResponse;
 
-  const authorization = await authorizeAdminRequest(request, adminCapabilities.merchandisingWrite);
+  const authorization = await authorizeAdminRequest(request, "catalog:merchandise");
   if (!authorization.ok) return adminAuthorizationResponse(authorization);
 
   try {
@@ -180,9 +189,24 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ ok: false, error: assignmentIssues[0] }, { status: 400 });
     }
 
+    const requestedPlacement = body.placement as WebsiteProductPlacement;
+    const requestedReadinessIssues = websiteProductReadinessIssues(
+      matchedProducts[0],
+      requestedPlacement,
+      configBeforeSave.categories,
+      configBeforeSave.holidays
+    );
+    if (requestedPlacement.visible && requestedReadinessIssues.length > 0) {
+      return NextResponse.json({
+        ok: false,
+        error: requestedReadinessIssues[0],
+        issues: requestedReadinessIssues.map((message) => ({ message }))
+      }, { status: 400 });
+    }
+
     const result = await saveWebsiteProductPlacement(body.placement);
     const config = await readWebsiteMerchandisingSnapshot();
-    const issues = websitePlacementReadinessIssues(result.placement, config.categories, config.holidays);
+    const issues = websiteProductReadinessIssues(matchedProducts[0], result.placement, config.categories, config.holidays);
 
     return NextResponse.json({ ok: true, ...result, issues });
   } catch (error) {

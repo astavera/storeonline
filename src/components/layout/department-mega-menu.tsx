@@ -7,6 +7,11 @@ import Link from "next/link";
 import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import type { HeaderNavigationLink } from "@/config/header-navigation.config";
 
+const MAX_DROPDOWN_ROWS = 6;
+const MAIN_COLUMN_WIDTH = 224;
+const SIMPLE_COLUMN_WIDTH = 192;
+const GROUP_DIVIDER_WIDTH = 1;
+
 export type DepartmentMenuItem = {
   href: string;
   label: string;
@@ -26,7 +31,15 @@ export type DepartmentMenuContent = {
   shopAllLabel: string;
 };
 
-export function DepartmentMegaMenu({ link, menu }: { link: HeaderNavigationLink; menu: DepartmentMenuContent }) {
+export function DepartmentMegaMenu({
+  hoverClassName = "hover:text-yellow",
+  link,
+  menu
+}: {
+  hoverClassName?: string;
+  link: HeaderNavigationLink;
+  menu: DepartmentMenuContent;
+}) {
   const [open, setOpen] = useState(false);
   const [activeGroupIndex, setActiveGroupIndex] = useState<number | null>(null);
   const [menuLeft, setMenuLeft] = useState(0);
@@ -34,6 +47,16 @@ export function DepartmentMegaMenu({ link, menu }: { link: HeaderNavigationLink;
   const menuId = useId();
   const rootRef = useRef<HTMLDivElement>(null);
   const grouped = Boolean(menu.groups?.length);
+  const mainEntryCount = (menu.items?.length ?? 0) + (menu.groups?.length ?? 0) + 1;
+  const mainColumnCount = Math.max(1, Math.ceil(mainEntryCount / MAX_DROPDOWN_ROWS));
+  const submenuColumnCount = grouped
+    ? Math.max(1, ...(menu.groups ?? []).map((group) =>
+        Math.ceil((group.items.length + (group.href ? 1 : 0)) / MAX_DROPDOWN_ROWS)
+      ))
+    : 0;
+  const preferredMenuWidth = grouped
+    ? (mainColumnCount * MAIN_COLUMN_WIDTH) + (submenuColumnCount * SIMPLE_COLUMN_WIDTH) + 12 + GROUP_DIVIDER_WIDTH
+    : mainColumnCount * SIMPLE_COLUMN_WIDTH;
 
   useLayoutEffect(() => {
     if (!open) return;
@@ -45,7 +68,7 @@ export function DepartmentMegaMenu({ link, menu }: { link: HeaderNavigationLink;
 
       if (triggerBounds) {
         const pagePadding = 16;
-        const menuWidth = grouped ? Math.min(544, window.innerWidth - pagePadding * 2) : 192;
+        const menuWidth = Math.min(preferredMenuWidth, window.innerWidth - pagePadding * 2);
         const alignedLeft = triggerBounds.left - 8;
         setMenuLeft(Math.min(window.innerWidth - menuWidth - pagePadding, Math.max(pagePadding, alignedLeft)));
       }
@@ -58,7 +81,7 @@ export function DepartmentMegaMenu({ link, menu }: { link: HeaderNavigationLink;
       window.removeEventListener("resize", updateMenuPosition);
       window.removeEventListener("scroll", updateMenuPosition, true);
     };
-  }, [grouped, open]);
+  }, [open, preferredMenuWidth]);
 
   useEffect(() => {
     if (!open) return;
@@ -90,7 +113,7 @@ export function DepartmentMegaMenu({ link, menu }: { link: HeaderNavigationLink;
       <button
         aria-controls={menuId}
         aria-expanded={open}
-        className="flex min-h-10 items-center gap-1 rounded-md px-1 font-bold transition hover:text-yellow focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue"
+        className={`flex min-h-10 items-center gap-1 rounded-md px-1 font-bold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue ${hoverClassName}`}
         data-header-nav-id={link.id}
         onClick={() => setOpen((current) => !current)}
         type="button"
@@ -109,15 +132,25 @@ export function DepartmentMegaMenu({ link, menu }: { link: HeaderNavigationLink;
         >
           <div className="py-2">
             <div
-              className={grouped ? "flex w-[min(34rem,calc(100vw-2rem))]" : "w-48 overflow-hidden"}
-              style={{ marginLeft: menuLeft }}
+              className="max-w-[calc(100vw-2rem)] overflow-x-auto overflow-y-hidden"
+              style={{ marginLeft: menuLeft, width: preferredMenuWidth }}
             >
               {grouped ? (
-                <>
-                  <div className="w-56 shrink-0 border-r border-slate-200 py-1">
-                    <Link className="flex min-h-9 items-center px-3 py-1.5 text-sm font-black text-blue transition hover:bg-slate-50 hover:text-navy" href={menu.shopAllHref} onClick={() => setOpen(false)}>
-                      {menu.shopAllLabel}
-                    </Link>
+                <div className="flex w-max min-w-full">
+                  <div
+                    className="grid shrink-0 grid-flow-col border-r border-slate-200 py-1"
+                    data-dropdown-grid="main"
+                    data-max-rows={MAX_DROPDOWN_ROWS}
+                    style={{
+                      gridAutoColumns: `${MAIN_COLUMN_WIDTH}px`,
+                      gridTemplateRows: `repeat(${MAX_DROPDOWN_ROWS}, auto)`
+                    }}
+                  >
+                    {menu.items?.map((item) => (
+                      <Link className="flex min-h-9 items-center px-3 py-1.5 text-sm font-bold text-primary transition hover:bg-slate-50 hover:text-blue" href={item.href} key={item.href} onClick={() => setOpen(false)}>
+                        {item.label}
+                      </Link>
+                    ))}
                     {menu.groups?.map((group, index) => {
                       const active = activeGroupIndex === index;
 
@@ -136,34 +169,55 @@ export function DepartmentMegaMenu({ link, menu }: { link: HeaderNavigationLink;
                         </button>
                       );
                     })}
+                    <Link className="flex min-h-9 items-center px-3 py-1.5 text-sm font-black text-blue transition hover:bg-slate-50 hover:text-navy" href={menu.shopAllHref} onClick={() => setOpen(false)}>
+                      {menu.shopAllLabel}
+                    </Link>
                   </div>
 
                   {activeGroupIndex !== null && menu.groups?.[activeGroupIndex] ? (
                     <section className="min-w-0 flex-1 py-1 pl-3" aria-label={`${menu.groups[activeGroupIndex].label} categories`}>
-                      {menu.groups[activeGroupIndex].href ? (
-                        <Link className="flex min-h-9 items-center px-3 py-1.5 text-sm font-black text-blue transition hover:bg-slate-50 hover:text-navy" href={menu.groups[activeGroupIndex].href} onClick={() => setOpen(false)}>
-                          Shop All {menu.groups[activeGroupIndex].label}
-                        </Link>
-                      ) : null}
-                      {menu.groups[activeGroupIndex].items.map((item) => (
-                        <Link className="flex min-h-8 items-center px-3 py-1 text-sm font-semibold text-primary transition hover:bg-slate-50 hover:text-blue" href={item.href} key={item.href} onClick={() => setOpen(false)}>
-                          {item.label}
-                        </Link>
-                      ))}
+                      <div
+                        className="grid w-max grid-flow-col"
+                        data-dropdown-grid="submenu"
+                        data-max-rows={MAX_DROPDOWN_ROWS}
+                        style={{
+                          gridAutoColumns: `${SIMPLE_COLUMN_WIDTH}px`,
+                          gridTemplateRows: `repeat(${MAX_DROPDOWN_ROWS}, auto)`
+                        }}
+                      >
+                        {menu.groups[activeGroupIndex].items.map((item) => (
+                          <Link className="flex min-h-8 items-center px-3 py-1 text-sm font-semibold text-primary transition hover:bg-slate-50 hover:text-blue" href={item.href} key={item.href} onClick={() => setOpen(false)}>
+                            {item.label}
+                          </Link>
+                        ))}
+                        {menu.groups[activeGroupIndex].href ? (
+                          <Link className="flex min-h-9 items-center px-3 py-1.5 text-sm font-black text-blue transition hover:bg-slate-50 hover:text-navy" href={menu.groups[activeGroupIndex].href} onClick={() => setOpen(false)}>
+                            Shop All {menu.groups[activeGroupIndex].label}
+                          </Link>
+                        ) : null}
+                      </div>
                     </section>
                   ) : null}
-                </>
+                </div>
               ) : (
-                <>
-                  <Link className="flex min-h-9 items-center px-3 py-1.5 text-sm font-black text-blue transition hover:bg-slate-50 hover:text-navy" href={menu.shopAllHref} onClick={() => setOpen(false)}>
-                    {menu.shopAllLabel}
-                  </Link>
+                <div
+                  className="grid grid-flow-col"
+                  data-dropdown-grid="main"
+                  data-max-rows={MAX_DROPDOWN_ROWS}
+                  style={{
+                    gridAutoColumns: `${SIMPLE_COLUMN_WIDTH}px`,
+                    gridTemplateRows: `repeat(${MAX_DROPDOWN_ROWS}, auto)`
+                  }}
+                >
                   {menu.items?.map((item) => (
                     <Link className="flex min-h-9 items-center px-3 py-1.5 text-sm font-bold text-primary transition hover:bg-slate-50 hover:text-blue" href={item.href} key={item.href} onClick={() => setOpen(false)}>
                       {item.label}
                     </Link>
                   ))}
-                </>
+                  <Link className="flex min-h-9 items-center px-3 py-1.5 text-sm font-black text-blue transition hover:bg-slate-50 hover:text-navy" href={menu.shopAllHref} onClick={() => setOpen(false)}>
+                    {menu.shopAllLabel}
+                  </Link>
+                </div>
               )}
             </div>
           </div>

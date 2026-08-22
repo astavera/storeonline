@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 export type StoredCartItem = {
   squareVariationId: string;
   quantity: number;
+  source?: "storefront" | "balloons";
 };
 
 const cartStorageKey = "modern-state-cart";
@@ -44,7 +45,7 @@ export function AddToCartButton({
     if (existingItem) {
       existingItem.quantity = nextQuantity;
     } else {
-      items.push({ squareVariationId, quantity: nextQuantity });
+      items.push({ squareVariationId, quantity: nextQuantity, source: "storefront" });
     }
 
     writeCartItems(items);
@@ -67,7 +68,7 @@ export function AddToCartButton({
 
     if (nextQuantity > 0) {
       if (existingItem) existingItem.quantity = nextQuantity;
-      else nextItems.push({ squareVariationId, quantity: nextQuantity });
+      else nextItems.push({ squareVariationId, quantity: nextQuantity, source: "storefront" });
     }
 
     writeCartItems(nextItems);
@@ -136,7 +137,8 @@ export function readCartItems(): StoredCartItem[] {
     const normalizedItems = parsed
       .map((item) => ({
         squareVariationId: String(item.squareVariationId ?? ""),
-        quantity: Number(item.quantity)
+        quantity: Number(item.quantity),
+        ...(item.source === "balloons" || item.source === "storefront" ? { source: item.source } : {})
       }))
       .filter((item) => item.squareVariationId && Number.isInteger(item.quantity) && item.quantity > 0 && item.quantity <= 99);
     const cartItems = process.env.NODE_ENV === "production"

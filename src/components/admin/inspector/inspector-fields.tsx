@@ -16,13 +16,13 @@ export function InspectorField({ children, label }: { children: ReactNode; label
 }
 
 export function InspectorInput(props: InputHTMLAttributes<HTMLInputElement>) {
-  return <input className="min-h-10 rounded-md border border-border bg-surface px-3 py-2 text-sm font-normal outline-none focus:border-primary" {...props} />;
+  return <input className="admin-form-control admin-form-control--compact min-h-10 rounded-md border border-border bg-surface px-3 py-2 text-sm font-normal outline-none focus:border-primary" {...props} />;
 }
 
 export function InspectorTextarea(props: TextareaHTMLAttributes<HTMLTextAreaElement>) {
-  return <textarea className="min-h-24 rounded-md border border-border bg-surface px-3 py-2 text-sm font-normal outline-none focus:border-primary" {...props} />;
+  return <textarea className="admin-form-control admin-form-control--compact min-h-24 rounded-md border border-border bg-surface px-3 py-2 text-sm font-normal outline-none focus:border-primary" {...props} />;
 }
 
 export function InspectorSelect(props: SelectHTMLAttributes<HTMLSelectElement>) {
-  return <select className="min-h-10 rounded-md border border-border bg-surface px-3 py-2 text-sm font-normal outline-none focus:border-primary" {...props} />;
+  return <select className="admin-form-control admin-form-control--compact admin-native-select min-h-10 rounded-md border border-border bg-surface px-3 py-2 text-sm font-normal outline-none focus:border-primary" {...props} />;
 }

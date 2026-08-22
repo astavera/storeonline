@@ -86,7 +86,7 @@ npm ci
 npm run prisma:migrate:deploy
 npm run audit:constraints
 npm run bootstrap:locations
-npm run bootstrap:locations -- --apply --confirm modern-state-store-locations-v1
+npm run bootstrap:locations -- --apply --confirm modern-state-store-locations-v2
 ```
 
 The migration job uses `storefront_migrator`; Hostinger never runs migrations.

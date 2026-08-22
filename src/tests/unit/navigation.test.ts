@@ -14,7 +14,7 @@ describe("navigation", () => {
       "/balloons",
       "/toys",
       "/party-supplies",
-      "/holidays",
+      "/holidays/halloween",
       "/about"
     ]);
   });
@@ -36,7 +36,7 @@ describe("navigation", () => {
     const aboutLinks = normalized.primary.filter(
       (link) => link.id === "about-us" || link.href === "/about"
     );
-    const holidaysIndex = normalized.primary.findIndex((link) => link.href === "/holidays");
+    const holidaysIndex = normalized.primary.findIndex((link) => link.href === "/holidays/halloween");
 
     expect(aboutLinks).toEqual([
       {

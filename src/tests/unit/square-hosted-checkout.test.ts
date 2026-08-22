@@ -23,6 +23,16 @@ const quote: CartQuote = {
     inventoryTracked: true,
     availableQuantity: 5
   }],
+  checkoutGroups: [{
+    id: "regular",
+    label: "Store items",
+    lines: [],
+    itemCount: 2,
+    subtotalCents: 2598,
+    estimatedTaxCents: 231,
+    totalCents: 2829,
+    compatibleFulfillmentModes: ["pickup", "shipping"]
+  }],
   itemCount: 2,
   subtotalCents: 2598,
   estimatedTaxCents: 231,
@@ -195,5 +205,60 @@ describe("Square hosted checkout", () => {
       ...baseInput,
       fulfillmentMode: "local-delivery"
     })).toThrow(SquareCheckoutUnavailableError);
+  });
+
+  it("creates one Square order without an API fulfillment for a mixed checkout", () => {
+    const mixedQuote: CartQuote = {
+      ...quote,
+      lines: [
+        { ...quote.lines[0], checkoutGroup: "regular" },
+        { ...quote.lines[0], squareVariationId: "balloon-variation", department: "Balloons", checkoutGroup: "balloons", quantity: 1, lineTotalCents: 1299 }
+      ],
+      checkoutGroups: [
+        { ...quote.checkoutGroups[0], id: "regular", lines: [{ ...quote.lines[0], checkoutGroup: "regular" }] },
+        { ...quote.checkoutGroups[0], id: "balloons", label: "Balloons", itemCount: 1, subtotalCents: 1299, lines: [{ ...quote.lines[0], squareVariationId: "balloon-variation", department: "Balloons", checkoutGroup: "balloons", quantity: 1, lineTotalCents: 1299 }], compatibleFulfillmentModes: ["pickup"] }
+      ]
+    };
+    const request = buildSquarePaymentLinkRequest({
+      ...baseInput,
+      quote: mixedQuote,
+      fulfillmentGroups: [
+        { id: "regular", fulfillmentMode: "pickup" },
+        {
+          id: "balloons",
+          fulfillmentMode: "pickup",
+          pickup: {
+            timing: "SCHEDULED",
+            requestedDate: "2026-08-20",
+            slotId: "pickup-slot-1",
+            slotLabel: "4:00 PM–5:00 PM",
+            startsAt: "2026-08-20T16:00:00-04:00",
+            endsAt: "2026-08-20T17:00:00-04:00"
+          }
+        }
+      ]
+    });
+
+    expect(request.order?.fulfillments).toBeUndefined();
+    expect(request.order?.lineItems).toHaveLength(2);
+    expect(request.order?.metadata).toMatchObject({
+      checkout_version: "2",
+      fulfillment_model: "ORDERPRO_SPLIT",
+      fulfillment_mode: "split"
+    });
+  });
+
+  it("uses the OrderPRO paid-checkout pipeline for one explicit fulfillment group", () => {
+    const request = buildSquarePaymentLinkRequest({
+      ...baseInput,
+      fulfillmentGroups: [{ id: "regular", fulfillmentMode: "pickup" }]
+    });
+
+    expect(request.order?.metadata).toMatchObject({
+      checkout_version: "2",
+      fulfillment_model: "ORDERPRO_SPLIT",
+      fulfillment_mode: "split",
+      fulfillment_groups: "regular:pickup"
+    });
   });
 });

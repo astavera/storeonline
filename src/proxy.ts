@@ -4,21 +4,11 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { adminAuthorizationResponse, authorizeAdminRequest } from "@/server/admin/admin-security";
+import { adminPagePermission } from "@/config/admin-route-permissions";
 import { isStorefrontAdminPreviewRequestAllowed } from "@/server/storefront/admin-preview";
 import { isStorefrontDesignPreviewRequestAllowed } from "@/server/storefront/design-preview";
 
 export async function proxy(request: NextRequest) {
-  if (shouldShowMaintenancePage(request.nextUrl.pathname)) {
-    const maintenanceUrl = request.nextUrl.clone();
-    maintenanceUrl.pathname = "/maintenance.html";
-    maintenanceUrl.search = "";
-
-    const response = NextResponse.rewrite(maintenanceUrl);
-    response.headers.set("Cache-Control", "private, no-store");
-    response.headers.set("X-Robots-Tag", "noindex, nofollow, noarchive");
-    return response;
-  }
-
   try {
     if (!isStorefrontDesignPreviewRequestAllowed(request)) {
       return NextResponse.json(
@@ -50,7 +40,10 @@ export async function proxy(request: NextRequest) {
   if (!isAdminPath(request.nextUrl.pathname)) return NextResponse.next();
   if (isPublicAdminAuthPath(request.nextUrl.pathname)) return NextResponse.next();
 
-  const authorization = await authorizeAdminRequest(request);
+  const authorization = await authorizeAdminRequest(
+    request,
+    request.nextUrl.pathname.startsWith("/api/admin") ? undefined : adminPagePermission(request.nextUrl.pathname)
+  );
   if (authorization.ok) return NextResponse.next();
 
   if (request.nextUrl.pathname.startsWith("/api/admin")) {
@@ -65,16 +58,16 @@ export async function proxy(request: NextRequest) {
   return response;
 }
 
-function shouldShowMaintenancePage(pathname: string) {
-  if (process.env.STOREFRONT_MAINTENANCE_MODE?.trim().toLowerCase() !== "true") {
-    return false;
-  }
-
-  return !pathname.startsWith("/admin") && !pathname.startsWith("/api");
-}
-
 function isPublicAdminAuthPath(pathname: string) {
-  return pathname === "/admin/login" || pathname === "/api/admin/auth/login" || pathname === "/api/admin/auth/logout";
+  return pathname === "/admin/login"
+    || pathname === "/admin/activate"
+    || pathname === "/admin/forgot-password"
+    || pathname === "/admin/reset-password"
+    || pathname === "/api/admin/auth/login"
+    || pathname === "/api/admin/auth/activate"
+    || pathname === "/api/admin/auth/forgot-password"
+    || pathname === "/api/admin/auth/reset-password"
+    || pathname === "/api/admin/auth/logout";
 }
 
 function isAdminPath(pathname: string) {

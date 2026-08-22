@@ -142,7 +142,7 @@ export const homepageSections: HomepageSectionConfig[] = [
     sectionId: "home.departments",
     sectionType: "departments",
     title: "Shop by category",
-    body: "Explore toys, party supplies, balloons, arts and crafts, stationery, and gifts from your neighborhood store.",
+    body: "Explore toys, party supplies, and balloons from your neighborhood store.",
     variant: "department-grid",
     sortOrder: 20,
     isVisible: true,
@@ -154,10 +154,7 @@ export const homepageSections: HomepageSectionConfig[] = [
     items: [
       { id: "toys", title: "Toys", href: "/toys", image: "/images/category-toys.svg", imageAlt: "Toy blocks category artwork" },
       { id: "party", title: "Party", href: "/party-supplies", image: "/images/category-party.svg", imageAlt: "Party confetti category artwork" },
-      { id: "balloons", title: "Balloons", href: "/balloons", image: "/images/category-balloons.svg", imageAlt: "Balloon category artwork" },
-      { id: "arts", title: "Arts & crafts", href: "/arts-and-crafts", image: "/images/category-arts.svg", imageAlt: "Arts and crafts category artwork" },
-      { id: "stationery", title: "Stationery", href: "/stationery", image: "/images/category-stationery.svg", imageAlt: "Stationery category artwork" },
-      { id: "gifts", title: "Gifts", href: "/gifts", image: "/images/category-gifts.svg", imageAlt: "Gift category artwork" }
+      { id: "balloons", title: "Balloons", href: "/balloons", image: "/images/category-balloons.svg", imageAlt: "Balloon category artwork" }
     ]
   },
   {
@@ -217,7 +214,6 @@ export const homepageSections: HomepageSectionConfig[] = [
   {
     sectionId: "home.new-trending",
     sectionType: "product-grid",
-    eyebrow: "Just landed",
     title: "New & trending",
     body: "Fresh arrivals from a category you choose in the Website Editor.",
     ctaLabel: "Discover What's New",
@@ -230,7 +226,8 @@ export const homepageSections: HomepageSectionConfig[] = [
     contentWidth: "wide",
     verticalPadding: "compact",
     columns: 2,
-    categorySlug: ""
+    categorySlug: "",
+    hiddenElements: ["eyebrow"]
   },
   {
     sectionId: "home.party-supplies-callout",
@@ -347,9 +344,9 @@ export const homepageSections: HomepageSectionConfig[] = [
   {
     sectionId: "home.balloon-promo",
     sectionType: "promo",
-    title: "Plan your balloon order",
-    body: "Choose latex, mylar, numbers, or a ready-made bouquet, then select pickup or local delivery.",
-    ctaLabel: "Explore balloons",
+    title: "Looking for balloons?",
+    body: "Create a custom bouquet or choose a ready-made design.",
+    ctaLabel: "Start your order",
     ctaHref: "/balloons",
     variant: "balloon-promo",
     sortOrder: 40,

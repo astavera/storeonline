@@ -16,7 +16,7 @@ export async function generateMetadata(): Promise<Metadata> {
   const indexable = storefrontIsIndexable() && seo.indexable;
 
   return {
-    title: seo.title,
+    title: { absolute: seo.title },
     description: seo.description,
     alternates: {
       canonical: seo.canonicalUrl

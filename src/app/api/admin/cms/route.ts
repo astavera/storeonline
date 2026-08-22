@@ -3,6 +3,7 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
+import { revalidatePath } from "next/cache";
 import { cmsEntityTypes, type CmsEntityType } from "@/lib/cms";
 import {
   listCmsDocumentVersions,
@@ -11,7 +12,8 @@ import {
   type CmsDocumentOperation
 } from "@/server/admin/admin-cms-document-service";
 import { getAdminRateLimiter } from "@/server/admin/admin-rate-limit";
-import { adminAuthorizationResponse, adminCapabilities, authorizeAdminRequest } from "@/server/admin/admin-security";
+import { adminAuthorizationResponse, authorizeAdminRequest } from "@/server/admin/admin-security";
+import { canDeleteStorefrontPage, deleteStorefrontPage } from "@/server/admin/storefront-page-deletion-service";
 import { storefrontAdminPreviewRouteResponse } from "@/server/storefront/admin-preview-response";
 
 const allowedOperations = new Set<CmsDocumentOperation>(["save_draft", "preview", "publish"]);
@@ -20,7 +22,7 @@ export async function GET(request: NextRequest) {
   const previewResponse = storefrontAdminPreviewRouteResponse(request);
   if (previewResponse) return previewResponse;
 
-  const authorization = await authorizeAdminRequest(request, adminCapabilities.read);
+  const authorization = await authorizeAdminRequest(request, "storefront:read");
   if (!authorization.ok) return adminAuthorizationResponse(authorization);
 
   try {
@@ -44,7 +46,7 @@ export async function POST(request: NextRequest) {
   const previewResponse = storefrontAdminPreviewRouteResponse(request);
   if (previewResponse) return previewResponse;
 
-  const authorization = await authorizeAdminRequest(request, adminCapabilities.write);
+  const authorization = await authorizeAdminRequest(request, "storefront:write");
   if (!authorization.ok) return adminAuthorizationResponse(authorization);
 
   try {
@@ -115,6 +117,67 @@ export async function POST(request: NextRequest) {
         errors: [error instanceof Error ? error.message : "Invalid CMS request."]
       },
       { status: 400 }
+    );
+  }
+}
+
+export async function DELETE(request: NextRequest) {
+  const previewResponse = storefrontAdminPreviewRouteResponse(request);
+  if (previewResponse) return previewResponse;
+
+  const authorization = await authorizeAdminRequest(request, "storefront:write");
+  if (!authorization.ok) return adminAuthorizationResponse(authorization);
+
+  try {
+    const body = await request.json();
+    const entityType = String(body.entityType ?? "");
+    const entityId = String(body.entityId ?? "").trim();
+    const title = String(body.title ?? entityId).trim();
+
+    if (
+      !isCmsEntityType(entityType) ||
+      !entityId ||
+      entityId.length > 180 ||
+      !canDeleteStorefrontPage(entityType, entityId)
+    ) {
+      return NextResponse.json(
+        { ok: false, errors: ["This core or operational page cannot be deleted."] },
+        { status: 400 }
+      );
+    }
+
+    const rateLimit = await getAdminRateLimiter().consume({
+      key: `${authorization.session.subject}:${entityType}:${entityId}`,
+      scope: "admin-cms-delete",
+      limit: 3,
+      windowMs: 5 * 60_000
+    });
+
+    if (!rateLimit.allowed) {
+      return NextResponse.json(
+        {
+          ok: false,
+          errors: [`Too many delete attempts. Try again in ${rateLimit.retryAfterSeconds} seconds.`],
+          retryAfterSeconds: rateLimit.retryAfterSeconds
+        },
+        {
+          status: 429,
+          headers: { "Retry-After": String(rateLimit.retryAfterSeconds) }
+        }
+      );
+    }
+
+    const result = await deleteStorefrontPage({ entityType, entityId, title });
+    revalidatePath("/", "layout");
+    revalidatePath("/admin/homepage");
+    return NextResponse.json({ ok: true, ...result });
+  } catch (error) {
+    return NextResponse.json(
+      {
+        ok: false,
+        errors: [error instanceof Error ? error.message : "Could not delete this page."]
+      },
+      { status: 503 }
     );
   }
 }

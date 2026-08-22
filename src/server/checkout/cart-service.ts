@@ -10,6 +10,10 @@ import {
   type FulfillmentMode,
   type StorefrontProduct
 } from "@/features/catalog/product-catalog";
+import {
+  latexBalloonAddOnVariationIds,
+  latexBalloonOrderVariationIds
+} from "@/config/balloons.config";
 import { PersistenceUnavailableError } from "@/server/db/persistence-policy";
 import {
   readMappedOperationalStoreLocations,
@@ -17,11 +21,15 @@ import {
   type OperationalStoreLocation
 } from "@/server/square/postgres-catalog-store";
 import { readResolvedSquareWebsiteCatalog } from "@/server/square/website-catalog-store";
+import { readPublishedStoreAdministrationSettings } from "@/server/admin/store-administration-settings-service";
 
 export const cartItemInputSchema = z.object({
   squareVariationId: z.string().min(1),
-  quantity: z.number().int().positive().max(99)
+  quantity: z.number().int().positive().max(99),
+  source: z.enum(["storefront", "balloons"]).optional()
 });
+
+export type CheckoutGroupKind = "regular" | "balloons";
 
 export const cartQuoteInputSchema = z.object({
   items: z.array(cartItemInputSchema).max(50),
@@ -40,13 +48,27 @@ export type CartQuoteLine = {
   fulfillmentModes: FulfillmentMode[];
   inventoryTracked: boolean;
   availableQuantity: number | null;
+  checkoutGroup?: CheckoutGroupKind;
 };
 
-export type CartQuote = {
+export type CheckoutGroupQuote = {
+  id: CheckoutGroupKind;
+  label: string;
   lines: CartQuoteLine[];
   itemCount: number;
   subtotalCents: number;
   estimatedTaxCents: number;
+  totalCents: number;
+  compatibleFulfillmentModes: FulfillmentMode[];
+};
+
+export type CartQuote = {
+  lines: CartQuoteLine[];
+  checkoutGroups: CheckoutGroupQuote[];
+  itemCount: number;
+  subtotalCents: number;
+  estimatedTaxCents: number;
+  taxEstimateIncluded?: boolean;
   totalCents: number;
   compatibleFulfillmentModes: FulfillmentMode[];
   fulfillmentLabel: string;
@@ -61,9 +83,16 @@ export type CartQuote = {
 
 type CartQuoteMetadata = Pick<CartQuote, "catalogSource" | "inventoryAsOf" | "warnings"> & {
   location?: OperationalStoreLocation;
+  estimatedTaxRate?: number;
+  showTaxEstimate?: boolean;
 };
 
 const estimatedTaxRate = 0.08875;
+const configuredBalloonVariationIds = new Set<string>([
+  ...latexBalloonOrderVariationIds,
+  latexBalloonAddOnVariationIds.hiFloat,
+  ...latexBalloonAddOnVariationIds.weights
+]);
 
 export function calculateCartQuantity(items: Array<z.infer<typeof cartItemInputSchema>>) {
   return items.reduce((total, item) => total + item.quantity, 0);
@@ -79,7 +108,10 @@ export function quoteCart(input: z.infer<typeof cartQuoteInputSchema>): CartQuot
 
 export async function quoteCartFromOperationalCatalog(input: z.infer<typeof cartQuoteInputSchema>): Promise<CartQuote> {
   const parsed = cartQuoteInputSchema.parse(input);
-  const operationalLocations = await readMappedOperationalStoreLocations();
+  const [operationalLocations, administration] = await Promise.all([
+    readMappedOperationalStoreLocations(),
+    readPublishedStoreAdministrationSettings()
+  ]);
   const selectedLocation = parsed.locationId
     ? operationalLocations.find((location) => location.id === parsed.locationId)
     : undefined;
@@ -97,6 +129,8 @@ export async function quoteCartFromOperationalCatalog(input: z.infer<typeof cart
         catalogSource: "static-preview",
         inventoryAsOf: null,
         warnings: [],
+        estimatedTaxRate: administration.tax.estimateRatePercent / 100,
+        showTaxEstimate: administration.tax.showEstimateInCart,
         ...(selectedLocation ? { location: selectedLocation } : {})
       });
     }
@@ -126,6 +160,8 @@ export async function quoteCartFromOperationalCatalog(input: z.infer<typeof cart
     catalogSource: source.source,
     inventoryAsOf,
     warnings,
+    estimatedTaxRate: administration.tax.estimateRatePercent / 100,
+    showTaxEstimate: administration.tax.showEstimateInCart,
     ...(selectedLocation ? { location: selectedLocation } : {})
   });
 }
@@ -170,18 +206,22 @@ export function quoteCartWithProducts(
         lineTotalCents: product.priceCents * item.quantity,
         fulfillmentModes: product.fulfillmentModes,
         inventoryTracked: Boolean(product.inventoryTracked),
-        availableQuantity
+        availableQuantity,
+        checkoutGroup: checkoutGroupForProduct(product, item.source)
       }
     ];
   });
   const subtotalCents = lines.reduce((total, line) => total + line.lineTotalCents, 0);
-  const estimatedTaxCents = Math.round(subtotalCents * estimatedTaxRate);
+  const taxEstimateIncluded = metadata.showTaxEstimate !== false;
+  const taxRate = metadata.estimatedTaxRate ?? estimatedTaxRate;
+  const checkoutGroups = buildCheckoutGroups(lines, taxEstimateIncluded ? taxRate : 0, metadata.location);
+  const estimatedTaxCents = checkoutGroups.reduce((total, group) => total + group.estimatedTaxCents, 0);
   const productFulfillmentModes = getCompatibleFulfillmentModes(lines);
   const compatibleFulfillmentModes = metadata.location
     ? productFulfillmentModes.filter((mode) => locationSupportsFulfillmentMode(metadata.location!, mode))
     : productFulfillmentModes;
 
-  if (lines.length > 0 && productFulfillmentModes.length === 0) {
+  if (lines.length > 0 && checkoutGroups.some((group) => group.compatibleFulfillmentModes.length === 0)) {
     errors.push("This cart mixes products that cannot share one fulfillment method. Split the cart before checkout.");
   } else if (lines.length > 0 && metadata.location && compatibleFulfillmentModes.length === 0) {
     errors.push("The selected store does not support a fulfillment method shared by every item in this cart.");
@@ -189,9 +229,11 @@ export function quoteCartWithProducts(
 
   return {
     lines,
+    checkoutGroups,
     itemCount: lines.reduce((total, line) => total + line.quantity, 0),
     subtotalCents,
     estimatedTaxCents,
+    taxEstimateIncluded,
     totalCents: subtotalCents + estimatedTaxCents,
     compatibleFulfillmentModes,
     fulfillmentLabel: compatibleFulfillmentModes.length > 0 ? compatibleFulfillmentModes.map(fulfillmentModeLabel).join(", ") : "Split required",
@@ -209,6 +251,45 @@ export function quoteCartWithProducts(
   };
 }
 
+function buildCheckoutGroups(
+  lines: CartQuoteLine[],
+  taxRate: number,
+  location?: OperationalStoreLocation
+): CheckoutGroupQuote[] {
+  return (["regular", "balloons"] as const).flatMap((id) => {
+    const groupLines = lines.filter((line) => line.checkoutGroup === id);
+    if (groupLines.length === 0) return [];
+    const subtotalCents = groupLines.reduce((total, line) => total + line.lineTotalCents, 0);
+    const estimatedTaxCents = Math.round(subtotalCents * taxRate);
+    const productModes = getCompatibleFulfillmentModes(groupLines);
+    const compatibleFulfillmentModes = location
+      ? productModes.filter((mode) => locationSupportsFulfillmentMode(location, mode))
+      : productModes;
+    return [{
+      id,
+      label: id === "balloons" ? "Balloons" : "Store items",
+      lines: groupLines,
+      itemCount: groupLines.reduce((total, line) => total + line.quantity, 0),
+      subtotalCents,
+      estimatedTaxCents,
+      totalCents: subtotalCents + estimatedTaxCents,
+      compatibleFulfillmentModes
+    }];
+  });
+}
+
+function checkoutGroupForProduct(
+  product: StorefrontProduct,
+  source: "storefront" | "balloons" | undefined
+): CheckoutGroupKind {
+  const department = product.department.trim().toLowerCase();
+  const catalogRequiresBalloonHandling = department === "balloons"
+    || department === "balloon"
+    || department.includes("balloon")
+    || configuredBalloonVariationIds.has(product.squareVariationId);
+  return catalogRequiresBalloonHandling || source === "balloons" ? "balloons" : "regular";
+}
+
 export function locationSupportsFulfillmentMode(location: OperationalStoreLocation, mode: FulfillmentMode) {
   if (mode === "pickup") return location.pickupEnabled;
   if (mode === "local-delivery") return location.localDeliveryEnabled;
@@ -220,5 +301,11 @@ function getCompatibleFulfillmentModes(lines: CartQuoteLine[]) {
     return [];
   }
 
-  return lines.reduce<FulfillmentMode[]>((modes, line) => modes.filter((mode) => line.fulfillmentModes.includes(mode)), [...lines[0].fulfillmentModes]);
+  const sharedModes = lines.reduce<FulfillmentMode[]>(
+    (modes, line) => modes.filter((mode) => line.fulfillmentModes.includes(mode)),
+    [...lines[0].fulfillmentModes]
+  );
+  return lines.some((line) => line.checkoutGroup === "balloons")
+    ? sharedModes.filter((mode) => mode !== "shipping")
+    : sharedModes;
 }

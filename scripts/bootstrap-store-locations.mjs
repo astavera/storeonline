@@ -6,14 +6,19 @@ import { existsSync } from "node:fs";
 import { resolve } from "node:path";
 import { Prisma, PrismaClient } from "@prisma/client";
 
-const confirmation = "modern-state-store-locations-v1";
+const confirmation = "modern-state-store-locations-v2";
 const locations = [
   {
     id: "store-3rd-avenue",
     slug: "3rd-avenue",
     name: "3rd Avenue Store",
     address: "1243 3rd Ave., New York, NY 10021",
+    locality: "Between 71st & 72nd Streets",
     phone: "212-879-8076",
+    hours: "Monday-Sunday, 10:00am-7:00pm",
+    notes: "Primary published contact location from the legacy website.",
+    publicVisible: true,
+    displayOrder: 0,
     pickupEnabled: true,
     localDeliveryEnabled: true,
     shippingFulfillmentEnabled: false
@@ -23,10 +28,30 @@ const locations = [
     slug: "86th-street",
     name: "86th Street Store",
     address: "112 East 86th Street, New York, NY 10028",
+    locality: "Between Park & Lexington Avenues",
     phone: "212-831-8010",
+    hours: "Monday-Sunday, 10:00am-7:00pm",
+    notes: "Opened September 6, 2006 according to the legacy content map.",
+    publicVisible: true,
+    displayOrder: 1,
     pickupEnabled: true,
     localDeliveryEnabled: true,
     shippingFulfillmentEnabled: false
+  },
+  {
+    id: "warehouse",
+    slug: "warehouse",
+    name: "Warehouse",
+    address: "To be configured",
+    locality: "Shipping fulfillment outside NYC and local delivery zones",
+    phone: null,
+    hours: "Internal operations only",
+    notes: "Internal Operations warehouse. Address and external location mapping must be configured before fulfillment launch.",
+    publicVisible: false,
+    displayOrder: 2,
+    pickupEnabled: false,
+    localDeliveryEnabled: false,
+    shippingFulfillmentEnabled: true
   }
 ];
 
@@ -73,7 +98,7 @@ try {
 }
 
 function sameLocation(current, expected) {
-  return ["name", "address", "phone", "pickupEnabled", "localDeliveryEnabled", "shippingFulfillmentEnabled"]
+  return ["name", "address", "locality", "phone", "hours", "notes", "publicVisible", "displayOrder", "pickupEnabled", "localDeliveryEnabled", "shippingFulfillmentEnabled"]
     .every((key) => current[key] === expected[key]);
 }
 

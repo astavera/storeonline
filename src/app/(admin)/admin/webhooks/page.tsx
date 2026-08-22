@@ -1,9 +1,13 @@
-/**
- * Renders the admin webhooks page and prepares its route-level data.
- */
+/** Durable webhook inbox visibility and controlled requeue. */
 
-import { AdminPageShell } from "@/components/admin/admin-page-shell";
+import { AdminWebhookRetryButton } from "@/components/admin/admin-webhook-retry-button";
+import { requireAdminSession } from "@/server/admin/admin-session";
+import { readAdminWebhookEvents } from "@/server/admin/admin-webhook-service";
 
-export default function AdminWebhooksPage() {
-  return <AdminPageShell description="Square webhook events, signature validation status, replay protection, and processing state." sectionId="admin.fulfillment-dashboard" title="Webhooks" />;
+export default async function AdminWebhooksPage({ searchParams }: { searchParams?: Promise<{ provider?: string; status?: string; page?: string }> }) {
+  const session = await requireAdminSession({ capability: "integrations:read", returnTo: "/admin/webhooks" });
+  const canRetry = session.capabilities.includes("admin:*") || session.capabilities.includes("integrations:retry");
+  const params = await searchParams;
+  const inbox = await readAdminWebhookEvents({ provider: params?.provider, status: params?.status, page: Number(params?.page || 1) });
+  return <main className="grid gap-6 p-5 sm:p-7"><section className="rounded-xl border border-border bg-white p-6 shadow-sm"><p className="text-xs font-semibold uppercase tracking-[0.12em] text-secondary">Integration events</p><h2 className="mt-2 text-2xl font-semibold">Webhook inbox</h2><p className="mt-2 text-sm text-secondary">Persisted delivery events with bounded retries and dead-letter visibility. Payloads and secrets are not displayed.</p></section><section className="rounded-xl border border-border bg-white shadow-sm"><form className="flex gap-3 border-b border-border p-4" method="get"><select className="admin-form-control" defaultValue={params?.provider ?? ""} name="provider"><option value="">All providers</option>{inbox.providers.map((provider) => <option key={provider}>{provider}</option>)}</select><select className="admin-form-control" defaultValue={params?.status ?? ""} name="status"><option value="">All statuses</option>{["RECEIVED", "PROCESSING", "PROCESSED", "FAILED", "DEAD_LETTER"].map((status) => <option key={status}>{status}</option>)}</select><button className="rounded bg-primary px-4 text-sm font-semibold text-white" type="submit">Filter</button></form>{!inbox.available ? <p className="m-5 rounded border border-amber-200 bg-amber-50 p-4 text-sm">Webhook persistence is unavailable.</p> : null}<div className="overflow-x-auto"><table className="w-full min-w-[800px] text-left text-sm"><thead className="bg-surface-muted text-xs uppercase text-secondary"><tr><th className="px-5 py-3">Event</th><th className="px-4 py-3">Provider</th><th className="px-4 py-3">Status</th><th className="px-4 py-3">Attempts</th><th className="px-4 py-3">Received</th><th className="px-5 py-3">Action</th></tr></thead><tbody className="divide-y divide-border">{inbox.events.map((event) => <tr key={event.id}><td className="px-5 py-4"><strong className="block">{event.eventType}</strong><span className="text-xs text-secondary">{event.eventId}</span>{event.error ? <span className="mt-1 block max-w-md text-xs text-red-800">{event.error}</span> : null}</td><td className="px-4 py-4">{event.provider}</td><td className="px-4 py-4">{event.status}</td><td className="px-4 py-4">{event.attempts}</td><td className="px-4 py-4 text-secondary">{new Date(event.receivedAt).toLocaleString()}</td><td className="px-5 py-4">{canRetry && (event.status === "FAILED" || event.status === "DEAD_LETTER") ? <AdminWebhookRetryButton eventId={event.id} /> : "—"}</td></tr>)}</tbody></table></div></section></main>;
 }

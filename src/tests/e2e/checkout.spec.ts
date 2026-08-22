@@ -15,9 +15,14 @@ test("checkout stays safely disabled when the Square payment switch is off", asy
 
   await page.goto("/checkout", { waitUntil: "domcontentloaded" });
 
-  await expect(page.getByRole("heading", { level: 1, name: "Review your order" })).toBeVisible();
+  await expect(page.getByRole("heading", { level: 1, name: "Secure checkout" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Back to cart" })).toHaveAttribute("href", "/cart");
   const storeSelect = page.getByLabel("Store fulfilling this order");
   await expect(storeSelect).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByRole("heading", { name: "Contact information" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Fulfillment" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Payment" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Order summary" })).toBeVisible();
   await expect(storeSelect.locator("option")).toHaveCount(2);
   await storeSelect.selectOption("store-86th-street");
 
@@ -31,6 +36,7 @@ test("checkout stays safely disabled when the Square payment switch is off", asy
 
   await expect(page.getByText("Secure checkout is temporarily unavailable.")).toBeVisible();
   await expect(page.getByRole("button", { name: "Continue to Square" })).toBeDisabled();
+  await expect(page.locator("html")).toHaveJSProperty("scrollWidth", await page.locator("html").evaluate((element) => element.clientWidth));
 });
 
 test("checkout waits for OrderPro to return a local delivery slot", async ({ page }) => {
@@ -55,7 +61,7 @@ test("checkout waits for OrderPro to return a local delivery slot", async ({ pag
   await page.goto("/checkout", { waitUntil: "domcontentloaded" });
 
   await expect(page.getByRole("radio", { name: "Local delivery" })).toBeChecked({ timeout: 30_000 });
-  await expect(page.getByRole("heading", { name: "Check your delivery address" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Delivery address" })).toBeVisible();
   await expect(page.getByLabel("Street address")).toHaveValue("500 E 80th St");
   const quoteResponsePromise = page.waitForResponse((response) => response.url().endsWith("/api/fulfillment/local-delivery-quote") && response.request().method() === "POST");
   await page.getByRole("button", { name: "Check delivery" }).click();

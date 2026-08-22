@@ -2,8 +2,8 @@
  * Renders the admin balloons page and prepares its route-level data.
  */
 
-import { AdminPageShell } from "@/components/admin/admin-page-shell";
+import { redirect } from "next/navigation";
 
 export default function AdminBalloonsPage() {
-  return <AdminPageShell description="Manage balloon builder templates, stocked variation mapping, non-stocked modifiers, add-ons, and capacity points." sectionId="admin.balloon-builder" title="Balloon builder" />;
+  redirect("/admin/products?tab=publishing");
 }

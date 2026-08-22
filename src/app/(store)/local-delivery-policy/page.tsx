@@ -3,7 +3,9 @@
  */
 
 import { ContentPageTemplate } from "@/components/templates/content-page-template";
+import { getStorePolicyDefinition } from "@/config/store-administration.config";
 
 export default function LocalDeliveryPolicyPage() {
-  return <ContentPageTemplate area="Policy" body="Contact either store with your address and order details to confirm local delivery availability, timing, and cost." sectionId="policy.local-delivery" title="Local Delivery Policy" />;
+  const policy = getStorePolicyDefinition("local-delivery")!;
+  return <ContentPageTemplate area="Policy" body={policy.defaultBody} sectionId="policy.local-delivery" title={policy.defaultTitle} />;
 }

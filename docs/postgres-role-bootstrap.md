@@ -1,7 +1,7 @@
 # PostgreSQL and Supabase role bootstrap
 
 This is the operator procedure for the three database identities used by the
-real-catalog admin preview. The source of truth is
+Storefront and its Store Admin. The source of truth is
 `infrastructure/postgres/bootstrap-storefront-roles.sql`; it is idempotent,
 contains no password, and preserves passwords that have already been set.
 
@@ -103,8 +103,8 @@ These revocations do not alter Supabase's `auth`, `storage`, `realtime`, or
 other platform schemas and do not modify defaults owned by Supabase service
 roles or `postgres`. If the application later adopts the Data API, stop using
 this ACL unchanged: design RLS policies and a reviewed API-role grant manifest
-first. Adding broad grants to these roles would reopen customer, order, return,
-and administration tables that this preview deliberately keeps private.
+first. Adding broad grants to these roles would expose customer, order, return,
+and administration tables outside the trusted server runtime.
 
 ## Reviewed privilege boundary
 
@@ -114,21 +114,19 @@ and administration tables that this preview deliberately keeps private.
 | `storefront_sync` | `SquareCatalogObject`, `SquareItemVariation`, `SquareInventoryCount`, `SquareCatalogSyncState` | `SELECT, INSERT, UPDATE` for the Square-to-PostgreSQL projection |
 | `storefront_sync` | `StoreLocation` | `SELECT`; `UPDATE` only on `squareLocationId` and Prisma's `updatedAt` column for the reviewed mapping command |
 | `storefront_sync` | `AuditLog` | `SELECT, INSERT` only, so a successful mapping change can be recorded |
-| `storefront_runtime` | `StoreLocation`, the four Square projection tables, `CmsContentVersion` | `SELECT` only for public/admin catalog reads, inventory freshness, locations, merchandising, and homepage state |
-| `storefront_runtime` | `CheckoutAttempt` | `SELECT, INSERT` only, so pickup checkout can durably validate an idempotent request before Square creates an order and hosted payment link; no update or delete authority |
+| `storefront_runtime` | Square catalog/inventory projection tables and `OrderMirror` | `SELECT` only; Square remains authoritative and runtime cannot insert, update, or delete these mirrors |
+| `storefront_runtime` | Store Admin identity/session, CMS, locations, media, notification, audit, customer-support/privacy, return-support, and webhook inbox tables listed in `runtime_*_table_names` | Exact `SELECT`, `INSERT`, `UPDATE`, and limited `DELETE` grants required by the server-side workflows; no `TRUNCATE`, `TRIGGER`, grant option, or ownership |
 | `storefront_runtime` | `AdminRateLimitBucket` | `SELECT, INSERT`; `UPDATE` only on `count`, `expiresAt`, and `updatedAt` for admin-login throttling |
 | Supabase `anon`, `authenticated`, `service_role` (when present) | Managed Storefront objects in `public` | No effective schema, table, column, sequence, routine, or enum privileges; Data API is closed |
 
 Everything else in `prisma/schema.prisma` is denied to the sync and runtime
-roles. In particular, neither role can access customer accounts, sessions,
-orders, returns, webhook inboxes, fulfillment holds, admin users, or media
-writes. `storefront_runtime` can only read and insert checkout attempts; it
-cannot update or delete them, and `storefront_sync` has no checkout-attempt
-access. The current `/api/cart` endpoint calculates a quote from the
-synchronized catalog and does not persist `Cart` or `CartItem`, so those tables
-deliberately receive no runtime grant. Admin-preview CMS
-mutations are blocked by the route allowlist, so `CmsContentVersion` is also
-read-only.
+roles. Cart persistence, checkout attempts, customer login sessions,
+fulfillment holds, and balloon-order storage remain closed while those
+production workflows are feature-gated. Runtime deletion is limited to
+immutable CMS version cleanup, replacement of user location scopes, and
+rotation of recovery codes. It cannot delete admin users, sessions, customers,
+privacy requests, media, audit records, webhook events, returns, or Square
+mirrors.
 
 The sync role does not receive `CmsContentVersion`; the catalog-preview
 procedure does not use the checkout-readiness mode. Adding a route, CLI mode,

@@ -69,7 +69,7 @@ export function ShippingRatePanel({
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
-          items,
+          items: items.map(({ squareVariationId, quantity }) => ({ squareVariationId, quantity })),
           locationId,
           address: {
             line1: address.line1,
@@ -124,12 +124,11 @@ export function ShippingRatePanel({
   }
 
   return (
-    <section className="surface-card p-6" data-store-area="Checkout" data-store-component="ShippingRatePanel" data-store-section="checkout.shipping" data-store-variant="shippo-live-rates">
+    <section className="p-0" data-store-area="Checkout" data-store-component="ShippingRatePanel" data-store-section="checkout.shipping" data-store-variant="shippo-live-rates">
       <div className="flex items-center gap-2">
         <Truck aria-hidden="true" size={18} />
-        <h2 className="font-display text-2xl font-semibold">Shipping address and rate</h2>
+        <h2 className="text-xl font-semibold tracking-[-0.01em] text-primary">Shipping address</h2>
       </div>
-      <p className="mt-3 text-sm text-secondary">OrderPRO confirms where the items are located and when they reach WH01. Shippo then returns the live carrier price.</p>
 
       <div className="mt-5 grid gap-4 sm:grid-cols-2">
         <ShippingField label="Street address" onChange={(value) => updateAddress("line1", value)} required value={address.line1} />

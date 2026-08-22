@@ -35,6 +35,12 @@ describe("DepartmentMegaMenu", () => {
     expect(screen.getByRole("group", { name: "Toy categories" })).toBeTruthy();
     expect(screen.getByRole("link", { name: "Shop All Toys" }).getAttribute("href")).toBe("/toys");
     expect(screen.getByRole("link", { name: "Dolls" }).getAttribute("href")).toBe("/toys?category=dolls#catalog");
+    const dropdownGrid = screen.getByRole("group", { name: "Toy categories" }).querySelector('[data-dropdown-grid="main"]');
+    expect(dropdownGrid?.getAttribute("data-max-rows")).toBe("6");
+    expect(Array.from(dropdownGrid?.querySelectorAll("a") ?? []).map((item) => item.textContent)).toEqual([
+      "Dolls",
+      "Shop All Toys"
+    ]);
 
     fireEvent.mouseLeave(screen.getByRole("button", { name: "Toys" }));
     expect(screen.getByRole("group", { name: "Toy categories" })).toBeTruthy();
@@ -53,5 +59,11 @@ describe("DepartmentMegaMenu", () => {
     fireEvent.click(screen.getByRole("button", { name: "Licensed Party" }));
     expect(screen.getByRole("link", { name: "Shop All Licensed Party" }).getAttribute("href")).toBe("/party-supplies?collection=licensed-party#catalog");
     expect(screen.getByRole("link", { name: "Disney" }).getAttribute("href")).toBe("/party-supplies?theme=disney#catalog");
+    const submenuGrid = screen.getByRole("group", { name: "Party Supplies categories" }).querySelector('[data-dropdown-grid="submenu"]');
+    expect(submenuGrid?.getAttribute("data-max-rows")).toBe("6");
+    expect(Array.from(submenuGrid?.querySelectorAll("a") ?? []).map((item) => item.textContent)).toEqual([
+      "Disney",
+      "Shop All Licensed Party"
+    ]);
   });
 });

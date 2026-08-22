@@ -45,6 +45,8 @@
   ],
   "exclude": [
     "node_modules",
-    "backups"
+    "backups",
+    "output",
+    "orderpro-source"
   ]
 }

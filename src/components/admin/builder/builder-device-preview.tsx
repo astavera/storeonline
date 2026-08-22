@@ -49,3 +49,15 @@ export function builderDeviceWidthClass(device: BuilderDevice) {
 
   return "max-w-full";
 }
+
+export function builderDeviceDesignWidth(device: BuilderDevice) {
+  if (device === "mobile") {
+    return 390;
+  }
+
+  if (device === "tablet") {
+    return 760;
+  }
+
+  return 1440;
+}

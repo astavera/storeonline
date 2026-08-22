@@ -1,18 +1,23 @@
 /**
- * Browses the synchronized Square production catalog without exposing edit actions.
+ * Browses the synchronized Square production catalog without exposing Square edit actions.
  */
 
 "use client";
 
 import Image from "next/image";
-import { ChevronLeft, ChevronRight, LoaderCircle, Search } from "lucide-react";
+import Link from "next/link";
+import { ChevronLeft, ChevronRight, Filter, LoaderCircle, RefreshCw, Search } from "lucide-react";
 import { useEffect, useState, type FormEvent } from "react";
 import type { StorefrontProduct } from "@/features/catalog/product-catalog";
+import type { WebsiteProductPlacement } from "@/features/catalog/services/website-merchandising-service";
 import type { SquareCatalogCacheSummary } from "@/features/catalog/square-catalog-cache";
 import { formatMoney } from "@/lib/utils";
 
 type CatalogRecord = {
   product: StorefrontProduct;
+  placement: WebsiteProductPlacement;
+  saved?: boolean;
+  readinessIssues?: string[];
 };
 
 type CatalogResponse = {
@@ -28,12 +33,33 @@ type CatalogResponse = {
 
 type ImageFilter = "all" | "with" | "without";
 
+async function readCatalogResponse(response: Response): Promise<CatalogResponse> {
+  let result: CatalogResponse;
+
+  try {
+    result = await response.json() as CatalogResponse;
+  } catch {
+    throw new Error(
+      response.ok
+        ? "The catalog service returned an invalid response."
+        : "The catalog service is unavailable. Check the database connection and try again."
+    );
+  }
+
+  if (!response.ok || !result.ok) {
+    throw new Error(result.error || "The production catalog could not be loaded.");
+  }
+
+  return result;
+}
+
 export function AdminCatalogBrowser() {
   const [catalog, setCatalog] = useState<CatalogResponse | null>(null);
   const [queryInput, setQueryInput] = useState("");
   const [query, setQuery] = useState("");
   const [imageFilter, setImageFilter] = useState<ImageFilter>("all");
   const [page, setPage] = useState(1);
+  const [refreshKey, setRefreshKey] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -48,13 +74,12 @@ export function AdminCatalogBrowser() {
       signal: controller.signal
     })
       .then(async (response) => {
-        const result = await response.json() as CatalogResponse;
-        if (!response.ok || !result.ok) {
-          throw new Error(result.error || "The production catalog could not be loaded.");
-        }
-        return result;
+        return readCatalogResponse(response);
       })
-      .then(setCatalog)
+      .then((result) => {
+        setCatalog(result);
+        setError("");
+      })
       .catch((requestError: unknown) => {
         if (requestError instanceof DOMException && requestError.name === "AbortError") return;
         setError(requestError instanceof Error ? requestError.message : "The production catalog could not be loaded.");
@@ -64,7 +89,7 @@ export function AdminCatalogBrowser() {
       });
 
     return () => controller.abort();
-  }, [imageFilter, page, query]);
+  }, [imageFilter, page, query, refreshKey]);
 
   function submitSearch(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -87,92 +112,129 @@ export function AdminCatalogBrowser() {
     setPage(nextPage);
   }
 
+  function refreshProducts() {
+    setIsLoading(true);
+    setError("");
+    setRefreshKey((current) => current + 1);
+  }
+
   return (
-    <main className="p-4 md:p-6">
-      <section className="rounded-lg border border-border bg-surface p-4 md:p-6" aria-labelledby="catalog-browser-heading">
-        <div className="flex flex-col justify-between gap-4 border-b border-border pb-5 lg:flex-row lg:items-start">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.12em] text-secondary">Read-only production data</p>
-            <h1 className="mt-2 font-display text-3xl font-semibold" id="catalog-browser-heading">Square catalog</h1>
-            <p className="mt-2 max-w-2xl text-sm text-secondary">
-              Browse and search the complete catalog synchronized from Square. Product publishing and every other catalog change remain disabled in this preview.
-            </p>
-          </div>
-          {catalog ? (
-            <div className="rounded-md border border-border bg-surface-muted px-4 py-3 text-sm">
-              <p className="font-semibold">{formatCount(catalog.total)} variations</p>
-              <p className="mt-1 text-xs text-secondary">Last sync: {formatSyncTime(catalog.summary.updatedAt)}</p>
-            </div>
-          ) : null}
+    <main className="admin-page" data-store-component="AdminCatalogBrowser">
+      <header className="admin-page-header admin-page-header--actions-only">
+        <div className="admin-page-header-actions">
+          <Link className="admin-button" href="/admin/products?tab=publishing#products">Open catalog publishing</Link>
+        </div>
+      </header>
+
+      <section aria-label="Products" className="admin-panel admin-products-panel">
+        <div aria-label="Catalog status" className="admin-products-summary">
+          <SummaryItem label="Items" value={catalog ? formatCount(catalog.summary.itemCount) : "—"} />
+          <SummaryItem label="Variations" value={catalog ? formatCount(catalog.summary.variationCount) : "—"} />
+          <SummaryItem label="Catalog state" value={catalog ? formatCatalogStatus(catalog.summary.status) : "—"} />
+          <SummaryItem label="Last sync" value={catalog ? formatSyncTime(catalog.summary.updatedAt) : "—"} />
         </div>
 
-        <div className="mt-5 grid gap-3 lg:grid-cols-[minmax(0,1fr)_220px]">
-          <form className="flex gap-2" onSubmit={submitSearch}>
-            <label className="sr-only" htmlFor="admin-catalog-search">Search full catalog</label>
-            <input
-              className="min-h-11 min-w-0 flex-1 rounded-md border border-border bg-surface px-3 text-sm outline-none focus:border-primary"
-              id="admin-catalog-search"
-              onChange={(event) => setQueryInput(event.target.value)}
-              placeholder="Search name, SKU, UPC, or Square variation ID"
-              value={queryInput}
-            />
-            <button className="inline-flex min-h-11 items-center gap-2 rounded-md bg-primary px-4 text-sm font-semibold text-white" type="submit">
-              <Search aria-hidden="true" size={16} /> Search
-            </button>
+        <div className="admin-products-toolbar">
+          <form className="admin-search-form" onSubmit={submitSearch}>
+            <div className="admin-search-shell">
+              <Search aria-hidden="true" size={15} />
+              <label className="sr-only" htmlFor="admin-catalog-search">Search full catalog</label>
+              <input
+                className="admin-search-input"
+                id="admin-catalog-search"
+                onChange={(event) => setQueryInput(event.target.value)}
+                placeholder="Search product, SKU, UPC or Square ID"
+                value={queryInput}
+              />
+            </div>
+            <button className="admin-search-submit" type="submit">Search</button>
           </form>
-          <label className="text-xs font-semibold text-secondary">
-            Product images
+
+          <label className="admin-filter-group">
+            <span className="admin-filter-label"><Filter aria-hidden="true" className="mr-1 inline" size={12} />Product images</span>
             <select
-              aria-label="Filter catalog by image"
-              className="mt-1 min-h-11 w-full rounded-md border border-border bg-surface px-3 text-sm text-primary"
+              className="admin-select"
               onChange={(event) => changeImageFilter(event.target.value as ImageFilter)}
               value={imageFilter}
             >
               <option value="all">All products</option>
               <option value="with">With image</option>
-              <option value="without">Without image</option>
+              <option value="without">Missing image</option>
             </select>
           </label>
+
+          <button aria-label="Refresh products" className="admin-icon-button" disabled={isLoading} onClick={refreshProducts} title="Refresh products" type="button">
+            <RefreshCw aria-hidden="true" className={isLoading ? "admin-loading-mark" : ""} size={15} />
+          </button>
         </div>
 
-        {error ? <p className="mt-5 rounded-md border border-red/30 bg-red/5 p-4 text-sm font-semibold text-red" role="alert">{error}</p> : null}
-        {isLoading ? (
-          <div className="grid min-h-64 place-items-center text-sm text-secondary"><LoaderCircle aria-hidden="true" className="animate-spin" size={22} />Loading catalog...</div>
-        ) : null}
-        {!isLoading && catalog?.records.length === 0 ? (
-          <p className="mt-5 rounded-md border border-border bg-surface-muted p-5 text-sm text-secondary">No catalog products match these filters.</p>
-        ) : null}
-        {!isLoading && catalog?.records.length ? (
-          <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-            {catalog.records.map(({ product }) => (
-              <article className="flex min-w-0 gap-3 rounded-md border border-border bg-surface-muted p-3" key={product.squareVariationId}>
-                <Image
-                  alt=""
-                  className="h-16 w-16 shrink-0 rounded-md border border-border bg-white object-contain"
-                  height={64}
-                  src={product.imageUrl || "/images/product-fallback.svg"}
-                  unoptimized
-                  width={64}
-                />
-                <div className="min-w-0">
-                  <h2 className="truncate text-sm font-semibold" title={product.name}>{product.name}</h2>
-                  <p className="mt-1 truncate text-xs text-secondary" title={product.department}>{product.department || "Uncategorized"}</p>
-                  <p className="mt-2 text-sm font-semibold">{product.priceAvailable === false ? "Price unavailable" : formatMoney(product.priceCents)}</p>
-                  <p className="mt-1 truncate font-mono text-[10px] text-secondary" title={product.squareVariationId}>{product.squareVariationId}</p>
-                </div>
-              </article>
-            ))}
+        <div className="admin-products-resultbar">
+          <span>{catalog ? resultRange(catalog) : "Loading products"}</span>
+          <span>{query ? `Search: “${query}”` : imageFilter === "all" ? "All synchronized variations" : imageFilter === "with" ? "Products with images" : "Products missing images"}</span>
+        </div>
+
+        {error ? (
+          <div className="admin-error-state" role="alert">
+            <div>
+              <p className="text-sm font-bold">Products could not be loaded</p>
+              <p className="mt-1 text-xs">{error}</p>
+              <button className="admin-button-secondary mt-4" onClick={refreshProducts} type="button">Try again</button>
+            </div>
           </div>
         ) : null}
 
+        {!error && isLoading ? (
+          <div className="admin-loading-state" role="status">
+            <div>
+              <LoaderCircle aria-hidden="true" className="admin-loading-mark mx-auto" size={22} />
+              <p className="mt-3 text-xs font-semibold text-[#687386]">Loading synchronized products...</p>
+            </div>
+          </div>
+        ) : null}
+
+        {!error && !isLoading && catalog?.records.length === 0 ? (
+          <div className="admin-empty-state">
+            <div>
+              <p className="text-sm font-bold">No matching products</p>
+              <p className="mt-1 max-w-md text-xs text-[#737d8d]">Try a broader search or clear the image filter.</p>
+            </div>
+          </div>
+        ) : null}
+
+        {!error && !isLoading && catalog?.records.length ? (
+          <>
+            <div className="admin-products-table-wrap">
+              <table className="admin-products-table">
+                <thead>
+                  <tr>
+                    <th scope="col">Product</th>
+                    <th scope="col">Website setup</th>
+                    <th scope="col">Department</th>
+                    <th scope="col">Price</th>
+                    <th scope="col">Source</th>
+                    <th scope="col"><span className="sr-only">Actions</span></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {catalog.records.map((record) => <ProductTableRow key={record.product.squareVariationId} record={record} />)}
+                </tbody>
+              </table>
+            </div>
+
+            <div className="admin-product-mobile-list">
+              {catalog.records.map((record) => <ProductMobileCard key={record.product.squareVariationId} record={record} />)}
+            </div>
+          </>
+        ) : null}
+
         {catalog && catalog.pageCount > 1 ? (
-          <nav aria-label="Catalog pages" className="mt-6 flex items-center justify-between border-t border-border pt-5">
-            <button className="inline-flex min-h-10 items-center gap-2 rounded-md border border-border px-3 text-sm font-semibold disabled:opacity-40" disabled={isLoading || catalog.page <= 1} onClick={() => changePage(Math.max(1, catalog.page - 1))} type="button">
-              <ChevronLeft aria-hidden="true" size={16} /> Previous
+          <nav aria-label="Catalog pages" className="admin-pagination">
+            <button className="admin-button-secondary" disabled={isLoading || catalog.page <= 1} onClick={() => changePage(Math.max(1, catalog.page - 1))} type="button">
+              <ChevronLeft aria-hidden="true" size={14} />Previous
             </button>
-            <p className="text-sm text-secondary">Page {catalog.page} of {catalog.pageCount}</p>
-            <button className="inline-flex min-h-10 items-center gap-2 rounded-md border border-border px-3 text-sm font-semibold disabled:opacity-40" disabled={isLoading || catalog.page >= catalog.pageCount} onClick={() => changePage(catalog.page + 1)} type="button">
-              Next <ChevronRight aria-hidden="true" size={16} />
+            <p className="admin-pagination-copy">Page {catalog.page} of {catalog.pageCount}</p>
+            <button className="admin-button-secondary" disabled={isLoading || catalog.page >= catalog.pageCount} onClick={() => changePage(catalog.page + 1)} type="button">
+              Next<ChevronRight aria-hidden="true" size={14} />
             </button>
           </nav>
         ) : null}
@@ -181,12 +243,81 @@ export function AdminCatalogBrowser() {
   );
 }
 
+function SummaryItem({ label, value }: { label: string; value: string }) {
+  return <div className="admin-products-summary-item"><p className="admin-products-summary-label">{label}</p><p className="admin-products-summary-value">{value}</p></div>;
+}
+
+function ProductTableRow({ record }: { record: CatalogRecord }) {
+  const { product } = record;
+  return (
+    <tr>
+      <td>
+        <div className="admin-product-cell">
+          <Image alt="" className="admin-product-thumb" height={48} src={product.imageUrl || "/images/product-fallback.svg"} unoptimized width={48} />
+          <div className="min-w-0">
+            <h2 className="admin-product-name" title={product.name}>{product.name}</h2>
+            <p className="admin-product-id" title={product.squareVariationId}>{product.squareVariationId}</p>
+          </div>
+        </div>
+      </td>
+      <td><WebsiteSetupBadge record={record} /></td>
+      <td>{product.department || "Uncategorized"}</td>
+      <td className="font-semibold text-[#10233f]">{product.priceAvailable === false ? "Unavailable" : formatMoney(product.priceCents)}</td>
+      <td><span className="admin-source-badge">Square</span></td>
+      <td className="text-right"><Link className="admin-row-action" href={`/admin/products/${encodeURIComponent(product.squareVariationId)}`}>Manage</Link></td>
+    </tr>
+  );
+}
+
+function ProductMobileCard({ record }: { record: CatalogRecord }) {
+  const { product } = record;
+  return (
+    <article className="admin-product-mobile-card">
+      <Image alt="" className="admin-product-thumb" height={48} src={product.imageUrl || "/images/product-fallback.svg"} unoptimized width={48} />
+      <div className="min-w-0">
+        <p className="admin-product-name" title={product.name}>{product.name}</p>
+        <div className="admin-product-mobile-details">
+          <span>{product.department || "Uncategorized"}</span>
+          <span>{product.priceAvailable === false ? "Price unavailable" : formatMoney(product.priceCents)}</span>
+          <WebsiteSetupBadge record={record} />
+        </div>
+      </div>
+      <Link aria-label={`Manage ${product.name}`} className="admin-row-action" href={`/admin/products/${encodeURIComponent(product.squareVariationId)}`}>Manage</Link>
+    </article>
+  );
+}
+
+function WebsiteSetupBadge({ record }: { record: CatalogRecord }) {
+  if (!record.saved) {
+    return <span className="admin-status-badge admin-status-badge--warning">Needs setup</span>;
+  }
+  if (record.placement?.visible && (record.readinessIssues?.length ?? 0) === 0) {
+    return <span className="admin-status-badge admin-status-badge--good">Live</span>;
+  }
+  if ((record.readinessIssues?.length ?? 0) > 0) {
+    const issueCount = record.readinessIssues?.length ?? 0;
+    return <span className="admin-status-badge admin-status-badge--warning" title={record.readinessIssues?.join(" ")}>{issueCount} field{issueCount === 1 ? "" : "s"} needed</span>;
+  }
+  return <span className="admin-status-badge">Draft</span>;
+}
+
 function formatCount(value: number) {
   return new Intl.NumberFormat("en-US").format(value);
+}
+
+function formatCatalogStatus(value: SquareCatalogCacheSummary["status"]) {
+  return value === "completed" ? "Ready" : value.charAt(0).toUpperCase() + value.slice(1);
 }
 
 function formatSyncTime(value: string | null) {
   if (!value) return "Unavailable";
   const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? "Unavailable" : date.toLocaleString();
+  return Number.isNaN(date.getTime()) ? "Unavailable" : date.toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" });
+}
+
+function resultRange(catalog: CatalogResponse) {
+  if (catalog.total === 0) return "0 products";
+  const start = (catalog.page - 1) * catalog.pageSize + 1;
+  const end = Math.min(catalog.total, start + catalog.records.length - 1);
+  return `${formatCount(start)}–${formatCount(end)} of ${formatCount(catalog.total)} variations`;
 }

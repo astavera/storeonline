@@ -236,6 +236,45 @@ describe("PostgreSQL catalog storefront contract", () => {
         lockToken: true
       }
     });
+    expect(prisma.storeLocation.findMany).toHaveBeenCalledWith({
+      where: {
+        OR: [{ pickupEnabled: true }, { localDeliveryEnabled: true }, { shippingFulfillmentEnabled: true }]
+      },
+      select: { squareLocationId: true }
+    });
+  });
+
+  it("reads operational locations without requiring the later administration schema", async () => {
+    prisma.storeLocation.findMany.mockResolvedValue([
+      {
+        id: "store-3rd-avenue",
+        name: "3rd Avenue Store",
+        address: "1243 3rd Ave., New York, NY 10021",
+        squareLocationId: "location-1",
+        pickupEnabled: true,
+        localDeliveryEnabled: true,
+        shippingFulfillmentEnabled: false
+      }
+    ]);
+    const source = await loadStore("production");
+
+    await expect(source.readMappedOperationalStoreLocations()).resolves.toHaveLength(1);
+    expect(prisma.storeLocation.findMany).toHaveBeenCalledWith({
+      where: {
+        squareLocationId: { not: null },
+        OR: [{ pickupEnabled: true }, { localDeliveryEnabled: true }, { shippingFulfillmentEnabled: true }]
+      },
+      orderBy: { name: "asc" },
+      select: {
+        id: true,
+        name: true,
+        address: true,
+        squareLocationId: true,
+        pickupEnabled: true,
+        localDeliveryEnabled: true,
+        shippingFulfillmentEnabled: true
+      }
+    });
   });
 
   it.each([

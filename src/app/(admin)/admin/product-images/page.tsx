@@ -2,8 +2,8 @@
  * Renders the admin product images page and prepares its route-level data.
  */
 
-import { AdminPageShell } from "@/components/admin/admin-page-shell";
+import { redirect } from "next/navigation";
 
 export default function AdminProductImagesPage() {
-  return <AdminPageShell description="Control primary image, gallery order, hidden website images, alt text, card image, and product detail image without writing image order back to Square." sectionId="admin.product-images" title="Product images" />;
+  redirect("/admin/products");
 }

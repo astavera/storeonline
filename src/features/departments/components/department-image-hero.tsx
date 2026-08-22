@@ -19,7 +19,7 @@ export function DepartmentImageHero({ desktopImage, mobileImage, title, variant 
   if (variant === "contained-color") {
     return (
       <section aria-label={`${title} hero`} className="bg-surface py-5 sm:py-7 lg:py-10" data-store-component="DepartmentImageHero" data-store-variant={variant}>
-        <div className="relative isolate mx-auto h-[210px] w-[calc(100%_-_2rem)] max-w-[1120px] overflow-hidden rounded-lg bg-blue shadow-sm sm:h-[230px] md:w-[84%] lg:h-[260px]">
+        <div className="department-commerce-shell relative isolate h-[210px] overflow-hidden rounded-lg bg-blue shadow-sm sm:h-[230px] lg:h-[260px]">
           <h1 className="sr-only">{title}</h1>
           <Image
             alt=""
@@ -35,7 +35,7 @@ export function DepartmentImageHero({ desktopImage, mobileImage, title, variant 
             className="hidden object-cover md:block"
             fill
             priority
-            sizes="(min-width: 1334px) 1120px, (min-width: 768px) 84vw, calc(100vw - 2rem)"
+            sizes="(min-width: 1312px) 1280px, calc(100vw - 2rem)"
             src={desktopImage}
             unoptimized={isRemoteImage(desktopImage)}
           />

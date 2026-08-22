@@ -26,6 +26,10 @@ describe("homepage promotional cards", () => {
     expect(
       container.querySelector('[data-store-section="home.balloon-promo"]')
     ).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Looking for balloons?" })).toBeTruthy();
+    expect(screen.getByText("In-store pickup")).toBeTruthy();
+    expect(screen.getByText("Local delivery")).toBeTruthy();
+    expect(screen.getByRole("link", { name: "Start your order" }).getAttribute("href")).toBe("/balloons");
   });
 
   it("keeps the four Halloween promo tiles directly below the hero", () => {
@@ -135,6 +139,10 @@ describe("homepage promotional cards", () => {
 
     expect(screen.getByRole("heading", { name: selectedProduct.name })).toBeTruthy();
     expect(screen.queryByRole("heading", { name: otherProduct.name })).toBeNull();
+    expect(screen.queryByText("Just landed")).toBeNull();
+    expect(screen.queryByText("New arrival")).toBeNull();
+    expect(screen.getByRole("button", { name: "Add to cart" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: `Save ${selectedProduct.name} to wishlist` })).toBeTruthy();
     expect(screen.getByRole("link", { name: /Discover What's New/i }).getAttribute("href")).toBe("/shop?department=arts-and-crafts");
   });
 
@@ -432,6 +440,63 @@ describe("homepage promotional cards", () => {
     expect(
       screen.getByRole("heading", { name: selectedProduct.name })
     ).toBeTruthy();
+  });
+
+  it("keeps empty seasonal product rows out of the public homepage", () => {
+    const seasonalRow = homepageSections.find(
+      (section) => section.variant === "seasonal-product-carousel"
+    )!;
+    const { container } = render(
+      <HomepageSeasonalProductCarousels
+        products={[]}
+        sections={[seasonalRow]}
+      />
+    );
+
+    expect(container.querySelector("[data-store-section]")).toBeNull();
+    expect(screen.queryByRole("heading", { name: seasonalRow.title })).toBeNull();
+  });
+
+  it("previews the future product-card layout without publishing fake products", () => {
+    const seasonalRow = homepageSections.find(
+      (section) => section.variant === "seasonal-product-carousel"
+    )!;
+    const { container } = render(
+      <HomepageSeasonalProductCarousels
+        editorPreviewSectionId={seasonalRow.sectionId}
+        products={[]}
+        sections={[seasonalRow]}
+      />
+    );
+
+    expect(
+      screen.getByRole("heading", { name: seasonalRow.title })
+    ).toBeTruthy();
+    expect(
+      container.querySelectorAll("[data-homepage-product-placeholder='true']")
+    ).toHaveLength(4);
+    expect(container.querySelectorAll(".storefront-product-card")).toHaveLength(0);
+  });
+
+  it("previews the prepared featured-product area before catalog publishing", () => {
+    const featuredProductsSection = homepageSections.find(
+      (section) => section.sectionId === "home.featured-products"
+    )!;
+    const { container } = render(
+      <HomePageTemplate
+        editorPreview
+        editorPreviewSectionId={featuredProductsSection.sectionId}
+        products={[]}
+        sections={[featuredProductsSection]}
+      />
+    );
+
+    expect(
+      screen.getByRole("heading", { name: featuredProductsSection.title })
+    ).toBeTruthy();
+    expect(
+      container.querySelectorAll("[data-homepage-product-placeholder='true']")
+    ).toHaveLength(4);
   });
 
 });

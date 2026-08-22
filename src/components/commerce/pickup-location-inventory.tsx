@@ -13,7 +13,7 @@ export function PickupLocationInventory({ product }: {
   if (locations.length === 0) return null;
 
   return (
-    <section aria-label="Pickup availability by location" className="mt-8 rounded-md border border-border bg-surface-muted p-4" data-store-component="PickupLocationInventory">
+    <section aria-label="Pickup availability by location" className="border-b border-border py-6" data-store-component="PickupLocationInventory">
       <h2 className="font-display text-lg font-black text-primary">Pickup availability</h2>
       <ul className="mt-3 divide-y divide-border">
         {locations.map((location) => (

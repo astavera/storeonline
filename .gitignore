@@ -33,3 +33,7 @@ public/uploads/admin/*
 !public/uploads/admin/20260714185434-web-brand-caspari-images.png
 !public/uploads/admin/912104fc-801d-43b0-ae30-bd13d19277f2.png
 !public/uploads/admin/dc2209c9-9ea9-4d50-ad28-549aa5390aa8.png
+
+# Local release bundles and the separately versioned OrderPRO checkout.
+/*.tar.gz
+/orderpro-source/

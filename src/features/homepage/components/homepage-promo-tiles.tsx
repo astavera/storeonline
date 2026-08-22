@@ -102,8 +102,8 @@ function HomepagePromoCard({ tile }: { tile: HomepagePromoTile }) {
           aria-hidden="true"
           className="absolute inset-0 bg-gradient-to-t from-black/75 via-black/10 to-transparent"
         />
-        <div className="absolute inset-x-0 bottom-0 px-5 pb-5 pt-20 sm:px-6 sm:pb-6">
-          <h3 className="inline-flex min-h-11 items-center rounded-pill bg-white px-5 py-2.5 text-base font-black leading-tight tracking-[-0.02em] text-ink shadow-md transition-transform duration-200 group-hover:-translate-y-0.5 sm:text-lg">
+        <div className="absolute inset-x-0 bottom-0 flex justify-center px-5 pb-5 pt-20 sm:px-6 sm:pb-6">
+          <h3 className="inline-flex min-h-11 items-center justify-center rounded-pill bg-white px-5 py-2.5 text-center text-base font-black leading-tight tracking-[-0.02em] text-ink shadow-md transition-transform duration-200 group-hover:-translate-y-0.5 sm:text-lg">
             {tile.cta}
           </h3>
         </div>

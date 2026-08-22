@@ -86,6 +86,11 @@ export async function writeLocalCmsVersion(input: {
   return nextVersion;
 }
 
+export async function replaceLocalCmsVersions(entityId: string, versions: LocalCmsVersion[]) {
+  await mkdir(localCmsDir, { recursive: true });
+  await writeFile(localCmsPath(entityId), JSON.stringify(versions, null, 2));
+}
+
 function localCmsPath(entityId: string) {
   return path.join(localCmsDir, `${entityId.replace(/[^a-zA-Z0-9_-]/g, "-")}.json`);
 }

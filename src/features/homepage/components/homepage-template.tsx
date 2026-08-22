@@ -21,7 +21,8 @@ import { HomepagePromoTiles } from "./homepage-promo-tiles";
 import { HomepageSeasonalProductCarousels } from "./homepage-seasonal-product-carousels";
 import { HomepageStoreLocationsSection } from "./homepage-store-locations-section";
 
-const SHOW_HOMEPAGE_PRODUCT_GRID = false;
+// The editor can preview this prepared area before the catalog connection is published.
+const PUBLISH_HOMEPAGE_PRODUCT_GRID = false;
 const SHOW_HOMEPAGE_STORES = false;
 
 type HomePageTemplateProps = {
@@ -143,8 +144,13 @@ function renderHomepageSection(
   }
 
   if (sectionType === "product-grid") {
-    return SHOW_HOMEPAGE_PRODUCT_GRID && products.length > 0 ? (
+    const isSelectedEditorPreview =
+      editorPreview && homepageSection.sectionId === editorPreviewSectionId;
+
+    return (PUBLISH_HOMEPAGE_PRODUCT_GRID && products.length > 0) ||
+      isSelectedEditorPreview ? (
       <HomepageFeaturedProductsSection
+        editorPreview={isSelectedEditorPreview}
         products={products}
         section={homepageSection}
       />

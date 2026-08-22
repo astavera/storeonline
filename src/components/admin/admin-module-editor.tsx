@@ -100,12 +100,7 @@ export function AdminModuleEditor({ module }: AdminModuleEditorProps) {
   return (
     <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_360px]" data-admin-module={module.id}>
       <div className="min-w-0">
-        <div className="flex flex-col justify-between gap-4 border-b border-border pb-5 lg:flex-row lg:items-start">
-          <div>
-            <p className="text-sm font-semibold uppercase tracking-[0.12em] text-secondary">{module.category}</p>
-            <h1 className="mt-2 font-display text-3xl font-semibold">{module.title}</h1>
-            <p className="mt-3 max-w-3xl text-secondary">{module.purpose}</p>
-          </div>
+        <div className="flex justify-end border-b border-border pb-5">
           <div className="flex flex-wrap gap-2 text-xs font-semibold uppercase tracking-[0.08em]">
             <span className="rounded-md border border-border bg-surface-muted px-3 py-2">{module.riskLevel} risk</span>
             <span className="rounded-md border border-border bg-surface-muted px-3 py-2">{module.editableFields.length} fields</span>
@@ -195,7 +190,7 @@ function FieldControl({
   onChange: (field: AdminControlField, value: AdminFieldValue) => void;
 }) {
   const id = `admin-field-${field.name}`;
-  const sharedClasses = "mt-2 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm text-primary outline-none transition focus:border-primary";
+  const sharedClasses = "admin-form-control mt-2 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm text-primary outline-none transition focus:border-primary";
 
   function handleTextChange(event: ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) {
     onChange(field, event.target.value);

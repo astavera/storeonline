@@ -3,10 +3,9 @@
  */
 
 import type { StorefrontEditablePage } from "@/config/storefront-pages.config";
-import { balloonBuilderStepLabels, balloonBuilderSteps, balloonFlows } from "@/config/balloons.config";
 import { getDepartmentBySlug } from "@/config/departments.config";
-import { getHolidayBySlug, holidays } from "@/config/holidays.config";
-import { getLocationBySlug, storeLocations } from "@/config/locations.config";
+import { getHolidayBySlug } from "@/config/holidays.config";
+import { storeLocations } from "@/config/locations.config";
 import { getProductBySlug } from "@/features/catalog/product-catalog";
 import type { CmsPageDocument, CmsScope, CmsSection } from "./cms-types";
 import { createCmsPageDocumentForScope } from "./page-templates";
@@ -52,6 +51,10 @@ export function shouldUseStorefrontEditorFallbackDocument(input: {
 
   if (!expectedPrimarySectionId || sectionIds.has(expectedPrimarySectionId)) {
     return false;
+  }
+
+  if (isBalloonPage(page)) {
+    return true;
   }
 
   return hasGlobalFrameSections || legacyTemplateSectionIds.some((sectionId) => sectionIds.has(sectionId));
@@ -182,7 +185,7 @@ function sectionsForEditablePage(page: StorefrontEditablePage): CmsSection[] {
   }
 
   if (page.scope === "location") {
-    return createLocationPageSections(page);
+    return createLocationPageSections();
   }
 
   if (page.scope === "product") {
@@ -219,197 +222,32 @@ function sectionsForEditablePage(page: StorefrontEditablePage): CmsSection[] {
 
 function createBalloonPageSections(page: StorefrontEditablePage): CmsSection[] {
   const balloons = getDepartmentBySlug("balloons");
-  const flowSlug = page.entityId.startsWith("balloons-") ? page.entityId.replace("balloons-", "") : "";
-  const selectedFlow = balloonFlows.find((flow) => flow.slug === flowSlug);
-  const title =
-    selectedFlow?.title ??
-    (flowSlug === "local-delivery" ? "Balloon Local Delivery" : flowSlug === "pickup" ? "Balloon Store Pickup" : balloons?.hero_title_en ?? "Balloons planned around your moment.");
-  const body =
-    selectedFlow?.description ??
-    (flowSlug === "local-delivery"
-      ? "Local delivery ordering is coming soon. Contact the store with your address and event date to ask about availability."
-      : flowSlug === "pickup"
-        ? "Choose a store and available pickup time for your balloon order."
-        : balloons?.hero_subtitle_en ?? page.description);
 
   return [
-    createCmsSection("hero", {
-      id: "balloons.landing-hero",
-      label: "Balloons landing hero",
-      variant: flowSlug || "landing",
+    createCmsSection("featuredCategories", {
+      id: "balloons.catalog-gate",
+      label: "Balloon catalog",
+      variant: "balloon-catalog-gate",
       content: {
-        eyebrow: "Balloons",
-        title,
-        body,
-        primaryCtaLabel: "Explore bouquets",
-        primaryCtaHref: "/balloons/bouquets",
+        title: balloons?.hero_title_en ?? "Balloons planned around your moment.",
+        body: balloons?.hero_subtitle_en ?? page.description,
         items: []
-      },
-      media: {
-        image: balloons?.hero_image_url ?? "",
-        imageAlt: title
       },
       layout: {
         containerWidth: "wide",
-        imagePosition: balloons?.hero_image_url ? "background" : "none",
-        paddingTop: 112,
-        paddingBottom: 56
-      },
-      design: {
-        backgroundTone: balloons?.hero_image_url ? "dark" : "default"
+        imagePosition: "none",
+        paddingTop: 0,
+        paddingBottom: 0
       },
       dataSource: {
         type: "department",
         id: "balloons"
-      }
-    }),
-    createCmsSection("featuredCategories", {
-      id: "balloons.builder",
-      label: "Plan your balloon order",
-      variant: "guided",
-      content: {
-        title: "Plan your balloon order",
-        body: "Browse balloon types and planning steps, then confirm colors, timing, store pickup, or local delivery.",
-        items: balloonBuilderSteps.map((step) => ({
-          id: step,
-          title: balloonBuilderStepLabels[step],
-          body: "Choose your preferences. Final availability is confirmed by the store."
-        }))
-      },
-      layout: {
-        columns: 3,
-        containerWidth: "wide",
-        imagePosition: "none",
-        paddingTop: 64,
-        paddingBottom: 64
-      }
-    }),
-    createCmsSection("featuredCategories", {
-      id: "balloons.type-selector",
-      label: "Choose a balloon style",
-      variant: "flow-cards",
-      content: {
-        title: "Choose a balloon style",
-        body: "",
-        items: balloonFlows.map((flow) => ({
-          id: flow.slug,
-          label: "View options",
-          title: flow.title,
-          body: flow.description,
-          href: `/balloons/${flow.slug}`
-        }))
-      },
-      layout: {
-        columns: 4,
-        containerWidth: "wide",
-        imagePosition: "none",
-        paddingTop: 64,
-        paddingBottom: 64
-      }
-    }),
-    createCmsSection("pickupDeliveryInfo", {
-      id: "balloons.fulfillment-selector",
-      label: "Store pickup and local delivery",
-      variant: "pickup-delivery",
-      content: {
-        title: "Store pickup and local delivery",
-        body: "",
-        items: [
-          { id: "pickup", title: "Store pickup", body: "Choose your preferred store and an available pickup time." },
-          { id: "local-delivery", title: "Local delivery", body: "Contact us with your delivery address and event date to check availability and pricing." }
-        ]
-      },
-      layout: {
-        columns: 2,
-        containerWidth: "wide",
-        paddingTop: 56,
-        paddingBottom: 56
-      }
-    }),
-    createCmsSection("editorialStory", {
-      id: "balloons.time-slot-picker",
-      label: "Timing and availability",
-      variant: "timing-availability",
-      content: {
-        title: "Timing and availability",
-        body: "Balloon orders may require advance notice. Your pickup or local delivery window is confirmed before checkout.",
-        items: []
-      },
-      layout: {
-        columns: 1,
-        containerWidth: "wide",
-        imagePosition: "none",
-        paddingTop: 56,
-        paddingBottom: 56
-      },
-      design: {
-        backgroundTone: "muted"
       }
     })
   ];
 }
 
 function createHolidayPageSections(page: StorefrontEditablePage): CmsSection[] {
-  if (page.entityId === "index") {
-    return [
-      createCmsSection("holidayHero", {
-        id: "holidays.index-hero",
-        label: "Holidays index hero",
-        variant: "parent",
-        content: {
-          eyebrow: "Holidays",
-          title: "Seasonal favorites for every celebration.",
-          body: "Find timely gifts, party supplies, cards, decorations, and neighborhood favorites throughout the year.",
-          items: []
-        },
-        layout: {
-          containerWidth: "wide",
-          imagePosition: "none",
-          paddingTop: 64,
-          paddingBottom: 64
-        },
-        design: {
-          backgroundTone: "muted"
-        },
-        dataSource: {
-          type: "holiday",
-          id: "index"
-        }
-      }),
-      createCmsSection("holidayCollection", {
-        id: "holidays.active-holidays-grid",
-        label: "Active holidays grid",
-        variant: "holiday-card-grid",
-        content: {
-          title: "Active holidays",
-          body: "",
-          items: holidays
-            .filter((holiday) => holiday.is_visible)
-            .map((holiday) => ({
-              id: holiday.slug,
-              title: holiday.title_en,
-              body: holiday.description_en,
-              href: `/holidays/${holiday.slug}`,
-              image: holiday.hero_image_url,
-              imageAlt: holiday.title_en,
-              badge: holiday.is_active ? "Active" : "Scheduled"
-            }))
-        },
-        dataSource: {
-          type: "holiday",
-          id: "index"
-        },
-        layout: {
-          columns: 4,
-          containerWidth: "wide",
-          imagePosition: "none",
-          paddingTop: 64,
-          paddingBottom: 64
-        }
-      })
-    ];
-  }
-
   const holiday = getHolidayBySlug(page.entityId);
 
   return [
@@ -469,61 +307,20 @@ function createHolidayPageSections(page: StorefrontEditablePage): CmsSection[] {
   ];
 }
 
-function createLocationPageSections(page: StorefrontEditablePage): CmsSection[] {
-  if (page.entityId === "index") {
-    return [
-      createCmsSection("storeLocationCard", {
-        id: "locations.index",
-        label: "Locations index",
-        variant: "location-card-section",
-        content: {
-          title: "Two Upper East Side stores.",
-          body: "Visit your closest store for neighborhood favorites, helpful service, pickup, and local delivery guidance.",
-          items: publicLocationItems()
-        },
-        dataSource: {
-          type: "locationData",
-          id: "index"
-        },
-        layout: {
-          columns: 2,
-          containerWidth: "wide",
-          paddingTop: 64,
-          paddingBottom: 64
-        },
-        design: {
-          backgroundTone: "muted"
-        }
-      })
-    ];
-  }
-
-  const location = getLocationBySlug(page.entityId);
-
+function createLocationPageSections(): CmsSection[] {
   return [
     createCmsSection("storeLocationCard", {
-      id: `locations.${page.entityId}`,
-      label: `${page.title} detail`,
-      variant: "location-detail",
+      id: "locations.index",
+      label: "Locations index",
+      variant: "location-card-section",
       content: {
-        title: location?.name ?? page.title,
-        body: location ? `${location.address}\n${location.locality}` : page.description,
-        items: [
-          {
-            id: "address",
-            title: location?.name ?? page.title,
-            body: location ? `${location.address}\n${location.locality}\n${location.phone}\n${location.hours}` : page.description
-          },
-          {
-            id: "fulfillment",
-            title: "Fulfillment",
-            body: "Contact the store to confirm current availability, pickup timing, or delivery options for your address."
-          }
-        ]
+        title: "Two Upper East Side stores.",
+        body: "Visit your closest store for neighborhood favorites, helpful service, pickup, and local delivery guidance.",
+        items: publicLocationItems()
       },
       dataSource: {
         type: "locationData",
-        id: page.entityId
+        id: "index"
       },
       layout: {
         columns: 2,
@@ -587,7 +384,7 @@ function primarySectionIdForEditablePage(page: StorefrontEditablePage) {
   }
 
   if (isBalloonPage(page)) {
-    return "balloons.landing-hero";
+    return "balloons.catalog-gate";
   }
 
   if (page.scope === "department") {
@@ -595,7 +392,7 @@ function primarySectionIdForEditablePage(page: StorefrontEditablePage) {
   }
 
   if (page.scope === "holiday") {
-    return page.entityId === "index" ? "holidays.index-hero" : "holidays.detail-hero";
+    return "holidays.detail-hero";
   }
 
   if (page.scope === "location") {
@@ -614,7 +411,7 @@ function primarySectionIdForEditablePage(page: StorefrontEditablePage) {
 }
 
 function isBalloonPage(page: StorefrontEditablePage) {
-  return page.entityId === "balloons" || page.entityId.startsWith("balloons-");
+  return page.entityId === "balloons";
 }
 
 function contentSectionIdForEditablePage(page: StorefrontEditablePage) {
@@ -647,8 +444,7 @@ function publicLocationItems() {
     .map((location) => ({
       id: location.slug,
       title: location.name,
-      body: `${location.address}\n${location.locality}\n${location.phone}\n${location.hours}`,
-      href: `/locations/${location.slug}`
+      body: `${location.address}\n${location.locality}\n${location.phone}\n${location.hours}`
     }));
 }
 

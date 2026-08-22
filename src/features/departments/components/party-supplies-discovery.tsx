@@ -27,7 +27,7 @@ export function PartySuppliesDiscovery({ basePath, categories, currentParams, pr
   return (
     <div className="bg-surface">
       {solidColors.length > 0 ? <section aria-labelledby="party-solid-colors-title" className="border-b border-border py-10 sm:py-14" id="shop-solid-colors">
-        <div className="container-shell">
+        <div className="department-commerce-shell">
           <h2 className="font-display text-2xl font-black tracking-tight text-primary sm:text-3xl" id="party-solid-colors-title">Shop solid colors</h2>
           <div className="mt-7 grid grid-cols-4 gap-x-3 gap-y-6 sm:grid-cols-6 lg:grid-cols-10">
             {solidColors.map((category) => {
@@ -42,7 +42,7 @@ export function PartySuppliesDiscovery({ basePath, categories, currentParams, pr
       </section> : null}
 
       {themes.length > 0 ? <section aria-labelledby="party-themes-title" className="border-b border-border py-10 sm:py-14" id="shop-by-theme">
-        <div className="container-shell">
+        <div className="department-commerce-shell">
           <h2 className="font-display text-2xl font-black tracking-tight text-primary sm:text-3xl" id="party-themes-title">Shop by theme</h2>
           <div className="mt-7 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">
             {themes.map((category) => {
@@ -59,7 +59,7 @@ export function PartySuppliesDiscovery({ basePath, categories, currentParams, pr
       </section> : null}
 
       {productTypes.length > 0 ? <section aria-labelledby="party-product-types-title" className="border-b border-border py-8 sm:py-10" id="shop-by-product-type">
-        <div className="container-shell">
+        <div className="department-commerce-shell">
           <h2 className="font-display text-xl font-black tracking-tight text-primary sm:text-2xl" id="party-product-types-title">Shop by product type</h2>
           <div className="mt-5 flex flex-wrap gap-2">
             {productTypes.map((category) => {

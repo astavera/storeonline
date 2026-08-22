@@ -52,13 +52,31 @@ DECLARE
     'CustomerLoginChallenge',
     'CustomerSession',
     'CustomerConsentEvent',
+    'CustomerNote',
+    'CustomerPrivacyRequest',
     'AdminUser',
+    'AdminUserLocationScope',
+    'AdminSession',
+    'AdminRecoveryCode',
+    'AdminUserInvitation',
+    'AdminPasswordReset',
+    'NotificationTemplateVersion',
+    'NotificationDeliveryEvent',
     'AuditLog'
   ];
   prisma_type_names CONSTANT text[] := ARRAY[
     'FulfillmentMode',
     'FulfillmentStatus',
     'AdminRole',
+    'AdminUserStatus',
+    'AdminLocationScopeMode',
+    'OperationsRole',
+    'OperationsAccessStatus',
+    'NotificationChannel',
+    'NotificationTemplateStatus',
+    'NotificationDeliveryStatus',
+    'CustomerPrivacyRequestType',
+    'CustomerPrivacyRequestStatus',
     'CmsPublishStatus',
     'ProductWebStatus',
     'ProductPlacementType',
@@ -80,12 +98,77 @@ DECLARE
     'SquareInventoryCount',
     'SquareCatalogSyncState',
     'CmsContentVersion',
-    'CheckoutAttempt',
-    'AdminRateLimitBucket'
+    'MediaAsset',
+    'OrderMirror',
+    'WebhookInboxEvent',
+    'AdminRateLimitBucket',
+    'ReturnVerificationSession',
+    'ReturnRequest',
+    'ReturnRequestItem',
+    'ReturnStatusEvent',
+    'CustomerAccount',
+    'CustomerConsentEvent',
+    'CustomerNote',
+    'CustomerPrivacyRequest',
+    'AdminUser',
+    'AdminUserLocationScope',
+    'AdminSession',
+    'AdminRecoveryCode',
+    'AdminUserInvitation',
+    'AdminPasswordReset',
+    'NotificationTemplateVersion',
+    'NotificationDeliveryEvent',
+    'AuditLog'
   ];
-  runtime_usage_type_names CONSTANT text[] := ARRAY[
+  runtime_insert_table_names CONSTANT text[] := ARRAY[
+    'StoreLocation',
+    'CmsContentVersion',
+    'MediaAsset',
+    'WebhookInboxEvent',
+    'CustomerNote',
+    'CustomerPrivacyRequest',
+    'AdminUser',
+    'AdminUserLocationScope',
+    'AdminSession',
+    'AdminRecoveryCode',
+    'AdminUserInvitation',
+    'AdminPasswordReset',
+    'NotificationTemplateVersion',
+    'NotificationDeliveryEvent',
+    'AuditLog'
+  ];
+  runtime_update_table_names CONSTANT text[] := ARRAY[
+    'StoreLocation',
+    'MediaAsset',
+    'WebhookInboxEvent',
+    'CustomerPrivacyRequest',
+    'AdminUser',
+    'AdminSession',
+    'AdminRecoveryCode',
+    'AdminUserInvitation',
+    'AdminPasswordReset',
+    'NotificationTemplateVersion',
+    'NotificationDeliveryEvent'
+  ];
+  runtime_delete_table_names CONSTANT text[] := ARRAY[
+    'CmsContentVersion',
+    'AdminUserLocationScope',
+    'AdminRecoveryCode',
+    'AdminPasswordReset'
+  ];
+  runtime_type_names CONSTANT text[] := ARRAY[
+    'AdminRole',
+    'AdminUserStatus',
+    'AdminLocationScopeMode',
+    'OperationsRole',
+    'OperationsAccessStatus',
+    'NotificationChannel',
+    'NotificationTemplateStatus',
+    'NotificationDeliveryStatus',
+    'CustomerPrivacyRequestType',
+    'CustomerPrivacyRequestStatus',
     'CmsPublishStatus',
-    'CheckoutAttemptStatus'
+    'WebhookInboxStatus'
   ];
   sync_projection_table_names CONSTANT text[] := ARRAY[
     'SquareCatalogObject',
@@ -342,12 +425,20 @@ BEGIN
               (privilege_name = 'SELECT' AND object_name = ANY(runtime_select_table_names))
               OR (
                 privilege_name = 'INSERT'
-                AND object_name = ANY(ARRAY['AdminRateLimitBucket', 'CheckoutAttempt'])
+                AND (
+                  object_name = ANY(runtime_insert_table_names)
+                  OR object_name = 'AdminRateLimitBucket'
+                )
               )
               OR (
                 privilege_name = 'UPDATE'
-                AND object_name = 'AdminRateLimitBucket'
-                AND column_record.column_name = ANY(ARRAY['count', 'expiresAt', 'updatedAt'])
+                AND (
+                  object_name = ANY(runtime_update_table_names)
+                  OR (
+                    object_name = 'AdminRateLimitBucket'
+                    AND column_record.column_name = ANY(ARRAY['count', 'expiresAt', 'updatedAt'])
+                  )
+                )
               );
           ELSE
             expected_privilege :=
@@ -410,8 +501,18 @@ BEGIN
       END LOOP;
 
       FOREACH privilege_name IN ARRAY table_only_privilege_names LOOP
-        IF has_table_privilege(role_name, object_oid, privilege_name) THEN
-          RAISE EXCEPTION 'Unexpected % privilege for role % on public.%.', privilege_name, role_name, object_name;
+        expected_privilege := role_name = 'storefront_runtime'
+          AND privilege_name = 'DELETE'
+          AND object_name = ANY(runtime_delete_table_names);
+        actual_privilege := has_table_privilege(role_name, object_oid, privilege_name);
+        IF actual_privilege IS DISTINCT FROM expected_privilege THEN
+          RAISE EXCEPTION
+            'Unexpected % privilege for role % on public.% (expected %, got %).',
+            privilege_name,
+            role_name,
+            object_name,
+            expected_privilege,
+            actual_privilege;
         END IF;
       END LOOP;
       FOREACH privilege_name IN ARRAY table_only_grant_option_names LOOP
@@ -492,7 +593,7 @@ BEGIN
     END IF;
 
     actual_privilege := has_type_privilege('storefront_runtime', object_oid, 'USAGE');
-    expected_privilege := object_name = ANY(runtime_usage_type_names);
+    expected_privilege := object_name = ANY(runtime_type_names);
     IF actual_privilege IS DISTINCT FROM expected_privilege THEN
       RAISE EXCEPTION 'Unexpected runtime USAGE privilege on type public.%.', object_name;
     END IF;

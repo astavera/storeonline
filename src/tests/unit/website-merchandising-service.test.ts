@@ -87,6 +87,42 @@ describe("website merchandising service", () => {
     expect(products[0].department).toBe("Balloons/Mylars");
   });
 
+  it("applies website-only content, image and SEO overrides to the public catalog", () => {
+    const config = createDefaultWebsiteMerchandising(products, "2026-07-13T15:00:00.000Z");
+    config.categories = [websiteCategory];
+    config.placements[0] = {
+      ...config.placements[0],
+      categoryIds: [websiteCategory.id],
+      fulfillmentModes: ["pickup"],
+      surfaceIds: ["shop"],
+      visible: true,
+      content: {
+        displayName: "Birthday Balloon Deluxe",
+        slug: "birthday-balloon-deluxe",
+        shortDescription: "A website-only short description.",
+        description: "A complete website-only product description.",
+        badge: "Best seller",
+        imageUrl: "https://cdn.example.com/balloon.jpg",
+        imageAlt: "Birthday balloon floating above a gift",
+        seoTitle: "Birthday Balloon Deluxe",
+        seoDescription: "Order a deluxe birthday balloon."
+      }
+    };
+
+    expect(resolveWebsiteCatalog(products, config).products[0]).toMatchObject({
+      name: "Birthday Balloon Deluxe",
+      slug: "birthday-balloon-deluxe",
+      shortDescription: "A website-only short description.",
+      description: "A complete website-only product description.",
+      badge: "Best seller",
+      imageUrl: "https://cdn.example.com/balloon.jpg",
+      imageAlt: "Birthday balloon floating above a gift",
+      seoTitle: "Birthday Balloon Deluxe",
+      seoDescription: "Order a deluxe birthday balloon."
+    });
+    expect(products[0].name).toBe("Birthday Balloon");
+  });
+
   it("does not publish incomplete website records", () => {
     const config = createDefaultWebsiteMerchandising(products, "2026-07-13T15:00:00.000Z");
     config.categories = [websiteCategory];

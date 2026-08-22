@@ -25,6 +25,7 @@ export type ProductCardData = {
   department: string;
   shortDescription: string;
   imageUrl: string;
+  imageAlt?: string;
   priceCents: number;
   badge?: string;
   fulfillmentModes: FulfillmentMode[];
@@ -49,7 +50,7 @@ export function ProductCard({
   const productImageElement = (
     <span className="product-card-image-frame">
       <Image
-        alt={product.name}
+        alt={product.imageAlt || product.name}
         className="product-card-image object-contain"
         fill
         sizes="(max-width: 640px) 50vw, (max-width: 1024px) 50vw, 25vw"

@@ -4,7 +4,7 @@
 
 "use client";
 
-import { Plus } from "lucide-react";
+import { Plus, Trash2 } from "lucide-react";
 import { useState } from "react";
 import type { CmsKnownSectionType, CmsPageDocument, CmsScope } from "@/lib/cms";
 import type { StorefrontEditablePage } from "@/config/storefront-pages.config";
@@ -15,11 +15,14 @@ import { BuilderSectionLibrary } from "./builder-section-library";
 export function BuilderSidebar({
   additionalPages = [],
   currentEntityId,
+  deletedPageKeys = [],
   document,
+  isDeletingPage = false,
   onBeforeNavigate,
   onAddSection,
   onDuplicate,
   onMove,
+  onDeletePage,
   onRemove,
   onSelect,
   onToggleHidden,
@@ -28,11 +31,14 @@ export function BuilderSidebar({
 }: {
   additionalPages?: StorefrontEditablePage[];
   currentEntityId: string;
+  deletedPageKeys?: string[];
   document: CmsPageDocument;
+  isDeletingPage?: boolean;
   onBeforeNavigate?: (href: string) => boolean;
   onAddSection: (type: CmsKnownSectionType) => void;
   onDuplicate: (sectionId: string) => void;
   onMove: (sectionId: string, direction: -1 | 1) => void;
+  onDeletePage?: () => void;
   onRemove: (sectionId: string) => void;
   onSelect: (sectionId: string) => void;
   onToggleHidden: (sectionId: string, hidden: boolean) => void;
@@ -43,7 +49,7 @@ export function BuilderSidebar({
 
   return (
     <aside className="grid content-start gap-4">
-      <StorefrontPageSwitcher additionalPages={additionalPages} currentEntityId={currentEntityId} currentScope={scope} onBeforeNavigate={onBeforeNavigate} />
+      <StorefrontPageSwitcher additionalPages={additionalPages} currentEntityId={currentEntityId} currentScope={scope} deletedPageKeys={deletedPageKeys} onBeforeNavigate={onBeforeNavigate} />
       <BuilderLayersPanel
         document={document}
         onDuplicate={onDuplicate}
@@ -70,6 +76,23 @@ export function BuilderSidebar({
           }}
           scope={scope}
         />
+      ) : null}
+      {onDeletePage ? (
+        <section className="mt-2 grid gap-2 border-t border-border pt-4">
+          <p className="text-xs font-semibold uppercase tracking-[0.12em] text-secondary">Page settings</p>
+          <button
+            className="flex min-h-11 items-center justify-center gap-2 border border-red-200 bg-white px-3 text-sm font-semibold text-red-700 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
+            disabled={isDeletingPage}
+            onClick={onDeletePage}
+            type="button"
+          >
+            <Trash2 aria-hidden="true" className="size-4" />
+            {isDeletingPage ? "Deleting page..." : "Delete page permanently"}
+          </button>
+          <p className="text-[11px] leading-relaxed text-secondary">
+            Removes the public page and all of its saved versions. This cannot be undone.
+          </p>
+        </section>
       ) : null}
     </aside>
   );

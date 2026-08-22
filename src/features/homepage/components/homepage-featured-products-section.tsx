@@ -15,14 +15,21 @@ import {
 } from "@/features/homepage/utils/homepage-section-styles";
 import { cn } from "@/lib/utils";
 import { ChevronLeft, ChevronRight } from "lucide-react";
+import { HomepageProductCardPlaceholders } from "./homepage-product-card-placeholders";
 
 export function HomepageFeaturedProductsSection({
+  editorPreview = false,
   products,
   section
 }: {
+  editorPreview?: boolean;
   products: StorefrontProduct[];
   section: HomepageSectionConfig;
 }) {
+  if (products.length === 0 && !editorPreview) {
+    return null;
+  }
+
   return (
     <SectionFrame
       area="Homepage"
@@ -59,12 +66,26 @@ export function HomepageFeaturedProductsSection({
             </span>
           </div>
         </div>
-        <ProductGrid
-          cardVariant="premium"
-          limit={4}
-          preset="balloons"
-          products={products.slice(0, 4)}
-        />
+        {products.length > 0 ? (
+          <ProductGrid
+            cardVariant="premium"
+            limit={4}
+            preset="balloons"
+            products={products.slice(0, 4)}
+          />
+        ) : (
+          <div className="space-y-4">
+            <div className="rounded-[20px] border border-dashed border-black/20 bg-[#f7f7f7] px-6 py-4 text-center">
+              <p className="font-display text-lg font-black text-primary">
+                The featured product area is ready
+              </p>
+              <p className="mt-1 text-sm leading-relaxed text-secondary">
+                Product cards will publish here after the catalog connection is enabled.
+              </p>
+            </div>
+            <HomepageProductCardPlaceholders />
+          </div>
+        )}
         {isHomepageSectionElementVisible(section, "primaryCta") &&
         section.ctaHref ? (
           <div className="mt-10 flex justify-center">

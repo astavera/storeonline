@@ -25,9 +25,9 @@ Square webhooks use raw request body text and HMAC signature verification in `sr
 
 ## Admin containment
 
-`/admin` and `/api/admin/*` are fail-closed. The shared guard validates the signed `modern_state_admin` cookie, expiry, audience, declared capability, and same-origin `Origin`/`Host` for every mutation. The cookie payload contains `sub`, `capabilities`, `exp`, and `aud=modern-state-admin`; its HMAC secret must contain at least 32 random bytes. The login endpoint issues an eight-hour cookie with `HttpOnly`, `Secure` in production, and `SameSite=Strict`.
+`/admin` and `/api/admin/*` are fail-closed. Page routes have a domain-specific minimum permission and every mutation verifies same-origin `Origin`/`Host`. Database identity mode uses a random 256-bit opaque cookie token; only its SHA-256 hash is stored. Sessions require an active Store Admin role, enrolled and verified MFA, matching `authVersion`, a 30-minute idle window, an absolute expiry, and `HttpOnly`, `Secure` in production, `SameSite=Strict` cookie controls.
 
-Production login requires `ADMIN_LOGIN_EMAIL`, `ADMIN_PASSWORD_HASH`, and `ADMIN_SESSION_SECRET`. Generate the password hash with `npm run admin:hash-password -- "a-long-password"`; escape each `$` as `\$` when copying the result into a local `.env` file. Failed login attempts are limited to five per email and client address every fifteen minutes; correct credentials can authenticate without extending a failed-attempt lockout. Invalid credentials use constant-work password verification, and logout expires the signed cookie. `ADMIN_DEV_BYPASS=true` remains a loopback-only development escape hatch and must never be enabled in preview or production. Uploads require `admin:media:write`, reject SVG, validate extension/MIME/file signature, use server-generated names and exclusive writes, and pass through the central rate-limiter interface.
+`ADMIN_IDENTITY_MODE=LEGACY_BOOTSTRAP` is a temporary first-owner migration path and emits the Owner permission set, never `admin:*`. `ADMIN_IDENTITY_MODE=DATABASE` rejects those legacy signed sessions and requires database credentials plus TOTP or a one-time recovery code. TOTP secrets use AES-256-GCM with a separate 32-byte base64url key; recovery codes use a separate HMAC pepper and are stored only as hashes. Failed login and activation attempts are rate limited. Logout revokes the database session before expiring the cookie. `ADMIN_DEV_BYPASS=true` remains loopback-only and must never be enabled in preview or production.
 
 ## Persistence policy
 
@@ -37,9 +37,20 @@ PostgreSQL is required outside development. JSON persistence is available only w
 
 Delivery staff should not see payment details. Warehouse staff should not see card/payment tokens. Logs must exclude tokens, authorization headers, card-related data, and sensitive customer fields unless specifically required and redacted.
 
+Audit CSV export is Owner-only, streamed, capped at 5,000 rows, protected
+against spreadsheet formula injection, and redacts credentials, hashes and
+customer PII from snapshots. Customer local-data export is separately guarded
+by `customers:privacy.manage`, audited, private/no-store, and excludes sessions,
+challenges, payments, internal notes and unmirrored external records.
+
+Admin media uploads accept JPG, PNG, WEBP, or GIF up to 5 MB and verify file
+signatures before writing a randomized filename. SVG and arbitrary code are
+rejected. Media metadata may be hidden from the storefront; source-file
+deletion is intentionally unavailable in Admin.
+
 ## Remaining owner/platform work
 
-- Select and integrate the production identity provider, MFA policy, session issuer, and capability-to-role mapping.
+- Decide whether the database identity issuer remains primary or is federated to a production SSO provider; MFA, revocable sessions, role mapping, and location scopes are already enforced locally.
 - Replace the in-memory admin rate-limiter adapter with a shared deployment-store adapter before horizontal scaling.
 - Run the durable webhook processing worker and operational dead-letter alerts.
 - Add rate limiting for public checkout, cart, search, and webhook ingress.

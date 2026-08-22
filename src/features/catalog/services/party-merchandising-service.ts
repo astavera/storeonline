@@ -50,6 +50,16 @@ const solidColorSeeds: PartyCategorySeed[] = [
 ];
 
 const themeSeeds: PartyCategorySeed[] = [
+  { id: "web-category-party-theme-disney", name: "Disney", slug: "disney", kind: "party-theme", recommendationTerms: ["disney"], visible: true },
+  { id: "web-category-party-theme-cars", name: "Cars", slug: "cars", kind: "party-theme", recommendationTerms: ["cars", "disney cars", "lightning mcqueen"], visible: true },
+  { id: "web-category-party-theme-princess", name: "Princess", slug: "princess", kind: "party-theme", recommendationTerms: ["princess"], visible: true },
+  { id: "web-category-party-theme-toy-story", name: "Toy Story", slug: "toy-story", kind: "party-theme", recommendationTerms: ["toy story", "woody", "buzz lightyear"], visible: true },
+  { id: "web-category-party-theme-sweet-16", name: "Sweet 16", slug: "sweet-16", kind: "party-theme", recommendationTerms: ["sweet 16", "sweet sixteen"], visible: true },
+  { id: "web-category-party-theme-21st-birthday", name: "21st Birthday", slug: "21st-birthday", kind: "party-theme", recommendationTerms: ["21st birthday", "21 birthday"], visible: true },
+  { id: "web-category-party-theme-retirement", name: "Retirement", slug: "retirement", kind: "party-theme", recommendationTerms: ["retirement", "retired"], visible: true },
+  { id: "web-category-party-theme-just-engaged", name: "Just Engaged", slug: "just-engaged", kind: "party-theme", recommendationTerms: ["just engaged", "engagement"], visible: true },
+  { id: "web-category-party-theme-bachelorette", name: "Bachelorette", slug: "bachelorette", kind: "party-theme", recommendationTerms: ["bachelorette"], visible: true },
+  { id: "web-category-party-theme-happy-birthday", name: "Happy Birthday", slug: "happy-birthday", kind: "party-theme", recommendationTerms: ["happy birthday", "birthday"], visible: true },
   { id: "web-category-party-theme-spider-man", name: "Spider-Man", slug: "spider-man", kind: "party-theme", recommendationTerms: ["spider-man", "spiderman", "webbed wonder"], visible: false },
   { id: "web-category-party-theme-batman", name: "Batman", slug: "batman", kind: "party-theme", recommendationTerms: ["batman"], visible: false },
   { id: "web-category-party-theme-disney-princess", name: "Disney Princess", slug: "disney-princess", kind: "party-theme", recommendationTerms: ["disney princess", "princess", "cinderella", "ariel", "rapunzel", "little mermaid"], visible: false },
@@ -70,7 +80,8 @@ const productTypeSeeds: PartyCategorySeed[] = [
   { id: "web-category-party-type-napkins", name: "Napkins", slug: "napkins", kind: "party-product-type", recommendationTerms: ["napkin", "napkins"], visible: true },
   { id: "web-category-party-type-cups", name: "Cups", slug: "cups", kind: "party-product-type", recommendationTerms: ["cup", "cups", "tumbler"], visible: true },
   { id: "web-category-party-type-table-covers", name: "Table Covers", slug: "table-covers", kind: "party-product-type", recommendationTerms: ["table cover", "tablecover", "tablecloth"], visible: true },
-  { id: "web-category-party-type-cutlery", name: "Cutlery", slug: "cutlery", kind: "party-product-type", recommendationTerms: ["cutlery", "fork", "forks", "knife", "knives", "spoon", "spoons"], visible: true },
+  { id: "web-category-party-type-spoons", name: "Spoons", slug: "spoons", kind: "party-product-type", recommendationTerms: ["spoon", "spoons"], visible: true },
+  { id: "web-category-party-type-cutlery", name: "Cutlery", slug: "cutlery", kind: "party-product-type", recommendationTerms: ["cutlery", "fork", "forks", "knife", "knives"], visible: true },
   { id: "web-category-party-type-decorations", name: "Decorations", slug: "decorations", kind: "party-product-type", recommendationTerms: ["decoration", "decorations", "banner", "garland", "centerpiece"], visible: true },
   { id: "web-category-party-type-favors", name: "Party Favors", slug: "party-favors", kind: "party-product-type", recommendationTerms: ["party favor", "favor", "favors", "lootbag", "loot bag"], visible: true },
   { id: "web-category-party-type-candles", name: "Candles", slug: "candles", kind: "party-product-type", recommendationTerms: ["candle", "candles"], visible: true },
@@ -82,7 +93,7 @@ const patternTerms = [
   "rainbow", "ombre", "geometric", "plaid", "checkered", "character", "licensed"
 ];
 
-const solidTablewareTypeSlugs = new Set(["plates", "napkins", "cups", "table-covers", "cutlery"]);
+const solidTablewareTypeSlugs = new Set(["plates", "napkins", "cups", "table-covers", "spoons", "cutlery"]);
 
 export function createPartyMerchandisingStructure(categories: WebsiteCategory[]) {
   const next = [...categories];
@@ -94,7 +105,7 @@ export function createPartyMerchandisingStructure(categories: WebsiteCategory[])
       name: "Party Supplies",
       slug: "party-supplies",
       kind: "standard",
-      visible: false
+      visible: true
     }, null, next.filter((category) => category.parentId === null).length);
     next.push(root);
   }
@@ -217,7 +228,7 @@ export function isApprovedPersistentPartyAsset(imageUrl: string) {
 }
 
 function ensureSeed(categories: WebsiteCategory[], seed: PartyCategorySeed, parentId: string, createdIds: string[]) {
-  const existing = categories.find((category) => category.id === seed.id || (category.parentId === parentId && category.slug === seed.slug));
+  const existing = categories.find((category) => category.id === seed.id || category.slug === seed.slug);
   if (existing) return existing;
   const category = createCategory(seed, parentId, categories.filter((candidate) => candidate.parentId === parentId).length);
   categories.push(category);

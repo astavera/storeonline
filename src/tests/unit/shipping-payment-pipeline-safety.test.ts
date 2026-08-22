@@ -46,8 +46,33 @@ describe("shipping payment pipeline safety", () => {
   it("closes a Square link before releasing an expired reservation", () => {
     const cleanup = source("src/server/checkout/shipping-checkout-cleanup.ts");
     expect(cleanup.indexOf("deleteSquareHostedCheckoutLink")).toBeLessThan(
-      cleanup.indexOf("orderPro.release")
+      cleanup.indexOf("orderPro!.release")
     );
     expect(cleanup).toContain("paymentAfterDelete");
+    expect(cleanup.indexOf("paymentAfterDelete")).toBeLessThan(
+      cleanup.indexOf("if (!isShippingOrderAlreadyReleased")
+    );
+    expect(cleanup.indexOf("if (!isShippingOrderAlreadyReleased")).toBeLessThan(
+      cleanup.indexOf("markShippingCheckoutExpired")
+    );
+    expect(cleanup.match(/if \(!isShippingOrderAlreadyReleased/g)).toHaveLength(2);
+  });
+
+  it("reserves and binds scheduled capacity around Square without risking a silent paid loss", () => {
+    const checkout = source("src/app/api/checkout/route.ts");
+    const cleanup = source("src/server/checkout/shipping-checkout-cleanup.ts");
+    const confirmation = source("src/server/webhooks/split-checkout-payment-confirmation.ts");
+
+    expect(checkout.indexOf("capacityClient.reservePickup")).toBeLessThan(
+      checkout.indexOf("squareCheckout = await createSquareHostedCheckout", checkout.indexOf("async function handleSplitCheckout"))
+    );
+    expect(checkout.indexOf("attemptRepository.recordSplitHostedCheckout")).toBeLessThan(
+      checkout.indexOf("await capacityClient.bind")
+    );
+    expect(checkout).toContain('releaseCapacityGroups("CHECKOUT_FAILED")');
+    expect(cleanup).toContain("confirmCompletedSplitCheckoutPayment(paymentBeforeDelete)");
+    expect(cleanup).toContain("confirmCompletedSplitCheckoutPayment(paymentAfterDelete)");
+    expect(cleanup.indexOf("paymentAfterDelete")).toBeLessThan(cleanup.indexOf("capacityOrderPro!.release"));
+    expect(confirmation).toContain("ORDERPRO_PAID_CHECKOUT_EVIDENCE_MISMATCH");
   });
 });

@@ -41,10 +41,12 @@ vi.mock("@/server/checkout/checkout-attempt-repository", () => ({
 }));
 
 vi.mock("@/server/orderpro/config", () => ({
+  ORDERPRO_STAGING_SCOPES: ["local-delivery:holds", "local-delivery:quote"],
   isOrderProLocalDeliveryCheckoutEnabled: () => true
 }));
 
 vi.mock("@/server/orderpro/shipping-order-client", () => ({
+  orderProShippingCommandIdentity: () => "shipping-command:test",
   getOrderProShippingOrderClient: () => ({
     create: async () => ({
       replayed: false,
@@ -113,7 +115,7 @@ vi.mock("@/server/shipping/shipping-service", async () => {
         country: z.literal("US")
       })
     }),
-    quoteShippingPilotCart: async () => ({
+    quoteShippingCart: async () => ({
       errors: [],
       compatibleFulfillmentModes: ["shipping"]
     }),

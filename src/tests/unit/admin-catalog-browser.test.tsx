@@ -57,7 +57,9 @@ describe("admin catalog browser", () => {
 
     render(<AdminCatalogBrowser />);
 
+    expect(screen.getByRole("link", { name: "Open catalog publishing" }).getAttribute("href")).toBe("/admin/products?tab=publishing#products");
     expect(await screen.findByRole("heading", { name: "Catalog Item Page 1" })).toBeTruthy();
+    expect(screen.getByRole("link", { name: "Manage Catalog Item Page 1" }).getAttribute("href")).toBe("/admin/products/square-variation-1");
     fireEvent.change(screen.getByLabelText("Search full catalog"), { target: { value: "foil balloon" } });
     fireEvent.click(screen.getByRole("button", { name: "Search" }));
 

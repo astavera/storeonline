@@ -115,6 +115,9 @@ SQUARE_CHECKOUT_ENABLED=false
 ORDERPRO_LOCAL_DELIVERY_CHECKOUT_ENABLED=false
 ORDERPRO_SHIPPING_CHECKOUT_ENABLED=false
 ADMIN_DEV_BYPASS=false
+ADMIN_IDENTITY_MODE=LEGACY_BOOTSTRAP
+ADMIN_TRANSACTIONAL_NOTIFICATION_PROVIDER=DISABLED
+OPERATIONS_ACCESS_SYNC_MODE=DISABLED
 ALLOW_LOCAL_PERSISTENCE_FALLBACK=false
 CUSTOMER_AUTH_DEV_PREVIEW=false
 SHIPPO_TEST_MODE=true
@@ -222,6 +225,15 @@ docker compose \
   run --rm migrate
 ```
 
+The Admin release adds the identity foundation and customer privacy workflow
+migrations. Confirm both are present in `prisma migrate status`. Before the
+runtime starts, rerun the credential-free ACL bootstrap and its read-only
+verifier exactly as documented in `docs/postgres-role-bootstrap.md`; the
+verifier must return `storefront_role_acl_verified`. Then activate the first
+MFA-protected Owner through the bootstrap path and schedule a separate
+configuration change to `ADMIN_IDENTITY_MODE=DATABASE`; do not leave legacy
+bootstrap enabled after successful activation.
+
 Only after the migration succeeds, start Storefront without rebuilding:
 
 ```bash
@@ -255,9 +267,16 @@ mobile navigation, Admin login, media persistence, cart behavior, pickup
 availability, and accessibility. Payments and every write/fulfillment gate
 remain disabled.
 
+Also verify Users & Roles, MFA login and logout revocation, permission-filtered
+navigation, Customers privacy export/request review, Audit CSV redaction,
+Navigation & SEO draft/publication, Media persistence, Analytics partial-state
+labels, Integration health, and failed-webhook requeue. Operations access and
+notification sending must continue to show unavailable while their explicit
+provider switches remain disabled.
+
 Do not load `modernstate-final.Caddyfile.example` yet. The OrderPRO operations
 UI must use its own public gateway upstream; never route
-`operations.modernstate.com` to `orderpro-api`.
+`operation.modernstate.com` to `orderpro-api`.
 
 ## 8. Promote only the verified release
 
@@ -314,7 +333,7 @@ After the domain transfer and canary approval:
 4. Confirm `www.modernstate.com` redirects to `https://modernstate.com`.
 5. Keep `NEXT_PUBLIC_SITE_INDEXABLE=false` until canonical URLs, robots,
    sitemap, HTTPS, and content are verified on the final domain.
-6. Configure `operations.modernstate.com` through the independent OrderPRO
+6. Configure `operation.modernstate.com` through the independent OrderPRO
    operations deployment, never through the private OrderPRO API network.
 
 ## 12. Promotion gates

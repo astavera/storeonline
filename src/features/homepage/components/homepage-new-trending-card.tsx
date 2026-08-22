@@ -8,6 +8,8 @@ import { useEffect, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 
+import { AddToCartButton } from "@/components/commerce/add-to-cart-button";
+import { WishlistButton } from "@/components/commerce/wishlist-button";
 import { ButtonLink } from "@/components/ui/button";
 import type { StorefrontProduct } from "@/features/catalog/product-catalog";
 import type { HomepageSectionConfig } from "@/features/homepage/config/homepage.config";
@@ -35,7 +37,6 @@ export function HomepageNewTrendingCard({
         section
       }).slice(0, MAX_TRENDING_PRODUCTS)
     : trendingProducts.slice(0, MAX_TRENDING_PRODUCTS);
-  const eyebrow = section?.eyebrow?.trim() || "Just landed";
   const title = section?.title?.trim() || "New & trending";
   const ctaLabel = section?.ctaLabel?.trim() || "Discover What's New";
   const ctaHref = categorySlug
@@ -82,10 +83,7 @@ export function HomepageNewTrendingCard({
 
       <div className="relative z-10 flex w-full min-w-0 flex-col p-6 sm:p-8 lg:p-7 xl:p-8">
         <div>
-          <p className="text-xs font-black uppercase tracking-[0.18em] text-black/55">
-            {eyebrow}
-          </p>
-          <h2 className="mt-2 text-balance font-display text-3xl font-black leading-none tracking-tight sm:text-4xl lg:text-3xl xl:text-4xl">
+          <h2 className="text-balance font-display text-3xl font-black leading-none tracking-tight sm:text-4xl lg:text-3xl xl:text-4xl">
             {title}
           </h2>
           {categorySlug ? (
@@ -111,6 +109,15 @@ export function HomepageNewTrendingCard({
                   const isProductVisible =
                     index >= displayIndex &&
                     index < displayIndex + CAROUSEL_ITEMS_PER_VIEW;
+                  const purchaseDisabled =
+                    product.previewOnly ||
+                    product.inventoryStatus === "out-of-stock" ||
+                    product.priceAvailable === false;
+                  const disabledReason = product.previewOnly
+                    ? "Preview only"
+                    : product.priceAvailable === false
+                      ? "Price unavailable"
+                      : "Out of stock";
 
                   return (
                     <div
@@ -120,42 +127,56 @@ export function HomepageNewTrendingCard({
                       }`}
                       key={product.squareVariationId}
                     >
-                      <Link
+                      <article
                         className="group flex h-full min-h-[250px] flex-col rounded-[20px] border border-black/10 bg-white p-3 shadow-[0_16px_34px_rgba(0,0,0,0.08)] transition hover:-translate-y-0.5 hover:border-black/30"
-                        href={`/products/${product.slug}`}
-                        tabIndex={isProductVisible ? 0 : -1}
+                        data-store-component="ProductCard"
                       >
-                        <div className="relative aspect-[16/10] w-full overflow-hidden rounded-[14px] bg-[#f4f4f4]">
-                          {product.imageUrl ? (
-                            <Image
-                              alt={product.name}
-                              className="object-contain p-2 transition duration-300 group-hover:scale-105"
-                              fill
-                              sizes="(max-width: 1024px) 46vw, 23vw"
-                              src={product.imageUrl}
-                              unoptimized
-                            />
-                          ) : (
-                            <div className="grid h-full place-items-center px-3 text-center text-xs font-bold text-secondary">
-                              Image coming soon
-                            </div>
-                          )}
-                        </div>
-                        <div className="mt-3 min-w-0">
-                          <p className="text-[10px] font-black uppercase tracking-[0.1em] text-black/50">
-                            New arrival
-                          </p>
-                          <h3 className="mt-1.5 line-clamp-2 font-display text-base font-black leading-tight sm:text-lg xl:text-xl">
-                            {product.name}
+                        <Link href={`/products/${product.slug}`} tabIndex={isProductVisible ? 0 : -1}>
+                          <div className="relative aspect-[16/10] w-full overflow-hidden rounded-[14px] bg-[#f4f4f4]">
+                            {product.imageUrl ? (
+                              <Image
+                                alt={product.name}
+                                className="object-contain p-2 transition duration-300 group-hover:scale-105"
+                                fill
+                                sizes="(max-width: 1024px) 46vw, 23vw"
+                                src={product.imageUrl}
+                                unoptimized
+                              />
+                            ) : (
+                              <div className="grid h-full place-items-center px-3 text-center text-xs font-bold text-secondary">
+                                Image coming soon
+                              </div>
+                            )}
+                          </div>
+                        </Link>
+                        <div className="mt-3 flex min-w-0 flex-1 flex-col">
+                          <h3 className="line-clamp-2 font-display text-base font-black leading-tight sm:text-lg xl:text-xl">
+                            <Link className="hover:text-blue" href={`/products/${product.slug}`} tabIndex={isProductVisible ? 0 : -1}>
+                              {product.name}
+                            </Link>
                           </h3>
                           <p className="mt-2 text-base font-black sm:text-lg">
-                            {formatMoney(product.priceCents)}
+                            {product.priceAvailable === false ? "Price unavailable" : formatMoney(product.priceCents)}
                           </p>
-                          <span className="mt-2 inline-flex text-xs font-black text-black">
-                            Shop product {"\u2192"}
-                          </span>
+                          {isProductVisible ? (
+                            <div className="mt-auto flex items-stretch gap-1.5 pt-3">
+                              <div className="min-w-0 flex-1 [&_button]:!min-h-9 [&_button]:!py-2 [&_button]:!text-xs">
+                                <AddToCartButton
+                                  disabled={purchaseDisabled}
+                                  disabledReason={disabledReason}
+                                  label="Add to cart"
+                                  squareVariationId={product.squareVariationId}
+                                />
+                              </div>
+                              <WishlistButton
+                                className="!min-h-9 !w-9 border border-black/10 bg-white hover:bg-black/[0.04]"
+                                productName={product.name}
+                                squareVariationId={product.squareVariationId}
+                              />
+                            </div>
+                          ) : null}
                         </div>
-                      </Link>
+                      </article>
                     </div>
                   );
                 })}
@@ -188,7 +209,7 @@ export function HomepageNewTrendingCard({
             ) : null}
 
             <ButtonLink
-              className="mx-auto mt-4 min-h-12 w-fit justify-center gap-3 rounded-pill bg-black px-6 py-3 text-sm font-black text-white shadow-[0_12px_28px_rgba(0,0,0,0.18)] hover:bg-[#292929]"
+              className="mx-auto mt-4 min-h-12 w-full max-w-60 justify-center gap-3 rounded-pill bg-black px-6 py-3 text-sm font-black text-white shadow-[0_12px_28px_rgba(0,0,0,0.18)] hover:bg-[#292929]"
               href={ctaHref}
             >
               <span>{ctaLabel}</span>
@@ -215,7 +236,7 @@ export function HomepageNewTrendingCard({
               </p>
             </div>
             <ButtonLink
-              className="relative min-h-12 w-fit justify-center gap-3 rounded-pill bg-black px-6 py-3 text-sm font-black text-white shadow-[0_12px_28px_rgba(0,0,0,0.18)] hover:bg-[#292929]"
+              className="relative min-h-12 w-full max-w-60 justify-center gap-3 rounded-pill bg-black px-6 py-3 text-sm font-black text-white shadow-[0_12px_28px_rgba(0,0,0,0.18)] hover:bg-[#292929]"
               href={ctaHref}
             >
               <span>{ctaLabel}</span>

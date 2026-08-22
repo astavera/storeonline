@@ -48,6 +48,7 @@ const priceBandDefinitions = [
 export function DepartmentLandingPage({ bestSellerProducts = [], bestSellerSource = "none", catalog, catalogAvailable, department, searchParams }: DepartmentLandingPageProps) {
   const basePath = `/${department.slug}`;
   const isPartySupplies = department.slug === "party-supplies";
+  const usesStandardCatalogWidth = isPartySupplies || department.slug === "toys";
   const rootCategory = catalog?.categories.find((category) => category.slug === department.slug);
   const descendantIds = rootCategory && catalog
     ? websiteCategoryDescendantIds(rootCategory.id, catalog.categories)
@@ -159,7 +160,7 @@ export function DepartmentLandingPage({ bestSellerProducts = [], bestSellerSourc
       <DepartmentProductShelf products={bestSellerProducts} title={bestSellerSource === "manual" ? "Popular Picks" : "Best Sellers"} />
 
       <section aria-labelledby="department-catalog-title" className="bg-surface py-10 sm:py-14" id="catalog">
-        <div className={isPartySupplies ? "mx-auto w-[calc(100%_-_2rem)] max-w-[1120px] md:w-[84%]" : "mx-auto w-[calc(100%_-_2rem)] max-w-[1720px]"}>
+        <div className={usesStandardCatalogWidth ? "department-commerce-shell" : "mx-auto w-[calc(100%_-_2rem)] max-w-[1720px]"}>
           <div className="mb-8 max-w-3xl">
             <h2 className={`font-display font-black tracking-tight text-primary ${isPartySupplies ? "text-2xl sm:text-3xl" : "text-3xl sm:text-4xl"}`} id="department-catalog-title">
               {isPartySupplies ? partyCatalogTitle(catalog, selectedThemes, selectedColors, selectedProductTypes, solidCollectionSelected) : selectedCategory?.name ?? `Shop all ${department.title_en.toLowerCase()}`}

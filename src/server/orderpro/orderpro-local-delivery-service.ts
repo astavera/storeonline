@@ -4,7 +4,7 @@
 
 import "server-only";
 
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { z } from "zod";
 import type {
   BalloonDeliveryPostalEligibility,
@@ -17,9 +17,16 @@ import {
   isWithinNewYorkDeliveryWindow
 } from "@/features/fulfillment/utils/new-york-delivery-date";
 import { getOrderProPrivatePreviewClient } from "@/server/orderpro/private-preview-client";
+import { getOrderProStorefrontFulfillmentClient } from "@/server/orderpro/storefront-fulfillment-client";
+
+const cartLineSchema = z.object({
+  squareVariationId: z.string().trim().min(1).max(160),
+  quantity: z.number().int().min(1).max(999)
+}).strict();
 
 export const localDeliveryQuoteRequestSchema = z.object({
   context: z.enum(["checkout", "balloon-order"]),
+  cartLines: z.array(cartLineSchema).min(1).max(100).optional(),
   address: z.object({
     line1: z.string().trim().min(5).max(160),
     line2: z.string().trim().max(80).optional(),
@@ -44,6 +51,7 @@ export type LocalDeliveryCheckoutSelectionInput = {
   requestedDate: string;
   address: LocalDeliveryAddress;
   locationId: string;
+  cartLines: Array<z.infer<typeof cartLineSchema> & { source?: "storefront" | "balloons" }>;
 };
 
 type DeliveryFixture = {
@@ -102,15 +110,18 @@ export function isOrderProDeliveryTestMode() {
   return process.env.NODE_ENV !== "production";
 }
 
-export async function quoteOrderProLocalDelivery(input: unknown): Promise<LocalDeliveryQuote> {
+export async function quoteOrderProLocalDelivery(
+  input: unknown,
+  options?: { quoteRequestId?: string }
+): Promise<LocalDeliveryQuote> {
   const parsed = localDeliveryQuoteRequestSchema.safeParse(input);
   if (!parsed.success) {
     return failure("INVALID_ADDRESS", "Enter a complete Manhattan delivery address and date.");
   }
 
   if (!isOrderProDeliveryTestMode()) {
-    const client = getOrderProPrivatePreviewClient();
-    if (!client) {
+    const client = getOrderProStorefrontFulfillmentClient();
+    if (!client || !parsed.data.cartLines?.length) {
       return failure(
         "ORDERPRO_NOT_CONFIGURED",
         "Local delivery quoting is temporarily unavailable. Please choose pickup or contact the store."
@@ -118,33 +129,64 @@ export async function quoteOrderProLocalDelivery(input: unknown): Promise<LocalD
     }
 
     try {
-      const quote = await client.quoteLocalDelivery({
+      const cartLines = canonicalCartLines(parsed.data.cartLines);
+      const address = {
         line1: parsed.data.address.line1,
         line2: parsed.data.address.line2 ?? null,
+        city: parsed.data.address.city,
+        state: "NY" as const,
         postalCode: parsed.data.address.postalCode,
-        quantity: 1,
+        country: "US" as const
+      };
+      const quoteRequestId = options?.quoteRequestId?.trim() || randomUUID();
+      const identity = quoteIdentity("delivery", {
+        address,
+        cartLines,
         requestedDate: parsed.data.requestedDate
+      }, quoteRequestId);
+      let quote = await client.quoteLocalDelivery({
+        address,
+        cartLines,
+        requestedDate: parsed.data.requestedDate,
+        ...identity
       });
-      if (!quote.eligible) {
+      if (quote.eligible) {
+        const canonicalAddress = {
+          line1: quote.normalizedAddress.line1,
+          line2: quote.normalizedAddress.line2 ?? null,
+          city: quote.normalizedAddress.city,
+          state: quote.normalizedAddress.state,
+          postalCode: quote.normalizedAddress.postalCode,
+          country: quote.normalizedAddress.country
+        };
+        const canonicalIdentity = quoteIdentity("delivery", {
+          address: canonicalAddress,
+          cartLines,
+          requestedDate: parsed.data.requestedDate
+        }, quoteRequestId);
+        if (canonicalIdentity.idempotencyKey !== identity.idempotencyKey) {
+          quote = await client.quoteLocalDelivery({
+            address: canonicalAddress,
+            cartLines,
+            requestedDate: parsed.data.requestedDate,
+            ...canonicalIdentity
+          });
+        }
+      }
+      if (!quote.eligible || !quote.bookable) {
         return failure(
           quote.reasonCode === "OUTSIDE_WALKING_AREA" ? "OUTSIDE_WALKING_AREA" : "ORDERPRO_UNAVAILABLE",
-          quote.storefrontMessage
+          "storefrontMessage" in quote ? quote.storefrontMessage : "Local delivery is not reservable for this cart.",
+          "ORDERPRO"
         );
       }
 
       const walkingDurationMinutes = Math.max(1, Math.ceil(quote.walkingDurationSeconds / 60));
-      const quoteSeed = [
-        parsed.data.requestedDate,
-        quote.normalizedAddress.line1,
-        quote.normalizedAddress.postalCode,
-        quote.selectedLocationId,
-        quote.feeCents
-      ].join("|");
 
       return {
         eligible: true,
         source: "ORDERPRO",
-        quoteId: `orderpro-preview-${createHash("sha256").update(quoteSeed).digest("hex").slice(0, 20)}`,
+        quoteId: quote.quoteId,
         requestedDate: parsed.data.requestedDate,
         normalizedAddress: {
           line1: quote.normalizedAddress.line1,
@@ -156,27 +198,28 @@ export async function quoteOrderProLocalDelivery(input: unknown): Promise<LocalD
         },
         selectedLocationId: storefrontLocationId(quote.selectedLocationId),
         selectedLocationName: quote.selectedLocationName,
-        assignmentRule: quote.candidateRoutes.length > 1 ? "NEAREST_WALKING_ROUTE" : "FIXED_POSTAL_ZONE",
+        assignmentRule: quote.assignmentRule,
         walkingDistanceFeet: Math.round(quote.walkingDistanceFeet),
         walkingDurationMinutes,
-        estimatedRoundTripMinutes: walkingDurationMinutes * 2 + 8,
+        estimatedRoundTripMinutes: Math.max(1, Math.ceil(quote.estimatedRoundTripDurationSeconds / 60)),
         feeCents: quote.feeCents,
         currency: "USD",
-        feeTierId: "orderpro-published-preview",
+        feeTierId: quote.feeTierId,
         availableSlots: quote.availableSlots.map((slot) => ({
           id: slot.slotId,
           startsAt: slot.startsAt,
           endsAt: slot.endsAt,
           label: slotLabel(slot.startsAt, slot.endsAt)
         })),
-        zoneVersionId: "orderpro-published-zone-set",
-        feePolicyVersionId: "orderpro-published-fee-policy",
+        zoneVersionId: quote.zoneVersionId,
+        feePolicyVersionId: quote.feePolicyVersionId,
         expiresAt: quote.expiresAt
       };
     } catch {
       return failure(
         "ORDERPRO_UNAVAILABLE",
-        "Local delivery quoting is temporarily unavailable. Please choose pickup or contact the store."
+        "Local delivery quoting is temporarily unavailable. Please choose pickup or contact the store.",
+        "ORDERPRO"
       );
     }
   }
@@ -243,23 +286,25 @@ export function checkMockBalloonPostalEligibility(postalCode: string): BalloonDe
   };
 }
 
-export async function validateOrderProLocalDeliverySelection(input: LocalDeliveryCheckoutSelectionInput) {
+export async function validateOrderProLocalDeliverySelection(
+  input: LocalDeliveryCheckoutSelectionInput,
+  options?: { quoteRequestId?: string }
+) {
   const quote = await quoteOrderProLocalDelivery({
     context: "checkout",
     address: input.address,
-    requestedDate: input.requestedDate
-  });
+    requestedDate: input.requestedDate,
+    cartLines: input.cartLines.map(({ squareVariationId, quantity }) => ({
+      squareVariationId,
+      quantity
+    }))
+  }, options);
 
   if (!quote.eligible) {
     return { valid: false as const, message: quote.message };
   }
 
-  const slotIsAvailable = quote.availableSlots.some((slot) => slot.id === input.slotId);
-  const valid = quote.quoteId === input.quoteId
-    && quote.selectedLocationId === input.locationId
-    && quote.feeCents === input.feeCents
-    && slotIsAvailable
-    && Date.parse(quote.expiresAt) > Date.now();
+  const valid = isCurrentOrderProLocalDeliverySelection(input, quote);
 
   return valid
     ? { valid: true as const, quote }
@@ -267,6 +312,19 @@ export async function validateOrderProLocalDeliverySelection(input: LocalDeliver
         valid: false as const,
         message: "The local delivery quote or time slot is no longer valid. Check the address again."
       };
+}
+
+export function isCurrentOrderProLocalDeliverySelection(
+  input: Pick<LocalDeliveryCheckoutSelectionInput, "slotId" | "feeCents" | "locationId">,
+  quote: LocalDeliveryQuoteSuccess
+) {
+  // Checkout deliberately creates a stable, fresh OrderPRO quote. Its id can
+  // differ from the interactive preview; all reservable evidence must match
+  // the fresh quote, which becomes the quote used for the capacity hold.
+  return quote.selectedLocationId === input.locationId
+    && quote.feeCents === input.feeCents
+    && quote.availableSlots.some((slot) => slot.id === input.slotId)
+    && Date.parse(quote.expiresAt) > Date.now();
 }
 
 export function quoteMockLocalDelivery(input: LocalDeliveryQuoteRequest): LocalDeliveryQuote {
@@ -341,9 +399,30 @@ function slotLabel(startsAt: string, endsAt: string) {
 
 function failure(
   reasonCode: Extract<LocalDeliveryQuote, { eligible: false }>["reasonCode"],
-  message: string
+  message: string,
+  source: LocalDeliveryQuote["source"] = "MOCK"
 ): LocalDeliveryQuote {
-  return { eligible: false, source: "MOCK", reasonCode, message };
+  return { eligible: false, source, reasonCode, message };
+}
+
+function canonicalCartLines(lines: Array<z.infer<typeof cartLineSchema>>) {
+  const quantities = new Map<string, number>();
+  for (const line of lines) {
+    quantities.set(line.squareVariationId, (quantities.get(line.squareVariationId) ?? 0) + line.quantity);
+  }
+  return [...quantities]
+    .sort(([left], [right]) => left.localeCompare(right))
+    .map(([squareVariationId, quantity]) => ({ squareVariationId, quantity }));
+}
+
+function quoteIdentity(mode: string, request: unknown, quoteRequestId: string) {
+  const digest = createHash("sha256")
+    .update(JSON.stringify({ quoteRequestId, request }))
+    .digest("hex");
+  return {
+    idempotencyKey: `${mode}-quote:${digest}`,
+    correlationId: `${mode}-quote:${digest.slice(0, 48)}`
+  };
 }
 
 function postalEligibilityFailure(

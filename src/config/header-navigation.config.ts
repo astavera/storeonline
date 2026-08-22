@@ -21,7 +21,7 @@ export const defaultHeaderNavigation: HeaderNavigationConfig = {
     { id: "balloon-order", label: "Balloons", href: "/balloons", visible: true },
     { id: "toys", label: "Toys", href: "/toys", visible: true },
     { id: "party-supplies", label: "Party Supplies", href: "/party-supplies", visible: true },
-    { id: "holidays", label: "Holidays", href: "/holidays", visible: true },
+    { id: "holidays", label: "Holidays", href: "/holidays/halloween", visible: true },
     { id: "about-us", label: "About Us", href: "/about", visible: true }
   ],
   utility: [
@@ -48,7 +48,7 @@ function ensureAboutUsLink(links: HeaderNavigationLink[]) {
     (link) => link.id !== "about-us" && link.href !== "/about"
   );
   const holidaysIndex = withoutAboutUs.findIndex(
-    (link) => link.id === "holidays" || link.href === "/holidays"
+    (link) => link.id === "holidays" || link.href.startsWith("/holidays/")
   );
   const insertAt = holidaysIndex >= 0 ? holidaysIndex + 1 : withoutAboutUs.length;
 
@@ -77,7 +77,13 @@ function normalizeLink(value: unknown, fallback: HeaderNavigationLink): HeaderNa
   return {
     id,
     label,
-    href: id === "wishlist" ? "#wishlist" : id === "account" ? "#account" : href,
+    href: id === "wishlist"
+      ? "#wishlist"
+      : id === "account"
+        ? "#account"
+        : id === "holidays"
+          ? "/holidays/halloween"
+          : href,
     visible: source.visible !== false
   };
 }

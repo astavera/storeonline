@@ -8,11 +8,14 @@ import { safeAdminReturnTo } from "@/lib/security/admin-return-to";
 import { getAdminRateLimiter } from "@/server/admin/admin-rate-limit";
 import { isAdminLoginConfigured, verifyAdminCredentials } from "@/server/admin/admin-login";
 import { adminSessionCookieName, createAdminSessionToken, isTrustedMutationOrigin } from "@/server/admin/admin-security";
+import { roleSessionCapabilities } from "@/server/admin/identity";
+import { authenticateDatabaseAdmin, isDatabaseAdminIdentityEnabled } from "@/server/admin/identity/admin-database-login";
 import { storefrontAdminPreviewRouteResponse } from "@/server/storefront/admin-preview-response";
 
 const loginSchema = z.object({
   email: z.string().trim().email().max(254),
   password: z.string().min(1).max(512),
+  mfaCode: z.string().trim().max(64).optional(),
   returnTo: z.string().max(500).optional()
 });
 
@@ -28,7 +31,7 @@ export async function POST(request: Request) {
   if (previewResponse) return previewResponse;
 
   if (!isTrustedMutationOrigin(request)) {
-    return loginError("Unable to sign in.", 403);
+    return loginError("This login request could not be verified.", 403);
   }
 
   let attemptRateLimit;
@@ -39,14 +42,13 @@ export async function POST(request: Request) {
       limit: 20,
       windowMs: 60_000
     });
-  } catch (error) {
-    logLoginSecurityEvent("RATE_LIMIT_UNAVAILABLE", error);
-    return loginError("Unable to sign in.", 503);
+  } catch {
+    return loginError("Admin login is temporarily unavailable.", 503);
   }
 
   if (!attemptRateLimit.allowed) {
     return NextResponse.json(
-      { ok: false, error: "Too many login attempts." },
+      { ok: false, error: "Too many login attempts. Try again later." },
       {
         status: 429,
         headers: {
@@ -62,14 +64,31 @@ export async function POST(request: Request) {
 
   const parsed = loginSchema.safeParse(body.value);
   if (!parsed.success) {
-    return loginError("Invalid credentials.", 403);
+    return loginError("Enter a valid email and password.", 400);
   }
 
-  const configured = isAdminLoginConfigured();
-  const credentialsValid = verifyAdminCredentials(parsed.data.email, parsed.data.password);
-  if (!configured) logLoginSecurityEvent("AUTH_CONFIGURATION_INVALID");
+  if (!isAdminLoginConfigured()) {
+    return loginError("Admin login has not been configured.", 503);
+  }
 
-  if (!configured || !credentialsValid) {
+  const databaseIdentityEnabled = isDatabaseAdminIdentityEnabled();
+  let databaseSession: Awaited<ReturnType<typeof authenticateDatabaseAdmin>> = null;
+  try {
+    databaseSession = databaseIdentityEnabled
+      ? await authenticateDatabaseAdmin({
+          email: parsed.data.email,
+          password: parsed.data.password,
+          mfaCode: parsed.data.mfaCode,
+          clientAddress: clientAddress(request),
+          userAgent: request.headers.get("user-agent")
+        })
+      : null;
+  } catch (error) {
+    console.warn("[admin-login] Database identity authentication is unavailable.", error);
+    return loginError("Admin login is temporarily unavailable.", 503);
+  }
+
+  if (databaseIdentityEnabled ? !databaseSession : !verifyAdminCredentials(parsed.data.email, parsed.data.password)) {
     let rateLimit;
     try {
       rateLimit = await getAdminRateLimiter().consume({
@@ -78,14 +97,13 @@ export async function POST(request: Request) {
         limit: 5,
         windowMs: 15 * 60 * 1000
       });
-    } catch (error) {
-      logLoginSecurityEvent("FAILED_ATTEMPT_LIMIT_UNAVAILABLE", error);
-      return loginError("Unable to sign in.", 503);
+    } catch {
+      return loginError("Admin login is temporarily unavailable.", 503);
     }
 
     if (!rateLimit.allowed) {
       return NextResponse.json(
-        { ok: false, error: "Too many login attempts." },
+        { ok: false, error: "Too many failed login attempts. Enter the correct credentials or try again later." },
         {
           status: 429,
           headers: {
@@ -99,27 +117,23 @@ export async function POST(request: Request) {
     // The private preview is also protected by HTTP Basic authentication.
     // Returning 401 here makes browsers discard those gateway credentials,
     // so the next attempt receives Caddy's non-JSON authentication challenge.
-    return loginError("Invalid credentials.", 403);
+    return loginError(databaseIdentityEnabled ? "Email, password, or MFA code is incorrect." : "Email or password is incorrect.", 403);
   }
 
   const secret = process.env.ADMIN_SESSION_SECRET;
-  if (!secret) {
-    logLoginSecurityEvent("SESSION_CONFIGURATION_INVALID");
-    return loginError("Invalid credentials.", 403);
-  }
-
-  const expiresAt = Math.floor(Date.now() / 1000) + sessionLifetimeSeconds;
-  const token = createAdminSessionToken({
+  if (!databaseSession && !secret) return loginError("Admin login has not been configured.", 503);
+  const expiresAt = databaseSession ? Math.floor(databaseSession.expiresAt.getTime() / 1000) : Math.floor(Date.now() / 1000) + sessionLifetimeSeconds;
+  const token = databaseSession?.token ?? createAdminSessionToken({
     subject: parsed.data.email.trim().toLowerCase(),
-    capabilities: ["admin:*"],
+    capabilities: [...roleSessionCapabilities("OWNER")],
     expiresAt,
-    secret
+    secret: secret!
   });
   const returnTo = safeAdminReturnTo(parsed.data.returnTo);
   const response = NextResponse.json({ ok: true, returnTo }, { headers: { "Cache-Control": "private, no-store" } });
   response.cookies.set(adminSessionCookieName, token, {
     httpOnly: true,
-    maxAge: sessionLifetimeSeconds,
+    maxAge: Math.max(0, expiresAt - Math.floor(Date.now() / 1000)),
     path: "/",
     sameSite: "strict",
     secure: process.env.NODE_ENV === "production"
@@ -142,10 +156,10 @@ async function readLoginBody(request: Request): Promise<LoginBodyResult> {
   if (declaredLength !== null) {
     const parsedLength = Number(declaredLength);
     if (!Number.isSafeInteger(parsedLength) || parsedLength < 0) {
-      return { ok: false, error: "Unable to sign in.", status: 400 };
+      return { ok: false, error: "Enter a valid email and password.", status: 400 };
     }
     if (parsedLength > maximumLoginBodyBytes) {
-      return { ok: false, error: "Unable to sign in.", status: 413 };
+      return { ok: false, error: "This login request is too large.", status: 413 };
     }
   }
 
@@ -163,12 +177,12 @@ async function readLoginBody(request: Request): Promise<LoginBodyResult> {
       totalBytes += chunk.value.byteLength;
       if (totalBytes > maximumLoginBodyBytes) {
         await reader.cancel().catch(() => undefined);
-        return { ok: false, error: "Unable to sign in.", status: 413 };
+        return { ok: false, error: "This login request is too large.", status: 413 };
       }
       chunks.push(chunk.value);
     }
   } catch {
-    return { ok: false, error: "Unable to sign in.", status: 400 };
+    return { ok: false, error: "Enter a valid email and password.", status: 400 };
   } finally {
     reader.releaseLock();
   }
@@ -185,11 +199,4 @@ async function readLoginBody(request: Request): Promise<LoginBodyResult> {
   } catch {
     return { ok: true, value: null };
   }
-}
-
-function logLoginSecurityEvent(event: string, error?: unknown) {
-  console.warn("[admin-login]", {
-    event,
-    errorType: error instanceof Error ? error.name : error === undefined ? undefined : typeof error
-  });
 }

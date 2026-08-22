@@ -22,11 +22,13 @@ import { formatMoney } from "@/lib/utils";
 
 type LocalDeliveryQuotePanelProps = {
   context: LocalDeliveryQuoteContext;
+  items: Array<{ squareVariationId: string; quantity: number }>;
   initialAddress?: LocalDeliveryAddress;
   initialPostalCode?: string;
   initialRequestedDate?: string;
   testMode?: boolean;
   onSelectionChange?: (selection: LocalDeliverySelection | null) => void;
+  selectionName?: string;
 };
 
 const testAddresses = [
@@ -37,11 +39,13 @@ const testAddresses = [
 
 export function LocalDeliveryQuotePanel({
   context,
+  items,
   initialAddress,
   initialPostalCode,
   initialRequestedDate,
   testMode = false,
-  onSelectionChange
+  onSelectionChange,
+  selectionName
 }: LocalDeliveryQuotePanelProps) {
   const [line1, setLine1] = useState(initialAddress?.line1 ?? "");
   const [line2, setLine2] = useState(initialAddress?.line2 ?? "");
@@ -89,6 +93,7 @@ export function LocalDeliveryQuotePanel({
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
           context,
+          cartLines: items,
           address: {
             line1,
             ...(line2.trim() ? { line2 } : {}),
@@ -129,13 +134,10 @@ export function LocalDeliveryQuotePanel({
   }
 
   return (
-    <section className="surface-card p-6" data-store-component="LocalDeliveryQuotePanel" data-store-variant={context}>
-      <div className="flex items-start gap-3">
-        <span className="rounded-md bg-surface-muted p-2 text-primary"><MapPin aria-hidden="true" size={20} /></span>
-        <div>
-          <h2 className="font-display text-2xl font-semibold">Check your delivery address</h2>
-          <p className="mt-1 text-sm text-secondary">We’ll assign the closest eligible store, calculate the delivery fee, and show that store’s available times.</p>
-        </div>
+    <section className={isEmbeddedInCheckout ? "p-0" : "surface-card p-6"} data-store-component="LocalDeliveryQuotePanel" data-store-variant={context}>
+      <div className="flex items-center gap-3">
+        <span className={isEmbeddedInCheckout ? "text-secondary" : "rounded-md bg-surface-muted p-2 text-primary"}><MapPin aria-hidden="true" size={20} /></span>
+        <h2 className="text-xl font-semibold tracking-[-0.01em] text-primary">Delivery address</h2>
       </div>
 
       {testMode ? (
@@ -236,7 +238,7 @@ export function LocalDeliveryQuotePanel({
                   <input
                     checked={selectedSlotId === slot.id}
                     className="sr-only"
-                    name={`${context}-delivery-slot`}
+                    name={`${selectionName ?? context}-delivery-slot`}
                     onChange={() => selectSlot(slot.id)}
                     type="radio"
                     value={slot.id}

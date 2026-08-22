@@ -3,6 +3,8 @@
 node_modules
 coverage
 output
+orderpro-source
+*.tar.gz
 playwright-report
 test-results
 .env

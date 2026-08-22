@@ -36,7 +36,7 @@ const solidCategoryCards = [
 export function PartySolidCategoryShowcase() {
   return (
     <section aria-labelledby="party-solid-category-title" className="border-y border-blue/10 bg-[#f6f8fc] py-7 sm:py-9">
-      <div className="mx-auto w-[calc(100%_-_2rem)] max-w-[1120px] md:w-[84%]">
+      <div className="department-commerce-shell">
         <div className="flex items-end justify-between gap-4">
           <h2 className="font-display text-2xl font-black tracking-tight text-primary sm:text-3xl" id="party-solid-category-title">Shop solid colors</h2>
           <Link className="hidden text-sm font-bold text-blue hover:text-navy sm:inline" href="/party-supplies?collection=solids#catalog">Shop all solids</Link>

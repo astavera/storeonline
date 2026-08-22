@@ -37,10 +37,76 @@ enum FulfillmentStatus {
 enum AdminRole {
   OWNER
   MANAGER
+  MERCHANDISER
+  MARKETING_CONTENT
+  CUSTOMER_SUPPORT
+  ANALYST_VIEWER
+  // Legacy operational values remain temporarily for existing fulfillment rows.
+  // They are not accepted as Store Admin identity roles by the RBAC layer.
   STORE_STAFF
   DELIVERY_STAFF
   WAREHOUSE_STAFF
   VIEWER
+}
+
+enum AdminUserStatus {
+  INVITED
+  ACTIVE
+  SUSPENDED
+  DISABLED
+}
+
+enum AdminLocationScopeMode {
+  ALL
+  LOCATIONS
+}
+
+enum OperationsRole {
+  OPERATIONS_MANAGER
+  STORE_STAFF
+  FULFILLMENT
+  DELIVERY
+  WAREHOUSE
+}
+
+enum OperationsAccessStatus {
+  NONE
+  PENDING
+  ACTIVE
+  REVOKING
+  FAILED
+  UNAVAILABLE
+}
+
+enum NotificationChannel {
+  EMAIL
+  SMS
+}
+
+enum NotificationTemplateStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+enum NotificationDeliveryStatus {
+  QUEUED
+  SENT
+  DELIVERED
+  FAILED
+  SUPPRESSED
+}
+
+enum CustomerPrivacyRequestType {
+  DATA_EXPORT
+  DELETION
+}
+
+enum CustomerPrivacyRequestStatus {
+  REQUESTED
+  IN_REVIEW
+  COMPLETED
+  REJECTED
 }
 
 enum CmsPublishStatus {
@@ -163,22 +229,31 @@ enum ReturnLabelPayer {
 }
 
 model StoreLocation {
-  id                         String              @id @default(cuid())
-  squareLocationId           String?             @unique
-  slug                       String              @unique
+  id                         String                   @id @default(cuid())
+  squareLocationId           String?                  @unique
+  slug                       String                   @unique
   name                       String
   address                    String
+  locality                   String                   @default("")
   phone                      String?
-  pickupEnabled              Boolean             @default(true)
-  localDeliveryEnabled       Boolean             @default(true)
-  shippingFulfillmentEnabled Boolean             @default(false)
-  createdAt                  DateTime            @default(now())
-  updatedAt                  DateTime            @updatedAt
+  hours                      String                   @default("")
+  notes                      String                   @default("")
+  publicVisible              Boolean                  @default(true)
+  displayOrder               Int                      @default(0)
+  pickupEnabled              Boolean                  @default(true)
+  localDeliveryEnabled       Boolean                  @default(true)
+  shippingFulfillmentEnabled Boolean                  @default(false)
+  archivedAt                 DateTime?
+  createdAt                  DateTime                 @default(now())
+  updatedAt                  DateTime                 @updatedAt
   deliveryZones              DeliveryZone[]
   slotTemplates              SlotTemplate[]
   fulfillmentTasks           FulfillmentTask[]
   adminUsers                 AdminUser[]
+  adminUserScopes            AdminUserLocationScope[]
   balloonOrderDrafts         BalloonOrderDraft[]
+
+  @@index([publicVisible, archivedAt, displayOrder])
 }
 
 model SquareCatalogObject {
@@ -688,6 +763,7 @@ model WebhookEvent {
 
 model CheckoutAttempt {
   id                      String                @id @default(cuid())
+  checkoutVersion         Int                   @default(1)
   idempotencyKey          String                @unique
   cartId                  String?
   requestHash             String
@@ -697,8 +773,10 @@ model CheckoutAttempt {
   fulfillmentMode         FulfillmentMode?
   squareOrderId           String?               @unique
   squarePaymentLinkId     String?               @unique
+  squareCheckoutUrl       String?
   orderproShippingOrderId String?               @unique
   shippingContext         Json?
+  splitCheckoutContext    Json?
   hostedCheckoutCreatedAt DateTime?
   expiresAt               DateTime
   createdAt               DateTime              @default(now())
@@ -1026,23 +1104,25 @@ model ReturnStatusEvent {
 }
 
 model CustomerAccount {
-  id                      String                 @id @default(cuid())
-  email                   String                 @unique
+  id                      String                   @id @default(cuid())
+  email                   String                   @unique
   firstName               String?
   lastName                String?
-  squareCustomerId        String?                @unique
+  squareCustomerId        String?                  @unique
   termsAcceptedAt         DateTime
   termsVersion            String
-  marketingEmailConsent   Boolean                @default(false)
+  marketingEmailConsent   Boolean                  @default(false)
   marketingConsentAt      DateTime?
   marketingConsentSource  String?
   marketingConsentVersion String?
   marketingUnsubscribedAt DateTime?
   lastLoginAt             DateTime?
-  createdAt               DateTime               @default(now())
-  updatedAt               DateTime               @updatedAt
+  createdAt               DateTime                 @default(now())
+  updatedAt               DateTime                 @updatedAt
   sessions                CustomerSession[]
   consentEvents           CustomerConsentEvent[]
+  notes                   CustomerNote[]
+  privacyRequests         CustomerPrivacyRequest[]
 
   @@index([squareCustomerId])
   @@index([createdAt])
@@ -1093,20 +1173,193 @@ model CustomerConsentEvent {
   @@index([consentType, occurredAt])
 }
 
+model CustomerNote {
+  id                String          @id @default(cuid())
+  customerAccountId String
+  authorAdminUserId String?
+  body              String
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+  customerAccount   CustomerAccount @relation(fields: [customerAccountId], references: [id], onDelete: Cascade)
+  authorAdminUser   AdminUser?      @relation("CustomerNoteAuthor", fields: [authorAdminUserId], references: [id], onDelete: SetNull)
+
+  @@index([customerAccountId, createdAt])
+  @@index([authorAdminUserId])
+}
+
+model CustomerPrivacyRequest {
+  id                String                       @id @default(cuid())
+  customerAccountId String
+  requestType       CustomerPrivacyRequestType
+  status            CustomerPrivacyRequestStatus @default(REQUESTED)
+  requestedById     String?
+  resolvedById      String?
+  resolutionNote    String?
+  createdAt         DateTime                     @default(now())
+  updatedAt         DateTime                     @updatedAt
+  completedAt       DateTime?
+  customerAccount   CustomerAccount              @relation(fields: [customerAccountId], references: [id], onDelete: Restrict)
+  requestedBy       AdminUser?                   @relation("PrivacyRequestCreator", fields: [requestedById], references: [id], onDelete: SetNull)
+  resolvedBy        AdminUser?                   @relation("PrivacyRequestResolver", fields: [resolvedById], references: [id], onDelete: SetNull)
+
+  @@index([customerAccountId, createdAt])
+  @@index([status, requestType])
+  @@index([requestedById])
+  @@index([resolvedById])
+}
+
 model AdminUser {
-  id                   String              @id @default(cuid())
-  email                String              @unique
-  role                 AdminRole
-  locationId           String?
-  mfaEnabled           Boolean             @default(false)
-  lastLoginAt          DateTime?
-  createdAt            DateTime            @default(now())
-  auditLogs            AuditLog[]
-  cmsVersionsCreated   CmsContentVersion[] @relation("CmsVersionCreatedBy")
-  cmsVersionsPublished CmsContentVersion[] @relation("CmsVersionPublishedBy")
-  location             StoreLocation?      @relation(fields: [locationId], references: [id], onDelete: SetNull)
+  id                        String                   @id @default(cuid())
+  email                     String                   @unique
+  displayName               String?
+  passwordHash              String?
+  role                      AdminRole
+  status                    AdminUserStatus          @default(INVITED)
+  locationScopeMode         AdminLocationScopeMode   @default(ALL)
+  locationId                String?
+  mfaEnabled                Boolean                  @default(false)
+  mfaSecretEncrypted        String?
+  authVersion               Int                      @default(1)
+  lastLoginAt               DateTime?
+  notificationsLastSeenAt   DateTime?
+  invitedAt                 DateTime?
+  activatedAt               DateTime?
+  suspendedAt               DateTime?
+  operationsRole            OperationsRole?
+  operationsLocationIds     String[]                 @default([])
+  operationsAccessStatus    OperationsAccessStatus   @default(NONE)
+  operationsExternalSubject String?
+  operationsRequestedAt     DateTime?
+  operationsLastSyncedAt    DateTime?
+  operationsSyncError       String?
+  createdAt                 DateTime                 @default(now())
+  updatedAt                 DateTime                 @updatedAt
+  auditLogs                 AuditLog[]
+  cmsVersionsCreated        CmsContentVersion[]      @relation("CmsVersionCreatedBy")
+  cmsVersionsPublished      CmsContentVersion[]      @relation("CmsVersionPublishedBy")
+  location                  StoreLocation?           @relation(fields: [locationId], references: [id], onDelete: SetNull)
+  locationScopes            AdminUserLocationScope[]
+  sessions                  AdminSession[]
+  recoveryCodes             AdminRecoveryCode[]
+  invitations               AdminUserInvitation[]    @relation("AdminInvitationUser")
+  invitationsCreated        AdminUserInvitation[]    @relation("AdminInvitationCreator")
+  passwordResets            AdminPasswordReset[]
+  customerNotesWritten      CustomerNote[]           @relation("CustomerNoteAuthor")
+  privacyRequestsCreated    CustomerPrivacyRequest[] @relation("PrivacyRequestCreator")
+  privacyRequestsResolved   CustomerPrivacyRequest[] @relation("PrivacyRequestResolver")
 
   @@index([locationId])
+  @@index([status, role])
+  @@index([operationsAccessStatus])
+}
+
+model AdminUserLocationScope {
+  adminUserId String
+  locationId  String
+  createdAt   DateTime      @default(now())
+  adminUser   AdminUser     @relation(fields: [adminUserId], references: [id], onDelete: Cascade)
+  location    StoreLocation @relation(fields: [locationId], references: [id], onDelete: Cascade)
+
+  @@id([adminUserId, locationId])
+  @@index([locationId])
+}
+
+model AdminSession {
+  id            String    @id @default(cuid())
+  adminUserId   String
+  tokenHash     String    @unique
+  authVersion   Int
+  mfaVerified   Boolean   @default(false)
+  ipHash        String?
+  userAgent     String?
+  createdAt     DateTime  @default(now())
+  lastSeenAt    DateTime  @default(now())
+  expiresAt     DateTime
+  idleExpiresAt DateTime
+  revokedAt     DateTime?
+  revokedReason String?
+  adminUser     AdminUser @relation(fields: [adminUserId], references: [id], onDelete: Cascade)
+
+  @@index([adminUserId, revokedAt])
+  @@index([expiresAt])
+  @@index([idleExpiresAt])
+}
+
+model AdminRecoveryCode {
+  id          String    @id @default(cuid())
+  adminUserId String
+  codeHash    String    @unique
+  createdAt   DateTime  @default(now())
+  usedAt      DateTime?
+  adminUser   AdminUser @relation(fields: [adminUserId], references: [id], onDelete: Cascade)
+
+  @@index([adminUserId, usedAt])
+}
+
+model AdminUserInvitation {
+  id          String     @id @default(cuid())
+  adminUserId String
+  tokenHash   String     @unique
+  createdById String?
+  expiresAt   DateTime
+  acceptedAt  DateTime?
+  revokedAt   DateTime?
+  createdAt   DateTime   @default(now())
+  adminUser   AdminUser  @relation("AdminInvitationUser", fields: [adminUserId], references: [id], onDelete: Cascade)
+  createdBy   AdminUser? @relation("AdminInvitationCreator", fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@index([adminUserId, expiresAt])
+  @@index([createdById])
+}
+
+model AdminPasswordReset {
+  id          String    @id @default(cuid())
+  adminUserId String
+  tokenHash   String    @unique
+  expiresAt   DateTime
+  consumedAt  DateTime?
+  createdAt   DateTime  @default(now())
+  adminUser   AdminUser @relation(fields: [adminUserId], references: [id], onDelete: Cascade)
+
+  @@index([adminUserId, expiresAt])
+  @@index([expiresAt, consumedAt])
+}
+
+model NotificationTemplateVersion {
+  id          String                      @id @default(cuid())
+  templateKey String
+  version     Int
+  name        String
+  channel     NotificationChannel         @default(EMAIL)
+  subject     String
+  bodyText    String
+  variables   String[]                    @default([])
+  status      NotificationTemplateStatus  @default(DRAFT)
+  publishedAt DateTime?
+  createdAt   DateTime                    @default(now())
+  updatedAt   DateTime                    @updatedAt
+  deliveries  NotificationDeliveryEvent[]
+
+  @@unique([templateKey, version])
+  @@index([templateKey, status, version])
+}
+
+model NotificationDeliveryEvent {
+  id                String                       @id @default(cuid())
+  templateVersionId String?
+  eventType         String
+  channel           NotificationChannel
+  recipientHash     String
+  provider          String?
+  providerMessageId String?                      @unique
+  status            NotificationDeliveryStatus
+  errorCode         String?
+  createdAt         DateTime                     @default(now())
+  updatedAt         DateTime                     @updatedAt
+  templateVersion   NotificationTemplateVersion? @relation(fields: [templateVersionId], references: [id], onDelete: SetNull)
+
+  @@index([eventType, status, createdAt])
+  @@index([templateVersionId, createdAt])
 }
 
 model AuditLog {

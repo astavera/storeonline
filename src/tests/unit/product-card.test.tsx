@@ -49,14 +49,22 @@ describe("product card", () => {
     expect(addButton.className).toContain("bg-blue");
     fireEvent.click(addButton);
 
-    expect(readCartItems()).toEqual([{ squareVariationId: "variation-card-1", quantity: 1 }]);
+    expect(readCartItems()).toEqual([{
+      squareVariationId: "variation-card-1",
+      quantity: 1,
+      source: "storefront"
+    }]);
     expect(screen.queryByRole("button", { name: "Add to cart" })).toBeNull();
 
     const quantity = screen.getByRole("group", { name: "Quantity in cart" });
     fireEvent.click(within(quantity).getByRole("button", { name: "Increase quantity in cart" }));
     fireEvent.click(within(quantity).getByRole("button", { name: "Increase quantity in cart" }));
     expect(within(quantity).getByText("3")).not.toBeNull();
-    expect(readCartItems()).toEqual([{ squareVariationId: "variation-card-1", quantity: 3 }]);
+    expect(readCartItems()).toEqual([{
+      squareVariationId: "variation-card-1",
+      quantity: 3,
+      source: "storefront"
+    }]);
   });
 
   it("shows a muted sold-out line and disables purchasing", () => {

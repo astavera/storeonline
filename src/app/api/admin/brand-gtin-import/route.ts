@@ -7,7 +7,7 @@ import { z, ZodError } from "zod";
 import { prepareBrandGtinImport } from "@/features/catalog/services/brand-gtin-import-service";
 import { applyBulkWebsiteMerchandisingToVariationIds, readWebsiteMerchandisingSnapshot } from "@/server/admin/website-merchandising-store";
 import { readSquareVariationsByCanonicalGtins } from "@/server/square/catalog-test-cache-store";
-import { adminAuthorizationResponse, adminCapabilities, authorizeAdminRequest } from "@/server/admin/admin-security";
+import { adminAuthorizationResponse, authorizeAdminRequest } from "@/server/admin/admin-security";
 import { storefrontAdminPreviewRouteResponse } from "@/server/storefront/admin-preview-response";
 
 export const dynamic = "force-dynamic";
@@ -23,7 +23,7 @@ export async function POST(request: NextRequest) {
   const previewResponse = storefrontAdminPreviewRouteResponse(request);
   if (previewResponse) return previewResponse;
 
-  const authorization = await authorizeAdminRequest(request, adminCapabilities.merchandisingWrite);
+  const authorization = await authorizeAdminRequest(request, "catalog:merchandise");
   if (!authorization.ok) return adminAuthorizationResponse(authorization);
 
   try {

@@ -1,9 +1,5 @@
-/**
- * Renders the admin navigation page and prepares its route-level data.
- */
-
-import { AdminPageShell } from "@/components/admin/admin-page-shell";
+import { redirect } from "next/navigation";
 
 export default function AdminNavigationPage() {
-  return <AdminPageShell description="Edit navigation labels, order, visibility, and campaign links through controlled draft, preview, publish, schedule, and rollback workflows." sectionId="admin.navigation" title="Navigation" />;
+  redirect("/admin/storefront-pages?tab=navigation");
 }

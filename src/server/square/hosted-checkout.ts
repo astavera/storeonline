@@ -20,9 +20,12 @@ type CheckoutCustomer = {
 };
 
 type PickupSelection = {
+  timing?: "ASAP" | "SCHEDULED";
   requestedDate: string;
   slotId: string;
   slotLabel: string;
+  startsAt?: string;
+  endsAt?: string;
 };
 
 type LocalDeliverySelection = {
@@ -57,12 +60,22 @@ type ShippingSelection = {
   };
 };
 
+export type SquareHostedFulfillmentGroup = {
+  id: "regular" | "balloons";
+  fulfillmentMode: "pickup" | "local-delivery" | "shipping";
+  pickup?: PickupSelection;
+  localDelivery?: LocalDeliverySelection;
+  shipping?: ShippingSelection;
+  orderProShippingOrderId?: string;
+};
+
 export type SquareHostedCheckoutInput = {
   attemptId: string;
   idempotencyKey: string;
   squareLocationId: string;
   orderProShippingOrderId?: string;
-  fulfillmentMode: "pickup" | "local-delivery" | "shipping";
+  fulfillmentMode?: "pickup" | "local-delivery" | "shipping";
+  fulfillmentGroups?: SquareHostedFulfillmentGroup[];
   customer: CheckoutCustomer;
   quote: CartQuote;
   pickup?: PickupSelection;
@@ -91,21 +104,32 @@ export function buildSquarePaymentLinkRequest(input: SquareHostedCheckoutInput):
   if (input.quote.lines.length === 0) {
     throw new SquareCheckoutUnavailableError("Your cart has no purchasable items.");
   }
-  if (input.fulfillmentMode === "local-delivery" && !input.localDelivery) {
-    throw new SquareCheckoutUnavailableError("A verified local delivery quote and time slot are required.");
-  }
-  if (input.fulfillmentMode === "shipping" && !input.shipping) {
-    throw new SquareCheckoutUnavailableError("A verified Shippo shipping rate is required.");
-  }
-  if (input.fulfillmentMode === "shipping" && !input.orderProShippingOrderId) {
-    throw new SquareCheckoutUnavailableError("An OrderPRO shipping reservation is required.");
+  const fulfillmentGroups = normalizedFulfillmentGroups(input);
+  const mixedFulfillment = fulfillmentGroups.length > 1;
+  const orderProFulfillment = Boolean(input.fulfillmentGroups?.length);
+  const singleGroup = fulfillmentGroups.length === 1 ? fulfillmentGroups[0] : undefined;
+  const fulfillmentMode = singleGroup?.fulfillmentMode;
+  const pickup = singleGroup?.pickup;
+  const delivery = singleGroup?.localDelivery;
+  const shippingGroup = fulfillmentGroups.find((group) => group.fulfillmentMode === "shipping");
+  const shipping = shippingGroup?.shipping;
+  const orderProShippingOrderId = shippingGroup?.orderProShippingOrderId;
+
+  for (const group of fulfillmentGroups) {
+    if (group.fulfillmentMode === "local-delivery" && !group.localDelivery) {
+      throw new SquareCheckoutUnavailableError("A verified local delivery quote and time slot are required.");
+    }
+    if (group.fulfillmentMode === "shipping" && !group.shipping) {
+      throw new SquareCheckoutUnavailableError("A verified Shippo shipping rate is required.");
+    }
+    if (group.fulfillmentMode === "shipping" && !group.orderProShippingOrderId) {
+      throw new SquareCheckoutUnavailableError("An OrderPRO shipping reservation is required.");
+    }
   }
 
-  const pickupNote = input.pickup
-    ? `Requested pickup: ${input.pickup.requestedDate}, ${input.pickup.slotLabel}. Slot: ${input.pickup.slotId}`
+  const pickupNote = pickup
+    ? `Requested pickup: ${pickup.requestedDate}, ${pickup.slotLabel}. Slot: ${pickup.slotId}`
     : "Pickup order placed through the Modern State website.";
-  const delivery = input.localDelivery;
-  const shipping = input.shipping;
   const deliveryNote = delivery
     ? `OrderPRO quote ${delivery.quoteId}. Slot ${delivery.slotId}.`
     : "";
@@ -122,17 +146,18 @@ export function buildSquarePaymentLinkRequest(input: SquareHostedCheckoutInput):
           catalogObjectId: line.squareVariationId,
           quantity: String(line.quantity)
         })),
-        ...(delivery ? [{
-          name: "Local delivery",
+        ...fulfillmentGroups.flatMap((group) => group.localDelivery ? [{
+          name: group.id === "balloons" ? "Balloons local delivery" : "Local delivery",
           quantity: "1",
           itemType: "ITEM" as const,
           basePriceMoney: {
-            amount: BigInt(delivery.feeCents),
+            amount: BigInt(group.localDelivery.feeCents),
             currency: "USD" as const
           },
           metadata: {
-            orderpro_quote_id: delivery.quoteId,
-            orderpro_slot_id: delivery.slotId
+            orderpro_quote_id: group.localDelivery.quoteId,
+            orderpro_slot_id: group.localDelivery.slotId,
+            checkout_group: group.id
           }
         }] : [])
       ],
@@ -140,7 +165,7 @@ export function buildSquarePaymentLinkRequest(input: SquareHostedCheckoutInput):
         autoApplyDiscounts: true,
         autoApplyTaxes: true
       },
-      ...(input.fulfillmentMode === "pickup" ? {
+      ...(!mixedFulfillment && fulfillmentMode === "pickup" ? {
         fulfillments: [{
           type: "PICKUP" as const,
           state: "PROPOSED" as const,
@@ -150,7 +175,8 @@ export function buildSquarePaymentLinkRequest(input: SquareHostedCheckoutInput):
               emailAddress: input.customer.email,
               phoneNumber: input.customer.phone
             },
-            scheduleType: "ASAP" as const,
+            scheduleType: pickup?.startsAt ? "SCHEDULED" as const : "ASAP" as const,
+            ...(pickup?.startsAt ? { pickupAt: pickup.startsAt } : {}),
             note: pickupNote.slice(0, 500)
           }
         }]
@@ -188,7 +214,7 @@ export function buildSquarePaymentLinkRequest(input: SquareHostedCheckoutInput):
           state: "PROPOSED" as const,
           metadata: {
             shippo_rate_id: shipping.rateId,
-            orderpro_shipping_order_id: input.orderProShippingOrderId!
+            orderpro_shipping_order_id: orderProShippingOrderId!
           },
           shipmentDetails: {
             recipient: {
@@ -212,20 +238,23 @@ export function buildSquarePaymentLinkRequest(input: SquareHostedCheckoutInput):
       } : {}),
       metadata: {
         checkout_attempt_id: input.attemptId.slice(0, 255),
-        fulfillment_mode: input.fulfillmentMode,
+        checkout_version: orderProFulfillment ? "2" : "1",
+        fulfillment_model: orderProFulfillment ? "ORDERPRO_SPLIT" : "SQUARE_SINGLE",
+        fulfillment_mode: orderProFulfillment ? "split" : fulfillmentMode!,
+        fulfillment_groups: fulfillmentGroups.map((group) => `${group.id}:${group.fulfillmentMode}`).join(",").slice(0, 255),
         ...(delivery ? {
           orderpro_quote_id: delivery.quoteId,
           orderpro_slot_id: delivery.slotId
         } : shipping ? {
           shippo_rate_id: shipping.rateId,
           orderpro_ready_to_ship: shipping.readyToShipDate,
-          orderpro_shipping_order_id: input.orderProShippingOrderId!
+          orderpro_shipping_order_id: orderProShippingOrderId!
         } : {})
       }
     },
     checkoutOptions: {
       allowTipping: false,
-      askForShippingAddress: input.fulfillmentMode === "shipping",
+      askForShippingAddress: Boolean(shipping),
       enableCoupon: true,
       ...(shipping ? {
         shippingFee: {
@@ -237,8 +266,23 @@ export function buildSquarePaymentLinkRequest(input: SquareHostedCheckoutInput):
         }
       } : {})
     },
-    paymentNote: `Modern State website order - ${input.fulfillmentMode}`
+    paymentNote: `Modern State website order - ${mixedFulfillment ? "split fulfillment" : fulfillmentMode}`
   };
+}
+
+function normalizedFulfillmentGroups(input: SquareHostedCheckoutInput): SquareHostedFulfillmentGroup[] {
+  if (input.fulfillmentGroups?.length) return input.fulfillmentGroups;
+  if (!input.fulfillmentMode) {
+    throw new SquareCheckoutUnavailableError("A fulfillment selection is required.");
+  }
+  return [{
+    id: input.quote.checkoutGroups?.[0]?.id ?? "regular",
+    fulfillmentMode: input.fulfillmentMode,
+    ...(input.pickup ? { pickup: input.pickup } : {}),
+    ...(input.localDelivery ? { localDelivery: input.localDelivery } : {}),
+    ...(input.shipping ? { shipping: input.shipping } : {}),
+    ...(input.orderProShippingOrderId ? { orderProShippingOrderId: input.orderProShippingOrderId } : {})
+  }];
 }
 
 export async function createSquareHostedCheckout(input: SquareHostedCheckoutInput): Promise<SquareHostedCheckoutResult> {

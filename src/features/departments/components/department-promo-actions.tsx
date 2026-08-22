@@ -43,7 +43,7 @@ export function DepartmentPromoActions({ actions, label, variant = "full-bleed" 
   }, []);
 
   return (
-    <nav aria-label={label} className={variant === "contained" ? "mx-auto grid w-[calc(100%_-_2rem)] max-w-[1120px] grid-cols-2 gap-2 pb-8 md:w-[84%] md:grid-cols-3 lg:pb-10" : "grid grid-cols-2 overflow-hidden md:grid-cols-3"} ref={navRef}>
+    <nav aria-label={label} className={variant === "contained" ? "department-commerce-shell grid grid-cols-2 gap-2 pb-8 md:grid-cols-3 lg:pb-10" : "grid grid-cols-2 overflow-hidden md:grid-cols-3"} ref={navRef}>
       {actions.slice(0, 3).map((action, index) => (
         <Link
           className={`flex items-center justify-between gap-4 font-display font-black uppercase tracking-[-0.02em] transition-[background-color,border-color,color,opacity,transform] duration-500 focus-visible:relative focus-visible:z-10 focus-visible:outline focus-visible:outline-4 motion-reduce:transform-none motion-reduce:transition-none ${index === 0 ? "col-span-2 md:col-span-1" : ""} ${variant === "contained" ? "min-h-[54px] rounded-md border border-border bg-surface px-4 py-3 text-xs text-primary shadow-sm hover:border-blue hover:bg-cyan focus-visible:outline-blue sm:min-h-[60px] sm:px-5 sm:text-sm" : `min-h-[64px] px-5 py-4 text-sm focus-visible:outline-inset focus-visible:outline-white sm:min-h-[76px] sm:px-7 sm:text-lg ${toneClasses[action.tone]}`} ${revealed ? "translate-y-0 opacity-100" : "translate-y-3 opacity-0"}`}

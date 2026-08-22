@@ -7,7 +7,7 @@ import { isOrderProLocalDeliveryCheckoutEnabled } from "@/server/orderpro/config
 import { isOrderProDeliveryTestMode } from "@/server/orderpro/orderpro-local-delivery-service";
 import { readMappedOperationalStoreLocations } from "@/server/square/postgres-catalog-store";
 import { isSquareHostedCheckoutEnabled } from "@/server/square/hosted-checkout";
-import { getShippingPilotVariationIds, isOrderProShippingCheckoutEnabled } from "@/server/shipping/shipping-service";
+import { isOrderProShippingCheckoutEnabled } from "@/server/shipping/shipping-service";
 
 export const dynamic = "force-dynamic";
 
@@ -19,7 +19,7 @@ export default async function CheckoutPage() {
     localDeliveryCheckoutEnabled={deliveryTestMode || isOrderProLocalDeliveryCheckoutEnabled()}
     locations={locations}
     shippingCheckoutEnabled={isOrderProShippingCheckoutEnabled()}
-    shippingPilotVariationIds={getShippingPilotVariationIds()}
+    splitCheckoutEnabled={process.env.SPLIT_CHECKOUT_ENABLED === "true"}
     squareCheckoutEnabled={isSquareHostedCheckoutEnabled()}
   />;
 }

@@ -82,6 +82,7 @@ export default async function ShopPage({ searchParams }: ShopPageProps) {
     : featureFilteredProducts;
   const products = sortProducts(filteredProducts, selectedSort);
   const shopProductsForCounts = resolvedCatalog ? filterWebsiteCatalogProducts(resolvedCatalog, { surface: "shop" }) : catalogProducts;
+  const hasCatalogProducts = shopProductsForCounts.length > 0;
   const ageCounts = Object.fromEntries(productAgeGroupIds.map((age) => [age, shopProductsForCounts.filter((product) => product.ageGroups?.includes(age)).length]));
   const fulfillmentCounts = Object.fromEntries((["pickup", "local-delivery", "shipping"] as const).map((mode) => [mode, shopProductsForCounts.filter((product) => product.fulfillmentModes.includes(mode)).length]));
 
@@ -129,46 +130,68 @@ export default async function ShopPage({ searchParams }: ShopPageProps) {
 
   return (
     <main className="bg-surface">
-      <SectionFrame area="Shop" className="py-8 md:py-12" component="ShopPageSection" sectionId="shop.index" variant="product-grid">
+      <SectionFrame area="Shop" className="py-6 md:py-10" component="ShopPageSection" sectionId="shop.index" variant="product-grid">
         <div className="mx-auto w-[calc(100%_-_2rem)] max-w-[1720px]">
-          <h1 className="sr-only">Shop Modern State</h1>
-          <div className="grid gap-8 lg:grid-cols-[260px_minmax(0,1fr)]">
-            <ShopFilterPanel ageCounts={ageCounts} brands={brands} categories={categories} fulfillmentCounts={fulfillmentCounts} selectedAge={selectedAge} selectedBrand={selectedBrandSlug} selectedCategory={selectedDepartment} selectedFulfillment={selectedFulfillment} selectedSort={selectedSort} />
+          <header className="mb-8 border-b border-border pb-6 md:mb-10 md:pb-8">
+            <p className="text-xs font-black uppercase tracking-[0.16em] text-blue">Modern State</p>
+            <h1 className="mt-2 font-display text-4xl font-black tracking-[-0.03em] text-primary md:text-5xl">Shop</h1>
+          </header>
 
-            <section aria-label="Products">
-              {selectedFeature ? (
-                <h2 className="mb-6 font-display text-2xl font-black text-primary">New &amp; Trending</h2>
-              ) : selectedCategory ? (
-                <h2 className="mb-6 font-display text-2xl font-black text-primary">{selectedCategory.name}</h2>
-              ) : null}
-              {selectedBrand ? <div className="mb-6 flex items-center gap-4 rounded-md border border-border bg-surface-muted p-5">{selectedBrand.logoUrl ? <Image alt={selectedBrand.imageAlt || `${selectedBrand.name} logo`} className="h-16 w-24 rounded-md bg-white object-contain p-2" height={64} src={selectedBrand.logoUrl} unoptimized width={96} /> : null}<div><p className="text-xs font-black uppercase tracking-[0.12em] text-blue">Website brand</p><h2 className="mt-1 font-display text-2xl font-black">{selectedBrand.name}</h2>{selectedBrand.description ? <p className="mt-2 text-sm text-secondary">{selectedBrand.description}</p> : null}</div></div> : null}
-              <div className="mb-6 flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
-                <p className="text-lg font-black">{products.length} {products.length === 1 ? "product" : "products"}</p>
-                <div className="flex flex-wrap items-center gap-3">
-                  <SortMenu selectedAge={selectedAge} selectedBrand={selectedBrandSlug} selectedDepartment={selectedDepartment} selectedFeature={selectedFeature} selectedFulfillment={selectedFulfillment} selectedSort={selectedSort} />
+          {hasCatalogProducts ? (
+            <div className="grid gap-8 lg:grid-cols-[260px_minmax(0,1fr)]">
+              <ShopFilterPanel ageCounts={ageCounts} brands={brands} categories={categories} fulfillmentCounts={fulfillmentCounts} selectedAge={selectedAge} selectedBrand={selectedBrandSlug} selectedCategory={selectedDepartment} selectedFulfillment={selectedFulfillment} selectedSort={selectedSort} />
+
+              <section aria-label="Products">
+                {selectedFeature ? (
+                  <h2 className="mb-6 font-display text-2xl font-black text-primary">New &amp; Trending</h2>
+                ) : selectedCategory ? (
+                  <h2 className="mb-6 font-display text-2xl font-black text-primary">{selectedCategory.name}</h2>
+                ) : null}
+                {selectedBrand ? <div className="mb-6 flex items-center gap-4 rounded-md border border-border bg-surface-muted p-5">{selectedBrand.logoUrl ? <Image alt={selectedBrand.imageAlt || `${selectedBrand.name} logo`} className="h-16 w-24 rounded-md bg-white object-contain p-2" height={64} src={selectedBrand.logoUrl} unoptimized width={96} /> : null}<div><p className="text-xs font-black uppercase tracking-[0.12em] text-blue">Website brand</p><h2 className="mt-1 font-display text-2xl font-black">{selectedBrand.name}</h2>{selectedBrand.description ? <p className="mt-2 text-sm text-secondary">{selectedBrand.description}</p> : null}</div></div> : null}
+                <div className="mb-6 flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
+                  <p className="text-lg font-black">{products.length} {products.length === 1 ? "product" : "products"}</p>
+                  {products.length > 0 ? (
+                    <div className="flex flex-wrap items-center gap-3">
+                      <SortMenu selectedAge={selectedAge} selectedBrand={selectedBrandSlug} selectedDepartment={selectedDepartment} selectedFeature={selectedFeature} selectedFulfillment={selectedFulfillment} selectedSort={selectedSort} />
+                    </div>
+                  ) : null}
                 </div>
+                {products.length ? (
+                  <div className="storefront-product-grid grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
+                    {products.map((product) => (
+                      <ProductCard key={product.squareVariationId} product={product} variant="premium" />
+                    ))}
+                  </div>
+                ) : (
+                  <div className="border-y border-border py-10 md:flex md:items-center md:justify-between md:gap-10 md:py-12">
+                    <div className="max-w-xl">
+                      <h2 className="font-display text-2xl font-black tracking-[-0.02em] text-primary">No products match these filters</h2>
+                      <p className="mt-3 text-sm leading-6 text-secondary">Remove the current filters to see the full online selection.</p>
+                    </div>
+                    <Link className="mt-6 inline-flex min-h-11 items-center justify-center rounded-pill bg-primary px-6 py-3 text-sm font-black text-white transition hover:opacity-90 md:mt-0" href="/shop">
+                      Clear filters
+                    </Link>
+                  </div>
+                )}
+              </section>
+            </div>
+          ) : (
+            <section aria-label="Products" className="border-y border-border py-10 md:flex md:items-center md:justify-between md:gap-12 md:py-14">
+              <div className="max-w-2xl">
+                <p className="text-xs font-black uppercase tracking-[0.14em] text-secondary">Online catalog</p>
+                <h2 className="mt-3 font-display text-3xl font-black tracking-[-0.03em] text-primary md:text-4xl">Online shopping is being updated</h2>
+                <p className="mt-4 max-w-xl text-base leading-7 text-secondary">We’re refreshing the online selection. You can still explore balloons or visit either Modern State location.</p>
               </div>
-              {products.length ? (
-                <div className="storefront-product-grid grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
-                  {products.map((product) => (
-                    <ProductCard key={product.squareVariationId} product={product} variant="premium" />
-                  ))}
-                </div>
-              ) : (
-                <div className="rounded-md border border-dashed border-border bg-surface-muted px-6 py-12 text-center">
-                  <h3 className="font-display text-2xl font-black">
-                    {selectedFeature ? "No New & Trending products are published yet." : "No products are published here yet."}
-                  </h3>
-                  <p className="mx-auto mt-3 max-w-lg text-sm text-secondary">
-                    This collection is ready for merchandising. Products will appear here as soon as they are published in the online catalog.
-                  </p>
-                  <Link className="mt-6 inline-flex rounded-pill bg-primary px-5 py-3 text-sm font-black text-white hover:opacity-90" href="/shop">
-                    Shop all products
-                  </Link>
-                </div>
-              )}
+              <div className="mt-7 flex flex-col gap-3 sm:flex-row md:mt-0 md:flex-col md:items-stretch">
+                <Link className="inline-flex min-h-11 items-center justify-center rounded-pill bg-primary px-6 py-3 text-sm font-black text-white transition hover:opacity-90" href="/balloons">
+                  Explore balloons
+                </Link>
+                <Link className="inline-flex min-h-11 items-center justify-center rounded-pill border border-border bg-surface px-6 py-3 text-sm font-black text-primary transition hover:border-primary" href="/locations">
+                  Find a store
+                </Link>
+              </div>
             </section>
-          </div>
+          )}
         </div>
       </SectionFrame>
     </main>
