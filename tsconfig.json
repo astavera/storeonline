@@ -47,6 +47,7 @@
     "node_modules",
     "backups",
     "output",
-    "orderpro-source"
+    "orderpro-source",
+    "orderpro-shipping-ops"
   ]
 }

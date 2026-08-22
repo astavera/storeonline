@@ -96,6 +96,7 @@ export function CheckoutClient({ locations, deliveryTestMode = false, localDeliv
   const [shippingTaxStatus, setShippingTaxStatus] = useState<{ loading: boolean; error: string }>({ loading: false, error: "" });
   const [deliveryPrefill, setDeliveryPrefill] = useState<{ address?: LocalDeliveryAddress; postalCode?: string; requestedDate?: string } | null>(null);
   const [pickupSchedule, setPickupSchedule] = useState<PickupTimingSelection | null>(null);
+  const [contactValidationMessage, setContactValidationMessage] = useState("");
   const [balloonPreference, setBalloonPreference] = useState<BalloonFulfillmentPreference | null>(null);
   const [message, setMessage] = useState<{ tone: "idle" | "success" | "error"; text: string }>({ tone: "idle", text: "" });
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -214,6 +215,7 @@ export function CheckoutClient({ locations, deliveryTestMode = false, localDeliv
 
   async function submitCheckout(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    setContactValidationMessage("");
     const formData = new FormData(event.currentTarget);
     setIsSubmitting(true);
     setMessage({ tone: "idle", text: "Preparing your secure Square checkout..." });
@@ -384,7 +386,15 @@ export function CheckoutClient({ locations, deliveryTestMode = false, localDeliv
   const fulfillmentSummary = availableFulfillmentModes.includes(fulfillmentMode) ? fulfillmentLabels[fulfillmentMode] : "Not available";
 
   return (
-    <form className="mx-auto grid w-full max-w-[1140px] lg:grid-cols-[minmax(0,700px)_440px]" onSubmit={submitCheckout}>
+    <form
+      className="mx-auto grid w-full max-w-[1140px] lg:grid-cols-[minmax(0,700px)_440px]"
+      onInvalid={(event) => {
+        if (event.target instanceof HTMLInputElement && ["name", "email", "phone"].includes(event.target.name)) {
+          setContactValidationMessage("Enter your name, email, and phone number before continuing to Square.");
+        }
+      }}
+      onSubmit={submitCheckout}
+    >
       <div className="min-w-0 px-5 pb-12 lg:px-12 lg:pb-16">
         <section className="py-8" data-store-area="Checkout" data-store-component="CheckoutCustomerInfoSection" data-store-section="checkout.customer-info" data-store-variant="form">
           <StepHeading title="Contact information" />
@@ -393,6 +403,13 @@ export function CheckoutClient({ locations, deliveryTestMode = false, localDeliv
             <CheckoutField autoComplete="email" label="Email" name="email" placeholder="you@example.com" required type="email" />
             <CheckoutField autoComplete="tel" label="Phone" name="phone" placeholder="(212) 555-0100" required type="tel" />
           </div>
+          {contactValidationMessage ? (
+            <p className="mt-4 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-900" role="alert">
+              {contactValidationMessage}
+            </p>
+          ) : (
+            <p className="mt-4 text-sm text-secondary">Name, email, and phone are required before continuing to Square.</p>
+          )}
         </section>
 
         <section className="border-t border-[#dededb] py-8" data-store-area="Checkout" data-store-component="CheckoutFulfillmentSection" data-store-section="checkout.fulfillment" data-store-variant="fulfillment-groups">

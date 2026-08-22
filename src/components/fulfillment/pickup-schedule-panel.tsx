@@ -112,6 +112,12 @@ export function PickupSchedulePanel({
         </div>
       ) : null}
 
+      {timing === "ASAP" ? (
+        <p className="mt-3 rounded-md border border-green-200 bg-green-50 p-3 text-sm text-green-900" role="status">
+          <strong>ASAP pickup selected.</strong> No time slot is required. Complete your contact information and continue to Square.
+        </p>
+      ) : null}
+
       {timing === "SCHEDULED" ? (
         <div className="mt-4">
           <label className="block text-sm font-bold text-primary">

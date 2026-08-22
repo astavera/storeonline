@@ -10,6 +10,23 @@ afterEach(() => {
 });
 
 describe("PickupSchedulePanel", () => {
+  it("confirms that ASAP is selected and does not require a time slot", async () => {
+    const onSelectionChange = vi.fn();
+
+    render(
+      <PickupSchedulePanel
+        context="regular"
+        items={[{ squareVariationId: "variation-a", quantity: 1 }]}
+        locationId="store-3rd-avenue"
+        onSelectionChange={onSelectionChange}
+      />
+    );
+
+    expect(screen.getByRole("status").textContent).toContain("ASAP pickup selected.");
+    expect(screen.getByRole("status").textContent).toContain("No time slot is required.");
+    await waitFor(() => expect(onSelectionChange).toHaveBeenCalledWith({ timing: "ASAP" }));
+  });
+
   it("omits the cart-only source field from pickup quote lines", async () => {
     const fetchMock = vi.fn().mockResolvedValue({
       ok: false,
