@@ -2,6 +2,8 @@
 import { describe, expect, it, vi } from "vitest";
 import { createOrderProClient, OrderProClientError } from "@/server/orderpro/client";
 import type { OrderProApiConfiguration } from "@/server/orderpro/config";
+import { orderProFulfillmentStatusResultSchema } from "@/server/orderpro/contracts";
+import fulfillmentStatusFixture from "../../../docs/orderpro-fulfillment-status-v1.fixture.json";
 
 const correlationId = "11111111-1111-4111-8111-111111111111";
 const differentCorrelationId = "22222222-2222-4222-8222-222222222222";
@@ -39,6 +41,11 @@ function tokenProvider(tokens = ["access-token"]) {
 }
 
 describe("OrderPRO client", () => {
+  it("accepts the exact provider fixture", () => {
+    expect(orderProFulfillmentStatusResultSchema.parse(fulfillmentStatusFixture)).toEqual(
+      fulfillmentStatusFixture
+    );
+  });
   it("performs the exact authenticated handshake without exposing the token", async () => {
     const provider = tokenProvider();
     const fetchMock = vi.fn().mockResolvedValue(successResponse());
@@ -158,5 +165,53 @@ describe("OrderPRO client", () => {
     });
     expect(provider.invalidate).toHaveBeenCalledTimes(1);
     expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("consumes the normalized fulfillment status contract with M2M correlation", async () => {
+    const provider = tokenProvider();
+    const status = {
+      checkoutAttemptId: "checkout-attempt-1",
+      orderproOrderId: "00000000-0000-4000-8000-000000000101",
+      fulfillmentMode: "PICKUP",
+      normalizedStatus: "PAYMENT_PENDING",
+      nativeStatus: "HELD",
+      reservationId: "00000000-0000-4000-8000-000000000103",
+      squareOrderId: "square-order-1",
+      squarePaymentLinkId: "square-link-1",
+      squarePaymentId: null,
+      expiresAt: "2026-08-18T16:00:00.000Z",
+      amountPaidCents: null,
+      currency: null,
+      version: 2,
+      updatedAt: "2026-08-18T15:50:00.000Z",
+      requiresIntervention: false
+    };
+    const fetchMock = vi.fn().mockResolvedValue(new Response(
+      JSON.stringify({ ok: true, status, correlationId }),
+      {
+        status: 200,
+        headers: {
+          "content-type": "application/json",
+          "x-correlation-id": correlationId
+        }
+      }
+    ));
+    const client = createOrderProClient({
+      config,
+      tokenProvider: provider,
+      fetchImpl: fetchMock as typeof fetch,
+      createCorrelationId: () => correlationId
+    });
+
+    await expect(client.getFulfillmentStatus({
+      checkoutAttemptId: "checkout-attempt-1"
+    })).resolves.toEqual({ ok: true, status, correlationId });
+
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(url).toBe(
+      "https://orderpro-staging.vercel.app/api/internal/storefront/fulfillment-status?checkoutAttemptId=checkout-attempt-1"
+    );
+    expect(init).toMatchObject({ method: "GET", cache: "no-store", redirect: "error" });
+    expect(new Headers(init?.headers).get("authorization")).toBe("Bearer access-token");
   });
 });

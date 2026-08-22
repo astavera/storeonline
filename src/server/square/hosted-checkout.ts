@@ -20,9 +20,12 @@ type CheckoutCustomer = {
 };
 
 type PickupSelection = {
+  quoteId: string;
   requestedDate: string;
   slotId: string;
   slotLabel: string;
+  startsAt: string;
+  endsAt: string;
 };
 
 type LocalDeliverySelection = {
@@ -62,6 +65,7 @@ export type SquareHostedCheckoutInput = {
   idempotencyKey: string;
   squareLocationId: string;
   orderProShippingOrderId?: string;
+  orderProCapacityHoldId?: string;
   fulfillmentMode: "pickup" | "local-delivery" | "shipping";
   customer: CheckoutCustomer;
   quote: CartQuote;
@@ -100,6 +104,9 @@ export function buildSquarePaymentLinkRequest(input: SquareHostedCheckoutInput):
   if (input.fulfillmentMode === "shipping" && !input.orderProShippingOrderId) {
     throw new SquareCheckoutUnavailableError("An OrderPRO shipping reservation is required.");
   }
+  if (input.fulfillmentMode === "pickup" && (!input.pickup || !input.orderProCapacityHoldId)) {
+    throw new SquareCheckoutUnavailableError("An OrderPRO Pickup reservation is required.");
+  }
 
   const pickupNote = input.pickup
     ? `Requested pickup: ${input.pickup.requestedDate}, ${input.pickup.slotLabel}. Slot: ${input.pickup.slotId}`
@@ -112,7 +119,7 @@ export function buildSquarePaymentLinkRequest(input: SquareHostedCheckoutInput):
 
   return {
     idempotencyKey: input.idempotencyKey,
-    description: `Modern State website checkout ${input.attemptId}`.slice(0, 255),
+    description: squareCheckoutDescription(input.attemptId),
     order: {
       locationId: input.squareLocationId,
       referenceId: input.attemptId.slice(0, 40),
@@ -150,7 +157,12 @@ export function buildSquarePaymentLinkRequest(input: SquareHostedCheckoutInput):
               emailAddress: input.customer.email,
               phoneNumber: input.customer.phone
             },
-            scheduleType: "ASAP" as const,
+            scheduleType: "SCHEDULED" as const,
+            pickupAt: input.pickup!.startsAt,
+            pickupWindowDuration: deliveryWindowDuration(
+              input.pickup!.startsAt,
+              input.pickup!.endsAt
+            ),
             note: pickupNote.slice(0, 500)
           }
         }]
@@ -213,7 +225,11 @@ export function buildSquarePaymentLinkRequest(input: SquareHostedCheckoutInput):
       metadata: {
         checkout_attempt_id: input.attemptId.slice(0, 255),
         fulfillment_mode: input.fulfillmentMode,
-        ...(delivery ? {
+        ...(input.pickup ? {
+          orderpro_quote_id: input.pickup.quoteId,
+          orderpro_slot_id: input.pickup.slotId,
+          orderpro_capacity_hold_id: input.orderProCapacityHoldId!
+        } : delivery ? {
           orderpro_quote_id: delivery.quoteId,
           orderpro_slot_id: delivery.slotId
         } : shipping ? {
@@ -270,6 +286,15 @@ export async function createSquareHostedCheckout(input: SquareHostedCheckoutInpu
   } catch (error) {
     if (error instanceof SquareCheckoutUnavailableError) throw error;
     if (error instanceof SquareError) {
+      if (error.errors?.some((entry) => entry.code === "IDEMPOTENCY_KEY_REUSED")) {
+        try {
+          return await recoverSquareHostedCheckout(input, client);
+        } catch {
+          throw new SquareCheckoutUnavailableError(
+            "Square could not recover the existing secure checkout safely. Please try again."
+          );
+        }
+      }
       console.error(JSON.stringify({
         event: "square_hosted_checkout_rejected",
         statusCode: error.statusCode,
@@ -283,6 +308,46 @@ export async function createSquareHostedCheckout(input: SquareHostedCheckoutInpu
     }
     throw new SquareCheckoutUnavailableError();
   }
+}
+
+export async function recoverSquareHostedCheckout(
+  input: SquareHostedCheckoutInput,
+  client: SquareClient
+): Promise<SquareHostedCheckoutResult> {
+  const description = squareCheckoutDescription(input.attemptId);
+  let page = await client.checkout.paymentLinks.list({ limit: 1_000 });
+  let match: Square.PaymentLink | null = null;
+
+  for (let pageNumber = 0; pageNumber < 5; pageNumber += 1) {
+    const matches = page.data.filter((candidate) => candidate.description === description);
+    if (matches.length > 1 || (match && matches.length > 0)) {
+      throw new SquareCheckoutUnavailableError("Square returned ambiguous checkout recovery evidence.");
+    }
+    if (matches.length === 1) match = matches[0]!;
+    if (match || !page.hasNextPage()) break;
+    page = await page.getNextPage();
+  }
+
+  const checkoutUrl = normalizeSquareCheckoutUrl(match?.url);
+  const squareOrderId = match?.orderId?.trim();
+  const squarePaymentLinkId = match?.id?.trim();
+  if (!checkoutUrl || !squareOrderId || !squarePaymentLinkId) {
+    throw new SquareCheckoutUnavailableError("Square checkout recovery evidence is incomplete.");
+  }
+
+  const response = await client.orders.get({ orderId: squareOrderId });
+  const order = response.order;
+  if (
+    order?.id !== squareOrderId
+    || order.locationId !== input.squareLocationId
+    || order.referenceId !== input.attemptId.slice(0, 40)
+    || order.metadata?.checkout_attempt_id !== input.attemptId.slice(0, 255)
+    || order.metadata?.fulfillment_mode !== input.fulfillmentMode
+  ) {
+    throw new SquareCheckoutUnavailableError("Square checkout recovery correlation is invalid.");
+  }
+
+  return { checkoutUrl, squareOrderId, squarePaymentLinkId };
 }
 
 export async function deleteSquareHostedCheckoutLink(paymentLinkId: string) {
@@ -316,6 +381,10 @@ function normalizeSquareCheckoutUrl(value: string | undefined) {
   } catch {
     return null;
   }
+}
+
+function squareCheckoutDescription(attemptId: string) {
+  return `Modern State website checkout ${attemptId}`.slice(0, 255);
 }
 
 function deliveryWindowDuration(startsAt: string, endsAt: string) {

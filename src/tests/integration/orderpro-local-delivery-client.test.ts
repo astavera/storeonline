@@ -139,6 +139,96 @@ function requestHeaders(fetchMock: ReturnType<typeof vi.fn>, call: number) {
 }
 
 describe("OrderPRO V4 local-delivery client", () => {
+  it("uses the general durable quote and walking reservation contracts", async () => {
+    const provider = tokenProvider();
+    const durableQuote = {
+      ok: true,
+      quoteId: "00000000-0000-4000-8000-000000000701",
+      quoteClientId: "storefront-production",
+      replayed: false,
+      eligible: true,
+      bookable: true,
+      reservationCapability: "HOLD_READY",
+      reasonCode: "ELIGIBLE",
+      normalizedAddress: { ...quoteInput.address, borough: "Manhattan" },
+      postalCode: "10075",
+      selectedLocationId: "third_avenue",
+      selectedLocationName: "3rd Avenue Store",
+      assignmentRule: "NEAREST_WALKING_ROUTE",
+      walkingDistanceFeet: 1_250,
+      walkingDurationSeconds: 420,
+      estimatedRoundTripDurationSeconds: 840,
+      feeCents: 799,
+      currency: "USD",
+      feeTierId: "fee-tier-1",
+      availableSlots: [{
+        slotId: "slot-production-1",
+        slotClass: "STANDARD",
+        startsAt: "2026-08-19T14:00:00.000Z",
+        endsAt: "2026-08-19T16:00:00.000Z",
+        capacityOrders: 3,
+        remainingOrders: 2,
+        pickupUntilAt: null
+      }],
+      zoneVersionId: "manhattan-zone-v4",
+      feePolicyVersionId: "walking-fee-v4",
+      routingProvider: "osrm",
+      expiresAt: "2026-08-19T18:05:00.000Z",
+      correlationId: "corr-durable-001"
+    };
+    const reservationHold = {
+      ...hold("corr-reserve-001"),
+      capacityHoldId: "00000000-0000-4000-8000-000000000702",
+      quoteId: durableQuote.quoteId,
+      slotId: "slot-production-1",
+      clientId: "storefront-production"
+    };
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(jsonResponse(durableQuote, 200, "corr-durable-001"))
+      .mockResolvedValueOnce(jsonResponse({
+        ok: true,
+        replayed: false,
+        checkoutAttemptId: "checkout-attempt-production-1",
+        fulfillmentMode: "WALKING_LOCAL_DELIVERY",
+        hold: reservationHold
+      }, 201, "corr-reserve-001"));
+    const client = createOrderProClient({
+      config,
+      tokenProvider: provider,
+      fetchImpl: fetchMock as typeof fetch
+    });
+
+    await expect(client.durableLocalDeliveryQuote({
+      address: { ...quoteInput.address, state: "NY", country: "US" },
+      cartLines: [{ squareVariationId: "variation-production-1", quantity: 2 }],
+      requestedDate: "2026-08-19"
+    }, {
+      correlationId: "corr-durable-001",
+      idempotencyKey: "idem-durable-001"
+    })).resolves.toMatchObject({ quoteId: durableQuote.quoteId });
+    await expect(client.reserveWalkingLocalDelivery({
+      quoteId: durableQuote.quoteId,
+      slotId: "slot-production-1",
+      checkoutAttemptId: "checkout-attempt-production-1"
+    }, {
+      correlationId: "corr-reserve-001",
+      idempotencyKey: "idem-reserve-001"
+    })).resolves.toMatchObject({
+      fulfillmentMode: "WALKING_LOCAL_DELIVERY",
+      hold: { capacityHoldId: reservationHold.capacityHoldId }
+    });
+
+    expect(fetchMock.mock.calls[0]?.[0]).toBe(
+      "https://orderpro-staging.vercel.app/api/internal/storefront/durable-local-delivery-quote"
+    );
+    expect(fetchMock.mock.calls[1]?.[0]).toBe(
+      "https://orderpro-staging.vercel.app/api/internal/storefront/walking-capacity-reservation"
+    );
+    expect(requestHeaders(fetchMock, 0)).toMatchObject(expect.any(Headers));
+    expect(requestHeaders(fetchMock, 0).get("idempotency-key")).toBe("idem-durable-001");
+    expect(requestHeaders(fetchMock, 1).get("idempotency-key")).toBe("idem-reserve-001");
+  });
+
   it("sends the exact paths, methods, headers and bodies for quote/hold/recovery/confirm/release", async () => {
     const provider = tokenProvider();
     const fetchMock = vi

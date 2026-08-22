@@ -11,27 +11,55 @@ import {
   ORDERPRO_MAX_RESPONSE_BYTES,
   orderProAuthCheckFailureSchema,
   orderProAuthCheckSuccessSchema,
+  orderProBindCapacityCheckoutRequestSchema,
+  orderProCapacityCheckoutMutationResultSchema,
   orderProConfirmHoldRequestSchema,
   orderProCorrelationIdSchema,
   orderProCreateHoldRequestSchema,
   orderProCreateHoldResultSchema,
   orderProErrorResponseSchema,
+  orderProDurableLocalDeliveryQuoteRequestSchema,
+  orderProDurableLocalDeliveryQuoteResultSchema,
+  orderProFulfillmentStatusLookupSchema,
+  orderProFulfillmentStatusResultSchema,
   orderProGetHoldResultSchema,
   orderProHoldTransitionResultSchema,
   orderProIdempotencyKeySchema,
   orderProQuoteRequestSchema,
   orderProQuoteResultSchema,
+  orderProConfirmCapacityCheckoutRequestSchema,
+  orderProPickupQuoteRequestSchema,
+  orderProPickupQuoteResultSchema,
+  orderProPickupReservationRequestSchema,
+  orderProPickupReservationResultSchema,
+  orderProReleaseCapacityCheckoutRequestSchema,
   orderProReleaseHoldRequestSchema,
   orderProStableIdSchema,
+  orderProWalkingLocalDeliveryReservationRequestSchema,
+  orderProWalkingLocalDeliveryReservationResultSchema,
   type OrderProAuthCheckFailure,
   type OrderProAuthCheckSuccess,
+  type OrderProBindCapacityCheckoutRequest,
+  type OrderProCapacityCheckoutMutationResult,
   type OrderProCreateHoldRequest,
   type OrderProCreateHoldResult,
   type OrderProErrorResponse,
+  type OrderProDurableLocalDeliveryQuoteRequest,
+  type OrderProDurableLocalDeliveryQuoteResult,
+  type OrderProFulfillmentStatusLookup,
+  type OrderProFulfillmentStatusResult,
   type OrderProGetHoldResult,
   type OrderProHoldTransitionResult,
   type OrderProQuoteRequest,
   type OrderProQuoteResult,
+  type OrderProConfirmCapacityCheckoutRequest,
+  type OrderProPickupQuoteRequest,
+  type OrderProPickupQuoteResult,
+  type OrderProPickupReservationRequest,
+  type OrderProPickupReservationResult,
+  type OrderProReleaseCapacityCheckoutRequest,
+  type OrderProWalkingLocalDeliveryReservationRequest,
+  type OrderProWalkingLocalDeliveryReservationResult,
   type OrderProReleaseReason
 } from "@/server/orderpro/contracts";
 
@@ -56,6 +84,38 @@ export type OrderProClient = {
     holdId: string,
     options: OrderProCorrelationOptions & { reason: OrderProReleaseReason }
   ): Promise<OrderProHoldTransitionResult>;
+  getFulfillmentStatus(
+    lookup: OrderProFulfillmentStatusLookup,
+    options?: OrderProCorrelationOptions
+  ): Promise<OrderProFulfillmentStatusResult>;
+  durableLocalDeliveryQuote(
+    input: OrderProDurableLocalDeliveryQuoteRequest,
+    options?: OrderProIdempotentRequestOptions
+  ): Promise<OrderProDurableLocalDeliveryQuoteResult>;
+  reserveWalkingLocalDelivery(
+    input: OrderProWalkingLocalDeliveryReservationRequest,
+    options?: OrderProIdempotentRequestOptions
+  ): Promise<OrderProWalkingLocalDeliveryReservationResult>;
+  pickupQuote(
+    input: OrderProPickupQuoteRequest,
+    options?: OrderProIdempotentRequestOptions
+  ): Promise<OrderProPickupQuoteResult>;
+  reservePickup(
+    input: OrderProPickupReservationRequest,
+    options?: OrderProIdempotentRequestOptions
+  ): Promise<OrderProPickupReservationResult>;
+  bindCapacityCheckout(
+    input: OrderProBindCapacityCheckoutRequest,
+    options?: OrderProIdempotentRequestOptions
+  ): Promise<OrderProCapacityCheckoutMutationResult>;
+  confirmCapacityCheckout(
+    input: OrderProConfirmCapacityCheckoutRequest,
+    options?: OrderProIdempotentRequestOptions
+  ): Promise<OrderProCapacityCheckoutMutationResult>;
+  releaseCapacityCheckout(
+    input: OrderProReleaseCapacityCheckoutRequest,
+    options?: OrderProIdempotentRequestOptions
+  ): Promise<OrderProCapacityCheckoutMutationResult>;
 };
 
 export type OrderProClientErrorCode =
@@ -521,6 +581,140 @@ export function createOrderProClient({
         successStatuses: [200],
         successSchema: orderProHoldTransitionResultSchema
       });
+    },
+
+    async getFulfillmentStatus(lookup, options = {}) {
+      const correlationId = correlation(options.correlationId);
+      const parsedLookup = parseInput(
+        orderProFulfillmentStatusLookupSchema,
+        lookup,
+        correlationId
+      );
+      const [key, value] = Object.entries(parsedLookup)[0];
+      return execute({
+        method: "GET",
+        path: `/api/internal/storefront/fulfillment-status?${encodeURIComponent(key)}=${encodeURIComponent(value)}`,
+        correlationId,
+        successStatuses: [200],
+        successSchema: orderProFulfillmentStatusResultSchema,
+        requireBodyCorrelation: true
+      });
+    },
+
+    async durableLocalDeliveryQuote(input, options = {}) {
+      const correlationId = correlation(options.correlationId);
+      const body = parseInput(
+        orderProDurableLocalDeliveryQuoteRequestSchema,
+        input,
+        correlationId
+      );
+      return execute({
+        method: "POST",
+        path: "/api/internal/storefront/durable-local-delivery-quote",
+        correlationId,
+        idempotencyKey: idempotency(options.idempotencyKey, correlationId),
+        body,
+        successStatuses: [200],
+        successSchema: orderProDurableLocalDeliveryQuoteResultSchema,
+        requireBodyCorrelation: true
+      });
+    },
+
+    async reserveWalkingLocalDelivery(input, options = {}) {
+      const correlationId = correlation(options.correlationId);
+      const body = parseInput(
+        orderProWalkingLocalDeliveryReservationRequestSchema,
+        input,
+        correlationId
+      );
+      return execute({
+        method: "POST",
+        path: "/api/internal/storefront/walking-capacity-reservation",
+        correlationId,
+        idempotencyKey: idempotency(options.idempotencyKey, correlationId),
+        body,
+        successStatuses: [200, 201],
+        successSchema: orderProWalkingLocalDeliveryReservationResultSchema,
+        validateSuccess: (status, value) =>
+          (status === 201 && !value.replayed) || (status === 200 && value.replayed)
+      });
+    },
+
+    async pickupQuote(input, options = {}) {
+      const correlationId = correlation(options.correlationId);
+      const body = parseInput(orderProPickupQuoteRequestSchema, input, correlationId);
+      return execute({
+        method: "POST",
+        path: "/api/internal/storefront/pickup-quote",
+        correlationId,
+        idempotencyKey: idempotency(options.idempotencyKey, correlationId),
+        body,
+        successStatuses: [200],
+        successSchema: orderProPickupQuoteResultSchema,
+        requireBodyCorrelation: true
+      });
+    },
+
+    async reservePickup(input, options = {}) {
+      const correlationId = correlation(options.correlationId);
+      const body = parseInput(orderProPickupReservationRequestSchema, input, correlationId);
+      return execute({
+        method: "POST",
+        path: "/api/internal/storefront/pickup-capacity-reservation",
+        correlationId,
+        idempotencyKey: idempotency(options.idempotencyKey, correlationId),
+        body,
+        successStatuses: [200, 201],
+        successSchema: orderProPickupReservationResultSchema,
+        validateSuccess: (status, value) =>
+          (status === 201 && !value.replayed) || (status === 200 && value.replayed)
+      });
+    },
+
+    async bindCapacityCheckout(input, options = {}) {
+      return capacityMutation(
+        "/api/internal/storefront/capacity-checkout/bind",
+        orderProBindCapacityCheckoutRequestSchema,
+        input,
+        options
+      );
+    },
+
+    async confirmCapacityCheckout(input, options = {}) {
+      return capacityMutation(
+        "/api/internal/storefront/capacity-checkout/confirm",
+        orderProConfirmCapacityCheckoutRequestSchema,
+        input,
+        options
+      );
+    },
+
+    async releaseCapacityCheckout(input, options = {}) {
+      return capacityMutation(
+        "/api/internal/storefront/capacity-checkout/release",
+        orderProReleaseCapacityCheckoutRequestSchema,
+        input,
+        options
+      );
     }
   };
+
+  function capacityMutation<T>(
+    path: string,
+    schema: ZodType<T>,
+    input: T,
+    options: OrderProIdempotentRequestOptions
+  ) {
+    const correlationId = correlation(options.correlationId);
+    const body = parseInput(schema, input, correlationId);
+    return execute({
+      method: "POST",
+      path,
+      correlationId,
+      idempotencyKey: idempotency(options.idempotencyKey, correlationId),
+      body,
+      successStatuses: [200],
+      successSchema: orderProCapacityCheckoutMutationResultSchema
+    });
+  }
 }

@@ -43,6 +43,7 @@ export default defineConfig([
     "out/**",
     "build/**",
     "coverage/**",
+    "node_modules.incomplete-r20260818b/**",
     ".codex-logs/**",
     ".playwright-cli/**",
     ".playwright-results/**",

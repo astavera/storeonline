@@ -93,6 +93,7 @@ enum CheckoutAttemptStatus {
   REJECTED
   EXPIRED
   COMPLETED
+  PAYMENT_EXCEPTION
 }
 
 enum WebhookInboxStatus {
@@ -687,24 +688,32 @@ model WebhookEvent {
 }
 
 model CheckoutAttempt {
-  id                      String                @id @default(cuid())
-  idempotencyKey          String                @unique
-  cartId                  String?
-  requestHash             String
-  status                  CheckoutAttemptStatus @default(RECEIVED)
-  quote                   Json?
-  validationErrors        Json?
-  fulfillmentMode         FulfillmentMode?
-  squareOrderId           String?               @unique
-  squarePaymentLinkId     String?               @unique
-  orderproShippingOrderId String?               @unique
-  shippingContext         Json?
-  hostedCheckoutCreatedAt DateTime?
-  expiresAt               DateTime
-  createdAt               DateTime              @default(now())
-  updatedAt               DateTime              @updatedAt
-  cart                    Cart?                 @relation(fields: [cartId], references: [id], onDelete: Restrict)
-  capacityHolds           CapacityHold[]
+  id                        String                @id @default(cuid())
+  idempotencyKey            String                @unique
+  cartId                    String?
+  requestHash               String
+  status                    CheckoutAttemptStatus @default(RECEIVED)
+  quote                     Json?
+  validationErrors          Json?
+  fulfillmentMode           FulfillmentMode?
+  squareOrderId             String?               @unique
+  squarePaymentLinkId       String?               @unique
+  squarePaymentId           String?               @unique
+  orderproCapacityHoldId    String?               @unique
+  orderproShippingOrderId   String?               @unique
+  fulfillmentContext        Json?
+  shippingContext           Json?
+  /// Immutable evidence retained from the isolated capacity canary.
+  capacityContext           Json?
+  capacitySquarePaymentId   String?               @unique
+  capacityPaymentSnapshot   Json?
+  capacityPaymentRecordedAt DateTime?
+  hostedCheckoutCreatedAt   DateTime?
+  expiresAt                 DateTime
+  createdAt                 DateTime              @default(now())
+  updatedAt                 DateTime              @updatedAt
+  cart                      Cart?                 @relation(fields: [cartId], references: [id], onDelete: Restrict)
+  capacityHolds             CapacityHold[]
 
   @@index([cartId])
   @@index([status, expiresAt])

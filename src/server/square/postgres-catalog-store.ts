@@ -36,6 +36,14 @@ export type OperationalStoreLocation = {
   shippingFulfillmentEnabled: boolean;
 };
 
+export type PublishedStorefrontShippingPolicy = {
+  squareVariationId: string;
+  packageLengthIn: string;
+  packageWidthIn: string;
+  packageHeightIn: string;
+  packageWeightLb: string;
+};
+
 type CatalogSyncEvidence = Pick<
   SquareCatalogSyncState,
   | "environment"
@@ -235,6 +243,54 @@ export async function readPostgresStorefrontProductsByVariationIds(
     return normalizedIds.map((id) => byId.get(id)).filter((product): product is StorefrontProduct => Boolean(product));
   } catch (error) {
     throw new PersistenceUnavailableError("PostgreSQL Square catalog", { cause: error });
+  }
+}
+
+export async function readPublishedStorefrontShippingPoliciesByVariationIds(
+  variationIds: string[],
+  now = new Date()
+): Promise<PublishedStorefrontShippingPolicy[]> {
+  const normalizedIds = Array.from(new Set(variationIds.map((id) => id.trim()).filter(Boolean)));
+  if (normalizedIds.length === 0) return [];
+
+  try {
+    const policies = await getPrismaClient().productOverride.findMany({
+      where: {
+        squareVariationId: { in: normalizedIds },
+        webVisible: true,
+        webStatus: "PUBLISHED",
+        publishedAt: { lte: now },
+        unpublishedAt: null,
+        shippingAllowed: true,
+        isShippable: true,
+        fulfillmentModes: { has: "SHIPPING" }
+      },
+      select: {
+        squareVariationId: true,
+        packageLengthIn: true,
+        packageWidthIn: true,
+        packageHeightIn: true,
+        packageWeightLb: true
+      }
+    });
+
+    return policies.flatMap((policy) => {
+      if (
+        policy.packageLengthIn === null ||
+        policy.packageWidthIn === null ||
+        policy.packageHeightIn === null ||
+        policy.packageWeightLb === null
+      ) return [];
+      return [{
+        squareVariationId: policy.squareVariationId,
+        packageLengthIn: policy.packageLengthIn.toString(),
+        packageWidthIn: policy.packageWidthIn.toString(),
+        packageHeightIn: policy.packageHeightIn.toString(),
+        packageWeightLb: policy.packageWeightLb.toString()
+      }];
+    });
+  } catch (error) {
+    throw new PersistenceUnavailableError("PostgreSQL shipping catalog policy", { cause: error });
   }
 }
 
