@@ -16,12 +16,14 @@ export function StorefrontPageSwitcher({
   className,
   currentEntityId,
   currentScope,
+  deletedPageKeys = [],
   onBeforeNavigate
 }: {
   additionalPages?: StorefrontEditablePage[];
   className?: string;
   currentEntityId?: string;
   currentScope?: CmsScope;
+  deletedPageKeys?: string[];
   onBeforeNavigate?: (href: string) => boolean;
 }) {
   const router = useRouter();
@@ -33,8 +35,11 @@ export function StorefrontPageSwitcher({
       uniquePages.set(`${page.scope}:${page.entityId}`, page);
     });
 
-    return Array.from(uniquePages.values());
-  }, [additionalPages]);
+    const deleted = new Set(deletedPageKeys);
+    return Array.from(uniquePages.values()).filter(
+      (page) => !deleted.has(`${page.scope}:${page.entityId}`)
+    );
+  }, [additionalPages, deletedPageKeys]);
   const currentValue = currentScope === "homepage" || !currentScope ? "" : `${currentScope}:${currentEntityId}`;
 
   function navigate(value: string) {

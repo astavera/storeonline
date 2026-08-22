@@ -11,9 +11,9 @@ describe("old URL redirects", () => {
 
     expect(redirects.get("/read/65/toys")).toBe("/toys");
     expect(redirects.get("/read/47/party-supplies")).toBe("/party-supplies");
-    expect(redirects.get("/read/49/arts-crafts")).toBe("/arts-and-crafts");
+    expect(redirects.get("/read/49/arts-crafts")).toBe("/shop?department=arts-and-crafts");
     expect(redirects.get("/read/63/balloons")).toBe("/balloons");
-    expect(redirects.get("/read/58/seasonal-specials")).toBe("/holidays");
+    expect(redirects.get("/read/58/seasonal-specials")).toBe("/holidays/halloween");
   });
 
   it("does not redirect legacy Candy & Snacks into a main department", () => {

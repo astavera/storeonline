@@ -6,7 +6,7 @@ import { BuilderShell } from "@/components/admin/builder";
 import { redirect } from "next/navigation";
 import { HomepageStudioEditor } from "@/features/homepage/components/admin/homepage-studio-editor";
 import { storefrontEditablePages, websiteHolidayEditorPages } from "@/config/storefront-pages.config";
-import { storefrontProducts, type StorefrontProduct } from "@/features/catalog/product-catalog";
+import type { StorefrontProduct } from "@/features/catalog/product-catalog";
 import {
   websiteCategoryPath,
   websitePlacementReadinessIssues,
@@ -17,6 +17,7 @@ import { createHomepageItemLinkOptions } from "@/features/homepage/server";
 import { getHomepageEditorState } from "@/features/homepage/server";
 import { createStorefrontEditorFallbackDocument, normalizeCmsScope, shouldUseStorefrontEditorFallbackDocument } from "@/lib/cms";
 import { readLatestCmsDocument } from "@/server/admin/admin-cms-document-service";
+import { listDeletedStorefrontPages } from "@/server/admin/storefront-page-deletion-service";
 import { readWebsiteMerchandisingSnapshot } from "@/server/admin/website-merchandising-store";
 import { readSquareCatalogPreview } from "@/server/square/catalog-preview-store";
 import { readPostgresAdminCatalogPage } from "@/server/square/postgres-admin-catalog-store";
@@ -36,17 +37,23 @@ export default async function AdminHomepagePage({ searchParams }: { searchParams
   const scope = params?.scope ? normalizeCmsScope(params.scope) : null;
   const id = params?.id;
   const merchandisingPromise = readWebsiteMerchandisingSnapshot();
+  const deletedPagesPromise = listDeletedStorefrontPages();
 
   if (scope && id) {
     const staticPage = storefrontEditablePages.find((page) => page.scope === scope && page.entityId === id);
     const staticFallback = staticPage ? createStorefrontEditorFallbackDocument({ editablePage: staticPage, entityId: id, scope }) : null;
-    const [merchandising, staticStoredDocument, catalogProducts] = await Promise.all([
+    const [merchandising, staticStoredDocument, catalogProducts, deletedPages] = await Promise.all([
       merchandisingPromise,
       staticFallback
         ? readLatestCmsDocument({ entityType: staticFallback.entityType, entityId: staticFallback.entityId, statuses: ["DRAFT", "PREVIEW", "PUBLISHED"] })
         : Promise.resolve(null),
-      readHomepageEditorCatalogProducts()
+      readHomepageEditorCatalogProducts(),
+      deletedPagesPromise
     ]);
+    const deletedPageKeys = deletedPages.map((page) => page.key);
+    if (deletedPageKeys.includes(`${scope}:${id}`)) {
+      redirect("/admin/homepage");
+    }
     const additionalPages = websiteHolidayEditorPages(merchandising.holidays);
     const editablePage = staticPage ?? additionalPages.find((page) => page.scope === scope && page.entityId === id);
     const fallbackDocument = createStorefrontEditorFallbackDocument({ editablePage, entityId: id, scope });
@@ -55,14 +62,16 @@ export default async function AdminHomepagePage({ searchParams }: { searchParams
       : await readLatestCmsDocument({ entityType: fallbackDocument.entityType, entityId: fallbackDocument.entityId, statuses: ["DRAFT", "PREVIEW", "PUBLISHED"] });
     const document = shouldUseStorefrontEditorFallbackDocument({ document: storedDocument, editablePage }) ? fallbackDocument : storedDocument ?? fallbackDocument;
 
-    return <BuilderShell additionalPages={additionalPages} catalogProducts={catalogProducts} initialDocument={document} key={`${scope}:${document.entityId}`} publicPreviewRoute={editablePage?.route} scope={scope} />;
+    return <BuilderShell additionalPages={additionalPages} catalogProducts={catalogProducts} deletedPageKeys={deletedPageKeys} initialDocument={document} key={`${scope}:${document.entityId}`} publicPreviewRoute={editablePage?.route} scope={scope} />;
   }
 
-  const [merchandising, homepageState, adminCatalogProducts] = await Promise.all([
+  const [merchandising, homepageState, adminCatalogProducts, deletedPages] = await Promise.all([
     merchandisingPromise,
     getHomepageEditorState(params?.homepage),
-    readHomepageEditorCatalogProducts()
+    readHomepageEditorCatalogProducts(),
+    deletedPagesPromise
   ]);
+  const deletedPageKeys = deletedPages.map((page) => page.key);
   const additionalPages = websiteHolidayEditorPages(merchandising.holidays);
   const toysCategory = merchandising.categories.find(
     (category) => category.slug === "toys"
@@ -79,10 +88,7 @@ export default async function AdminHomepagePage({ searchParams }: { searchParams
   const previewProducts = enrichHomepageEditorProducts(
     Array.from(
       new Map(
-        [
-          ...adminCatalogProducts,
-          ...(process.env.E2E_CATALOG_FIXTURE === "true" ? storefrontProducts : [])
-        ].map((product) => [
+        adminCatalogProducts.map((product) => [
           product.squareVariationId,
           product
         ])
@@ -212,6 +218,7 @@ export default async function AdminHomepagePage({ searchParams }: { searchParams
       initialWorkspaces={homepageState.workspaces}
       itemLinkOptions={itemLinkOptions}
       key={homepageState.workspace.id}
+      deletedPageKeys={deletedPageKeys}
       previewCategories={toyEditorCategories}
       previewProducts={previewProducts}
     />

@@ -169,19 +169,27 @@
   max-height: calc(100dvh - 2.5rem);
   padding: clamp(1.25rem, 3vw, 2rem);
   overflow-y: auto;
-  border: 1px solid rgba(255, 255, 255, 0.82);
+  border: 0;
   border-radius: 1.5rem;
   background: #ffffff;
-  box-shadow: 0 34px 100px rgba(3, 18, 42, 0.34);
+  box-shadow: 0 2px 6px rgba(3, 18, 42, 0.08), 0 32px 90px rgba(3, 18, 42, 0.32);
   color: var(--color-legacy-navy);
   animation: balloons-gate-modal-in 180ms ease-out both;
+}
+
+.balloons-gate-modal--active {
+  padding: clamp(1.15rem, 2.5vw, 1.5rem);
+}
+
+.balloons-gate-modal--delivery {
+  width: min(calc(100% - 2.5rem), 32rem);
+  padding: 1.15rem 1.5rem 1.75rem;
 }
 
 .balloons-gate-modal--compact {
   display: block;
   width: min(100%, 390px);
   padding: 1.25rem 4rem 1.25rem 1.25rem;
-  border-color: rgba(255, 255, 255, 0.95);
   border-radius: 1.35rem;
   box-shadow: 0 24px 64px rgba(3, 18, 42, 0.28);
 }
@@ -192,7 +200,6 @@
   right: 0.65rem;
   width: 2.25rem;
   height: 2.25rem;
-  border-color: rgba(6, 44, 104, 0.08);
   border-radius: 999px;
   background: #f6f8fc;
   box-shadow: 0 5px 16px rgba(3, 18, 42, 0.08);
@@ -207,16 +214,57 @@
   width: 2.6rem;
   height: 2.6rem;
   place-items: center;
-  border: 1px solid var(--color-border);
+  border: 0;
   border-radius: 999px;
-  background: #ffffff;
+  background: linear-gradient(180deg, #ffffff 0%, #f5f8fc 100%);
+  box-shadow: 0 3px 10px rgba(3, 18, 42, 0.08);
   color: var(--color-legacy-navy);
   cursor: pointer;
   transition: color 160ms ease, background-color 160ms ease, border-color 160ms ease, box-shadow 160ms ease, transform 160ms ease;
 }
 
 .balloons-gate-modal__close:hover {
-  background: var(--color-surface-muted);
+  background: var(--color-legacy-navy);
+  box-shadow: 0 7px 18px rgba(3, 18, 42, 0.18);
+  color: #ffffff;
+  transform: translateY(-1px);
+}
+
+.balloons-gate-modal__close:active {
+  box-shadow: 0 2px 7px rgba(3, 18, 42, 0.14);
+  transform: translateY(0) scale(0.96);
+}
+
+.balloons-gate-modal__toolbar {
+  display: flex;
+  min-height: 2.6rem;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 0.75rem;
+  padding-left: 0.25rem;
+}
+
+.balloons-gate-modal__toolbar .balloons-gate-modal__close {
+  position: static;
+  flex: 0 0 auto;
+}
+
+.balloons-gate-modal--delivery .balloons-gate-modal__toolbar {
+  margin-bottom: 0.35rem;
+  padding-left: 0;
+}
+
+.balloons-gate-modal--delivery .balloons-gate-modal__close {
+  width: 2.4rem;
+  height: 2.4rem;
+  background: #f5f7fb;
+  box-shadow: none;
+}
+
+.balloons-gate-modal--delivery .balloons-gate-modal__close:hover {
+  background: var(--color-legacy-navy);
+  box-shadow: 0 6px 16px rgba(3, 18, 42, 0.15);
 }
 
 .balloons-order-guide-trigger-wrap {
@@ -365,7 +413,6 @@
 }
 
 .balloons-gate-modal--compact .balloons-gate-modal__close:hover {
-  border-color: var(--color-legacy-navy);
   background: var(--color-legacy-navy);
   box-shadow: 0 8px 20px rgba(3, 18, 42, 0.2);
   color: #ffffff;
@@ -447,25 +494,46 @@
 }
 
 .balloons-gate-panel {
-  margin-top: 1rem;
-  padding: 1.15rem;
-  border: 1px solid var(--color-border);
-  border-radius: 1rem;
-  background: #ffffff;
+  margin-top: 0;
+  padding: clamp(1.15rem, 2.6vw, 1.5rem);
+  border: 0;
+  border-radius: 1.125rem;
+  background: linear-gradient(180deg, #ffffff 0%, #fbfcff 100%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.9), 0 8px 24px rgba(3, 18, 42, 0.04);
   animation: balloons-gate-panel-in 160ms ease-out both;
+}
+
+.balloons-gate-modal--delivery .balloons-gate-panel {
+  padding: 0.55rem 0 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
 }
 
 .balloons-gate-back {
   display: inline-flex;
+  min-height: 2.25rem;
   align-items: center;
   gap: 0.35rem;
-  padding: 0;
+  padding: 0.35rem 0.55rem;
   border: 0;
+  border-radius: 0.65rem;
   background: transparent;
   color: var(--color-legacy-blue);
   cursor: pointer;
   font-size: 0.72rem;
   font-weight: 800;
+  transition: background-color 160ms ease, color 160ms ease;
+}
+
+.balloons-gate-back:hover {
+  background: rgba(21, 91, 194, 0.08);
+  color: var(--color-legacy-navy);
+}
+
+.balloons-gate-back:focus-visible {
+  outline: 3px solid rgba(21, 91, 194, 0.2);
+  outline-offset: 2px;
 }
 
 .balloons-gate-panel__intro {
@@ -473,7 +541,7 @@
   grid-template-columns: auto minmax(0, 1fr);
   align-items: start;
   gap: 0.85rem;
-  margin-top: 1rem;
+  margin-top: 0;
 }
 
 .balloons-gate-panel__intro > span {
@@ -492,6 +560,26 @@
   margin-top: 0.2rem;
   color: var(--color-text-secondary);
   font-size: 0.78rem;
+}
+
+.balloons-gate-modal--delivery .balloons-gate-panel__intro {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  text-align: center;
+}
+
+.balloons-gate-modal--delivery .balloons-gate-panel__intro > span {
+  width: 2.75rem;
+  height: 2.75rem;
+  flex: 0 0 auto;
+  border-radius: 0.9rem;
+}
+
+.balloons-gate-modal--delivery .balloons-gate-panel__intro h3 {
+  font-size: 1.15rem;
+  line-height: 1.25;
 }
 
 .balloons-gate-form__address,
@@ -516,11 +604,25 @@
   margin-top: 1.15rem;
 }
 
+.balloons-gate-modal--delivery .balloons-gate-form__postal {
+  grid-template-columns: minmax(0, 20rem);
+  margin-top: 1.5rem;
+}
+
 .balloons-gate-field {
   display: block;
   color: var(--color-legacy-navy);
   font-size: 0.72rem;
   font-weight: 800;
+}
+
+.balloons-gate-field__label {
+  display: block;
+  margin-bottom: 0.45rem;
+  color: var(--color-legacy-navy);
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.01em;
 }
 
 .balloons-gate-field input {
@@ -537,6 +639,14 @@
   outline: none;
 }
 
+.balloons-gate-modal--delivery .balloons-gate-field input {
+  min-height: 3rem;
+  margin-top: 0;
+  padding-inline: 1rem;
+  border-color: rgba(6, 44, 104, 0.14);
+  border-radius: 0.8rem;
+}
+
 .balloons-gate-field input:focus {
   border-color: var(--color-legacy-blue);
   box-shadow: var(--shadow-focus);
@@ -544,6 +654,7 @@
 
 .balloons-gate-date {
   min-width: 0;
+  width: min(100%, 11.5rem);
 }
 
 .balloons-gate-date__heading {
@@ -554,27 +665,30 @@
 }
 
 .balloons-gate-date__control {
-  position: relative;
   display: grid;
-  min-height: 2.9rem;
-  grid-template-columns: auto minmax(0, 1fr);
+  min-height: 2.7rem;
+  grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
-  gap: 0.65rem;
+  gap: 0.5rem;
   width: 100%;
   margin-top: 0.4rem;
-  padding: 0.7rem 0.8rem;
+  padding: 0.55rem 0.7rem;
   border: 1px solid var(--color-border);
-  border-radius: 0.7rem;
-  background: #ffffff;
+  border-radius: 0.75rem;
+  background: #f8faff;
   color: var(--color-legacy-navy);
   cursor: pointer;
   font: inherit;
   text-align: left;
-  transition: border-color 160ms ease, box-shadow 160ms ease;
+  transition: background-color 160ms ease, border-color 160ms ease, box-shadow 160ms ease, transform 160ms ease;
 }
 
-.balloons-gate-date__control svg {
+.balloons-gate-date__control svg:first-child {
   color: var(--color-legacy-blue);
+}
+
+.balloons-gate-date__control svg:last-child {
+  color: var(--color-text-secondary);
 }
 
 .balloons-gate-date__control strong {
@@ -586,8 +700,13 @@
 .balloons-gate-date__control:focus-visible,
 .balloons-gate-date__control:hover {
   border-color: var(--color-legacy-blue);
-  box-shadow: var(--shadow-focus);
+  background: #ffffff;
+  box-shadow: 0 0 0 3px rgba(21, 91, 194, 0.12);
   outline: none;
+}
+
+.balloons-gate-date__control:active {
+  transform: scale(0.98);
 }
 
 .balloons-date-picker-backdrop {
@@ -597,16 +716,18 @@
   display: grid;
   place-items: center;
   padding: 1rem;
-  background: rgba(3, 18, 42, 0.38);
-  backdrop-filter: blur(3px);
+  background: rgba(3, 18, 42, 0.48);
+  backdrop-filter: blur(5px);
   animation: balloons-gate-backdrop-in 140ms ease-out both;
 }
 
 .balloons-date-picker-dialog {
-  width: min(100%, 22rem);
-  padding: 0.85rem;
-  border: 1px solid rgba(255, 255, 255, 0.88);
-  border-radius: 1.15rem;
+  width: min(100%, 20rem);
+  max-height: calc(100dvh - 2rem);
+  padding: 0.7rem;
+  overflow-y: auto;
+  border: 0;
+  border-radius: 1.05rem;
   background: #ffffff;
   box-shadow: 0 28px 80px rgba(3, 18, 42, 0.34);
   animation: balloons-gate-modal-in 160ms ease-out both;
@@ -614,26 +735,32 @@
 
 .balloons-gate-calendar {
   width: 100%;
-  padding: 0.15rem;
+  padding: 0.05rem;
 }
 
 .balloons-gate-calendar__header {
+  position: relative;
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 0.75rem;
+  gap: 0.25rem;
+  min-height: 2.25rem;
 }
 
 .balloons-gate-calendar__header > strong {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  white-space: nowrap;
   color: var(--color-legacy-navy);
   font-size: 0.82rem;
-  font-weight: 800;
+  font-weight: 900;
 }
 
 .balloons-gate-calendar__header button {
   display: grid;
-  width: 2rem;
-  height: 2rem;
+  width: 2.25rem;
+  height: 2.25rem;
+  flex: 0 0 auto;
   place-items: center;
   padding: 0;
   border: 0;
@@ -641,6 +768,16 @@
   background: #f3f6fb;
   color: var(--color-legacy-navy);
   cursor: pointer;
+}
+
+.balloons-gate-calendar__header .balloons-gate-calendar__next {
+  margin-left: auto;
+}
+
+.balloons-gate-calendar__header .balloons-gate-calendar__close {
+  border-radius: 999px;
+  background: transparent;
+  color: var(--color-text-secondary);
 }
 
 .balloons-gate-calendar__header button:hover:not(:disabled) {
@@ -660,7 +797,7 @@
 }
 
 .balloons-gate-calendar__weekdays {
-  margin-top: 0.65rem;
+  margin-top: 0.4rem;
   color: var(--color-text-secondary);
   font-size: 0.6rem;
   font-weight: 800;
@@ -669,12 +806,12 @@
 }
 
 .balloons-gate-calendar__weekdays span {
-  padding-block: 0.3rem;
+  padding-block: 0.2rem;
 }
 
 .balloons-gate-calendar__days {
-  gap: 0.12rem;
-  margin-top: 0.2rem;
+  gap: 0.08rem;
+  margin-top: 0.1rem;
 }
 
 .balloons-gate-calendar__days button {
@@ -684,11 +821,11 @@
   place-items: center;
   padding: 0;
   border: 0;
-  border-radius: 0.55rem;
+  border-radius: 0.5rem;
   background: transparent;
   color: var(--color-legacy-navy);
   cursor: pointer;
-  font-size: 0.72rem;
+  font-size: 0.7rem;
   font-weight: 700;
 }
 
@@ -760,6 +897,18 @@
   margin-inline: auto;
 }
 
+.balloons-gate-modal--delivery .balloons-gate-primary--postal {
+  width: min(100%, 20rem);
+  min-height: 3rem;
+  margin-top: 0.75rem;
+  border-radius: 0.8rem;
+}
+
+.balloons-gate-modal--delivery .balloons-gate-error {
+  width: min(100%, 20rem);
+  margin-inline: auto;
+}
+
 .balloons-gate-error {
   display: grid;
   gap: 0.3rem;
@@ -801,8 +950,9 @@
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);
   gap: 0.65rem;
-  min-height: 100px;
-  padding: 0.85rem;
+  min-height: 78px;
+  align-items: center;
+  padding: 0.8rem;
   border: 1px solid var(--color-border);
   border-radius: 0.8rem;
   background: #ffffff;
@@ -820,7 +970,7 @@
 .balloons-gate-store__radio {
   width: 1rem;
   height: 1rem;
-  margin-top: 0.12rem;
+  margin-top: 0;
   border: 1px solid var(--color-border);
   border-radius: 999px;
 }
@@ -834,7 +984,7 @@
 }
 
 .balloons-gate-store small {
-  margin-top: 0.2rem;
+  margin-top: 0.3rem;
   color: var(--color-text-secondary);
   font-size: 0.68rem;
   line-height: 1.35;
@@ -842,7 +992,7 @@
 
 .balloons-gate-pickup-schedule {
   display: grid;
-  grid-template-columns: minmax(190px, 0.65fr) minmax(0, 1.35fr);
+  grid-template-columns: 11.5rem minmax(0, 1fr);
   align-items: end;
   gap: 0.9rem;
   margin-top: 1rem;
@@ -1316,11 +1466,32 @@
     padding: 0;
   }
 
+  .balloons-date-picker-backdrop {
+    align-items: center;
+    padding: 0.75rem;
+  }
+
+  .balloons-date-picker-dialog {
+    width: min(100%, 20rem);
+    max-height: calc(100dvh - 1.5rem);
+    padding: 0.7rem 0.7rem calc(0.7rem + env(safe-area-inset-bottom));
+    border-radius: 1.05rem;
+  }
+
+  .balloons-gate-calendar__days button {
+    min-height: 2.35rem;
+  }
+
   .balloons-gate-modal {
     width: 100%;
     max-height: 92dvh;
     padding: 1.15rem;
     border-radius: 1.35rem 1.35rem 0 0;
+  }
+
+  .balloons-gate-modal--delivery {
+    width: 100%;
+    padding: 1rem 1.15rem 1.4rem;
   }
 
   .balloons-gate-modal--compact {

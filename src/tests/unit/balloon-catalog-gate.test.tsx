@@ -78,6 +78,29 @@ describe("BalloonCatalogGate", () => {
     expect(JSON.parse(window.sessionStorage.getItem("modern-state-balloon-fulfillment") ?? "null")).toMatchObject({ mode: "pickup" });
   });
 
+  it("stays interactive-free inside the CMS preview", () => {
+    render(<BalloonCatalogGate previewMode />);
+
+    expect(screen.queryByRole("dialog")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Shop latex balloons" }));
+    expect(screen.queryByRole("dialog")).toBeNull();
+  });
+
+  it("opens the pickup calendar and selects a day without the native mobile date picker", () => {
+    render(<BalloonCatalogGate />);
+    fireEvent.click(screen.getByRole("button", { name: "Shop latex balloons" }));
+    fireEvent.click(screen.getByRole("button", { name: "Store pickup" }));
+    fireEvent.click(screen.getByRole("button", { name: /Choose pickup date/ }));
+
+    expect(screen.getByRole("dialog", { name: "Choose pickup date" })).toBeTruthy();
+
+    const nextDate = dateAfter(earliestNewYorkDeliveryDate(), 1);
+    fireEvent.click(screen.getByRole("button", { name: calendarDateLabel(nextDate) }));
+
+    expect(screen.queryByRole("dialog", { name: "Choose pickup date" })).toBeNull();
+    expect(screen.getByRole("button", { name: `Choose pickup date, currently ${shortDateLabel(nextDate)}` })).toBeTruthy();
+  });
+
   it("offers store contact when local delivery is unavailable", async () => {
     vi.mocked(fetch).mockResolvedValue({
       json: async () => ({ eligibility: { eligible: false, source: "ORDERPRO", reasonCode: "OUTSIDE_DELIVERY_AREA", message: "Outside delivery area." } })
@@ -115,4 +138,21 @@ function pickupAvailability() {
     expiresAt: new Date(Date.now() + 15 * 60_000).toISOString(),
     availableSlots: [{ id: `pickup-${requestedDate}-1000`, startsAt: `${requestedDate}T10:00:00-04:00`, endsAt: `${requestedDate}T12:00:00-04:00`, label: "10:00 AM–12:00 PM" }]
   };
+}
+
+function dateAfter(value: string, days: number) {
+  const [year, month, day] = value.split("-").map(Number);
+  return new Date(Date.UTC(year, month - 1, day + days)).toISOString().slice(0, 10);
+}
+
+function calendarDateLabel(value: string) {
+  const [year, month, day] = value.split("-").map(Number);
+  return new Intl.DateTimeFormat("en-US", { day: "numeric", month: "long", weekday: "long", year: "numeric", timeZone: "UTC" })
+    .format(new Date(Date.UTC(year, month - 1, day)));
+}
+
+function shortDateLabel(value: string) {
+  const [year, month, day] = value.split("-").map(Number);
+  return new Intl.DateTimeFormat("en-US", { day: "numeric", month: "short", timeZone: "UTC" })
+    .format(new Date(Date.UTC(year, month - 1, day)));
 }

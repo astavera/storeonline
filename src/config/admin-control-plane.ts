@@ -131,7 +131,7 @@ export const adminModules: AdminModule[] = [
     connectedModels: ["CmsContentVersion", "AuditLog"],
     editableFields: [
       { name: "label", label: "Label", type: "text", required: true, helpText: "Visible navigation label.", defaultValue: "Holidays" },
-      { name: "href", label: "Link", type: "url", required: true, helpText: "Internal route or HTTPS URL.", defaultValue: "/holidays" },
+      { name: "href", label: "Link", type: "url", required: true, helpText: "Internal route or HTTPS URL.", defaultValue: "/holidays/halloween" },
       { name: "placement", label: "Placement", type: "select", required: true, helpText: "Navigation area.", defaultValue: "Header", options: ["Header", "Footer", "Utility", "Campaign"] },
       { name: "sortOrder", label: "Sort order", type: "number", helpText: "Lower numbers appear first.", defaultValue: 10 },
       { name: "visible", label: "Visible", type: "boolean", helpText: "Show this link on the storefront.", defaultValue: true }
@@ -364,27 +364,6 @@ export const adminModules: AdminModule[] = [
     workflowActions: operationsWorkflow,
     guardrails: ["Capacity is locked transactionally.", "Temporary holds expire server-side.", "Staff cannot bypass checkout validation."],
     productionChecklist: ["Capacity checked", "Blackout dates checked", "Cutoffs checked", "Order flow tested"]
-  },
-  {
-    id: "media-library",
-    href: "/admin/media-library",
-    title: "Media Library",
-    sectionId: "admin.media-library",
-    category: "Storefront",
-    purpose: "Manage approved website media assets, alt text, visibility, usage context, dimensions, and source attribution.",
-    productionGoal: "Give staff a safe asset library for homepage, departments, holidays, products, and social previews.",
-    riskLevel: "medium",
-    ownerRoles: ["Owner", "Manager", "Marketing", "Catalog"],
-    connectedModels: ["MediaAsset", "CmsContentVersion"],
-    editableFields: [
-      { name: "url", label: "Asset URL", type: "url", required: true, helpText: "Approved media URL.", defaultValue: "" },
-      { name: "altText", label: "Alt text", type: "text", required: true, helpText: "Accessible media description.", defaultValue: "" },
-      { name: "usage", label: "Usage", type: "select", helpText: "Primary use for this asset.", defaultValue: "Homepage", options: ["Homepage", "Department", "Holiday", "Product", "Social"] },
-      { name: "hiddenFromWebsite", label: "Hidden from website", type: "boolean", helpText: "Keep asset unavailable to public modules.", defaultValue: false }
-    ],
-    workflowActions: fullWorkflow,
-    guardrails: ["No secret files.", "Alt text required before publish.", "Uploads should be virus-scanned by storage provider."],
-    productionChecklist: ["Alt text complete", "Source approved", "Dimensions checked", "Usage assigned"]
   },
   {
     id: "theme",

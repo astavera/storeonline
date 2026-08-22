@@ -42,7 +42,7 @@ export function BuilderTopbar({
   const statusTone = saveState.tone === "error" ? "text-red" : saveState.tone === "success" ? "text-green" : "text-secondary";
 
   return (
-    <header className="flex h-20 min-w-0 items-center justify-between gap-4 border-b border-border bg-[#f7f7f7] px-5">
+    <header className="flex h-20 min-w-0 items-center justify-between gap-4 border-b border-border bg-white px-5">
       <div className="flex min-w-0 items-center gap-3">
         <BuilderDevicePreview device={device} setDevice={setDevice} />
         <div className="hidden items-center gap-1 sm:flex">

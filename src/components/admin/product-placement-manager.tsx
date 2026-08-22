@@ -459,44 +459,51 @@ export function ProductPlacementManager({ products, initialConfig, fetchedAt, ha
   }
 
   return (
-    <main className="p-4 md:p-6">
-      <SectionFrame area="Admin" className="surface-card overflow-hidden" component="ProductPlacementManager" sectionId="admin.product-placement-manager" variant="manager">
-        <header className="border-b border-border p-4 md:px-5">
-          <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
+    <main className="admin-page admin-publishing">
+      <SectionFrame area="Admin" className="admin-publishing-frame" component="ProductPlacementManager" sectionId="admin.product-placement-manager" variant="manager">
+        <header className="admin-publishing-header">
+          <div className="flex flex-col justify-between gap-5 sm:flex-row sm:items-end">
             <div>
-              <div className="flex flex-wrap items-center gap-2">
-                <h1 className="font-display text-2xl font-semibold">Catalog Publishing</h1>
-                <span className="rounded-pill bg-green/15 px-2 py-1 text-[10px] font-black uppercase text-green">Square read only</span>
+              <p className="admin-eyebrow">Website assortment</p>
+              <div className="mt-2 flex flex-wrap items-center gap-3">
+                <h1 className="admin-page-title mt-0">Catalog Publishing</h1>
+                <span className="admin-source-badge">Square · read only</span>
               </div>
-              <p className="mt-1 text-xs text-secondary">Snapshot {formatSnapshotDate(fetchedAt)}{hasMoreItems ? " · partial" : ""}</p>
+              <p className="admin-lede mt-2">Prepare the website assortment without changing Square prices, inventory, or product records.</p>
+              <p className="admin-publishing-snapshot">Snapshot {formatSnapshotDate(fetchedAt)}{hasMoreItems ? " · partial" : ""}</p>
             </div>
             <div className="flex flex-wrap gap-2">
-              <Link className="inline-flex min-h-10 items-center justify-center rounded-md border border-border px-4 py-2 text-sm font-semibold hover:bg-surface-muted" href="/shop" target="_blank">Preview</Link>
-              <Button disabled={saveState === "saving" || !isDirty} onClick={saveConfiguration} type="button"><Save className="mr-2" size={17} />{saveState === "saving" ? "Saving…" : isDirty ? "Save changes" : "No changes"}</Button>
+              <Link className="admin-button-secondary" href="/shop" target="_blank">Preview website</Link>
+              <Button className="admin-button" disabled={saveState === "saving" || !isDirty} onClick={saveConfiguration} type="button"><Save size={15} />{saveState === "saving" ? "Saving…" : isDirty ? "Save changes" : "No changes"}</Button>
             </div>
           </div>
-          {isDirty || saveState === "error" || saveState === "saved" ? <p aria-live="polite" className={`mt-3 rounded-md px-3 py-2 text-xs font-semibold ${saveState === "error" ? "bg-red/10 text-red" : saveState === "saved" ? "bg-green/10 text-green" : "bg-surface-muted text-primary"}`}>{saveMessage}</p> : null}
+          {isDirty || saveState === "error" || saveState === "saved" ? <p aria-live="polite" className={`admin-publishing-message admin-publishing-message--${saveState}`}>{saveMessage}</p> : null}
         </header>
 
-        {activeModule === "overview" ? <section className="p-4 md:p-6" aria-labelledby="publishing-overview-heading">
-          <h2 className="font-display text-xl font-semibold" id="publishing-overview-heading">Overview</h2>
-          <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        {activeModule === "overview" ? <section className="admin-publishing-overview" aria-labelledby="publishing-overview-heading">
+          <div>
+            <h2 className="admin-section-heading" id="publishing-overview-heading">Publishing overview</h2>
+            <p className="admin-section-note">A product becomes visible only after its website setup is complete.</p>
+          </div>
+          <div className="admin-publishing-metrics">
             <Metric label="Square inbox" value={squareInboxCount} />
             <Metric emphasis={pendingProductCount > 0} label="Needs setup" value={pendingProductCount} />
             <Metric label="Ready, hidden" value={readyProductCount} />
             <Metric label="Live on website" value={liveProductCount} />
           </div>
-          <div className={`mt-5 rounded-md border p-5 ${liveProductCount === 0 ? "border-dashed border-border bg-surface" : "border-green/30 bg-green/10"}`}>
-            <p className="mt-1 font-display text-2xl font-semibold">{liveProductCount === 0 ? "Blank by design" : `${liveProductCount} products published`}</p>
+          <div className="admin-publishing-state">
+            <p className="admin-publishing-state-label">Current website state</p>
+            <p className="admin-publishing-state-value">{liveProductCount === 0 ? "Nothing is published yet" : `${liveProductCount} products published`}</p>
+            <p className="admin-publishing-state-note">{liveProductCount === 0 ? "Products remain hidden until every required merchandising decision is complete." : "Only fully configured products are included in the live website assortment."}</p>
           </div>
-          <div className="mt-5 grid gap-3 lg:grid-cols-3">
+          <div className="admin-publishing-modules">
             <ModuleLaunchCard action="Open" body="Brands, categories and holidays" onClick={() => navigateCatalogPublishing("structure-brands")} title="Website structure" />
             <ModuleLaunchCard action="Open" body={`${pendingProductCount} need setup`} onClick={() => navigateCatalogPublishing("products")} title="Products" />
             <ModuleLaunchCard action="Open" body="CSV and Excel import/export" onClick={() => navigateCatalogPublishing("bulk")} title="Import & export" />
           </div>
         </section> : null}
 
-        {activeModule === "structure" ? <section className="bg-surface-muted p-4 md:p-5" aria-label="Website structure">
+        {activeModule === "structure" ? <section className="admin-publishing-workspace" aria-label="Website structure">
           <div>
             {structureModule === "brands" ? <BrandManager brands={brands} disabled={isDirty || saveState === "saving"} newDescription={newBrandDescription} newName={newBrandName} onAdd={addBrand} onDescriptionChange={setNewBrandDescription} onNameChange={setNewBrandName} onProductsApplied={syncBrandProducts} onRemove={removeBrand} onSelect={setSelectedBrandId} onUpdate={updateBrand} productCountByBrand={productCountByBrand} selected={selectedBrand} squareVendors={squareVendors} /> : null}
             {structureModule === "categories" ? <CategoryManager categories={categories} newDescription={newCategoryDescription} newName={newCategoryName} newParentId={newCategoryParentId} onAdd={addCategory} onDescriptionChange={setNewCategoryDescription} onManageProducts={manageCategoryProducts} onMove={moveCategory} onNameChange={setNewCategoryName} onParentChange={setNewCategoryParentId} onRemove={removeCategory} onSelect={setSelectedCategoryId} onUpdate={updateCategory} productCountByCategory={productCountByCategory} selected={selectedCategory} /> : null}
@@ -509,7 +516,7 @@ export function ProductPlacementManager({ products, initialConfig, fetchedAt, ha
           <FullCatalogProductManager brands={brands} categories={categories} disabled={isDirty || saveState === "saving"} holidays={holidays} initialWebsiteCategoryId={catalogWebsiteCategoryId} onCategoryAssignmentsRemoved={recordCategoryAssignmentsRemoved} onWebsiteCategoryChange={setCatalogWebsiteCategoryId} squareVendors={squareVendors} />
         </> : null}
 
-        {activeModule === "bulk" ? <section className="p-4 md:p-6" aria-labelledby="bulk-publishing-heading">
+        {activeModule === "bulk" ? <section className="admin-publishing-workspace" aria-labelledby="bulk-publishing-heading">
           <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
             <div>
               <h2 className="font-display text-xl font-semibold" id="bulk-publishing-heading">Bulk catalog tools</h2>
@@ -522,7 +529,7 @@ export function ProductPlacementManager({ products, initialConfig, fetchedAt, ha
           </div>
         </section> : null}
       </SectionFrame>
-      {isDirty ? <div className="fixed bottom-4 right-4 z-50 flex max-w-[calc(100vw-2rem)] items-center gap-3 rounded-md border border-primary/20 bg-primary p-3 text-white shadow-xl"><div className="hidden min-w-0 sm:block"><p className="text-sm font-semibold">Unsaved changes</p><p className="max-w-sm truncate text-xs text-white/75">Review the draft, then save it to update the website.</p></div><Button className="shrink-0 bg-white text-primary hover:bg-surface-muted" disabled={saveState === "saving"} onClick={saveConfiguration} type="button"><Save className="mr-2" size={16} />{saveState === "saving" ? "Saving…" : "Save changes"}</Button></div> : null}
+      {isDirty ? <div className="admin-publishing-savebar"><div className="hidden min-w-0 sm:block"><p className="text-sm font-semibold">Unsaved changes</p><p className="max-w-sm truncate text-xs text-white/70">Review the draft, then save it to update the website.</p></div><Button className="shrink-0 bg-white text-primary hover:bg-surface-muted" disabled={saveState === "saving"} onClick={saveConfiguration} type="button"><Save size={15} />{saveState === "saving" ? "Saving…" : "Save changes"}</Button></div> : null}
     </main>
   );
 }
@@ -1195,10 +1202,10 @@ function HolidayManager({ disabled, endDate, holidays, newDescription, newName, 
 const inputClassName = "w-full rounded-md border border-border bg-surface px-3 py-2.5 text-sm outline-none focus:border-primary";
 
 function ModuleLaunchCard({ action, body, onClick, title }: { action: string; body: string; onClick: () => void; title: string }) {
-  return <button className="rounded-md border border-border bg-surface p-5 text-left transition hover:-translate-y-0.5 hover:border-primary hover:shadow-sm" onClick={onClick} type="button"><span className="font-display text-xl font-semibold">{title}</span><span className="mt-2 block text-sm leading-6 text-secondary">{body}</span><span className="mt-4 inline-flex items-center text-sm font-semibold text-blue">{action}<ChevronRight className="ml-1" size={16} /></span></button>;
+  return <button className="admin-publishing-module" onClick={onClick} type="button"><span><span className="admin-publishing-module-title">{title}</span><span className="admin-publishing-module-note">{body}</span></span><span className="admin-publishing-module-action">{action}<ChevronRight size={15} /></span></button>;
 }
 
-function Metric({ emphasis = false, label, value }: { emphasis?: boolean; label: string; value: number }) { return <div className="rounded-md border border-border bg-surface px-4 py-3"><p className="text-xs font-semibold uppercase tracking-[0.1em] text-secondary">{label}</p><p className={`mt-1 text-2xl font-black ${emphasis ? "text-red" : "text-primary"}`}>{value}</p></div>; }
+function Metric({ emphasis = false, label, value }: { emphasis?: boolean; label: string; value: number }) { return <div className="admin-publishing-metric"><p className="admin-publishing-metric-label">{label}</p><p className={emphasis ? "admin-publishing-metric-value text-red" : "admin-publishing-metric-value"}>{value.toLocaleString()}</p></div>; }
 function Field({ children, className, label }: { children: ReactNode; className?: string; label: string }) { return <label className={className}><span className="mb-1.5 block text-xs font-semibold uppercase tracking-[0.08em] text-secondary">{label}</span>{children}</label>; }
 function SearchableField({ children, className, label }: { children: ReactNode; className?: string; label: string }) { return <div className={className}><p className="mb-1.5 block text-xs font-semibold uppercase tracking-[0.08em] text-secondary">{label}</p>{children}</div>; }
 function formatProductCount(value: number) { return `${value.toLocaleString()} ${value === 1 ? "product" : "products"}`; }

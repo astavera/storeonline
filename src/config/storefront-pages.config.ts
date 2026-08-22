@@ -3,9 +3,7 @@
  */
 
 import type { CmsScope } from "@/lib/cms";
-import { departments } from "./departments.config";
 import { holidays } from "./holidays.config";
-import { storeLocations } from "./locations.config";
 import { storefrontProducts } from "@/features/catalog/product-catalog";
 
 export type StorefrontEditablePageGroup = "Commerce" | "Departments" | "Balloons" | "Holidays" | "Content" | "Policies" | "Locations" | "Products";
@@ -38,61 +36,31 @@ const staticCommercePages: StorefrontEditablePage[] = [
   }
 ];
 
-const balloonFlowPages: StorefrontEditablePage[] = ["latex", "mylar", "numbers-letters", "bouquets", "pickup", "local-delivery"].map((slug) => ({
-  title: `Balloons: ${toTitle(slug)}`,
-  route: `/balloons/${slug}`,
-  scope: "landing",
-  entityId: `balloons-${slug}`,
-  group: "Balloons",
-  description: "Balloon flow-specific copy, visuals, FAQs, and conversion sections."
+const departmentPages: StorefrontEditablePage[] = [
+  ["Toys Department Page", "/toys", "toys"],
+  ["Party Supplies Department Page", "/party-supplies", "party-supplies"]
+].map(([title, route, entityId]) => ({
+  title,
+  route,
+  scope: "department" as const,
+  entityId,
+  group: "Departments" as const,
+  description: "Department hero, category copy, local SEO content, FAQs, and product merchandising sections."
 }));
 
-const departmentPages: StorefrontEditablePage[] = departments
-  .filter((department) => department.slug !== "balloons")
-  .map((department) => ({
-    title: department.slug === "toys"
-      ? "Toys Department Page"
-      : department.slug === "party-supplies"
-        ? "Party Supplies Department Page"
-        : department.title_en,
-    route: `/${department.slug}`,
-    scope: "department",
-    entityId: department.slug,
-    group: "Departments",
-    description: "Department hero, category copy, local SEO content, FAQs, and product merchandising sections."
-  }));
-
-const holidayPages: StorefrontEditablePage[] = [
-  {
-    title: "Holidays Department Page",
-    route: "/holidays",
-    scope: "holiday",
-    entityId: "index",
-    group: "Holidays",
-    description: "Holiday campaign hub, seasonal messaging, active holiday cards, and SEO sections."
-  },
-  ...holidays.map((holiday) => ({
+const holidayPages: StorefrontEditablePage[] = holidays.map((holiday) => ({
     title: holiday.title_en,
     route: `/holidays/${holiday.slug}`,
     scope: "holiday" as const,
     entityId: holiday.slug,
     group: "Holidays" as const,
     description: "Holiday detail hero, gift guide content, seasonal product sections, and campaign FAQs."
-  }))
-];
+  }));
 
 const contentPages: StorefrontEditablePage[] = [
   ["About Us", "/about", "about"],
   ["Contact", "/contact", "contact"],
-  ["Search", "/search", "search"],
-  ["Upper East Side Toy Store", "/upper-east-side-toy-store", "upper-east-side-toy-store"],
-  ["Upper East Side Balloons", "/upper-east-side-balloons", "upper-east-side-balloons"],
-  ["Upper East Side Party Supplies", "/upper-east-side-party-supplies", "upper-east-side-party-supplies"],
-  ["Upper East Side Gifts", "/upper-east-side-gifts", "upper-east-side-gifts"],
-  ["Upper East Side Stationery", "/upper-east-side-stationery", "upper-east-side-stationery"],
-  ["Upper East Side Greeting Cards", "/upper-east-side-greeting-cards", "upper-east-side-greeting-cards"],
-  ["Upper East Side Arts and Crafts", "/upper-east-side-arts-and-crafts", "upper-east-side-arts-and-crafts"],
-  ["NYC Balloon Delivery", "/nyc-balloon-delivery", "nyc-balloon-delivery"]
+  ["Search", "/search", "search"]
 ].map(([title, route, entityId]) => ({
   title,
   route,
@@ -127,17 +95,7 @@ const locationPages: StorefrontEditablePage[] = [
     entityId: "index",
     group: "Locations",
     description: "Store location hub, pickup/local delivery copy, maps, service areas, and store cards."
-  },
-  ...storeLocations
-    .filter((location) => location.slug !== "warehouse")
-    .map((location) => ({
-      title: location.name,
-      route: `/locations/${location.slug}`,
-      scope: "location" as const,
-      entityId: location.slug,
-      group: "Locations" as const,
-      description: "Location detail hero, hours, pickup details, service copy, map, and FAQ sections."
-    }))
+  }
 ];
 
 const productPages: StorefrontEditablePage[] = (process.env.E2E_CATALOG_FIXTURE === "true" ? storefrontProducts : []).map((product) => ({
@@ -152,7 +110,6 @@ const productPages: StorefrontEditablePage[] = (process.env.E2E_CATALOG_FIXTURE 
 export const storefrontEditablePages: StorefrontEditablePage[] = [
   ...staticCommercePages,
   ...departmentPages,
-  ...balloonFlowPages,
   ...holidayPages,
   ...contentPages,
   ...policyPages,
@@ -163,7 +120,6 @@ export const storefrontEditablePages: StorefrontEditablePage[] = [
 export function builderHrefForStorefrontPage(page: Pick<StorefrontEditablePage, "entityId" | "scope">) {
   return `/admin/builder/${page.scope}/${page.entityId}`;
 }
-
 export function websiteHolidayEditorPages(websiteHolidays: Array<{ description: string; name: string; slug: string }>): StorefrontEditablePage[] {
   return websiteHolidays.map((holiday) => ({
     title: holiday.name,
@@ -195,10 +151,4 @@ export function storefrontEditablePagesByGroup(additionalPages: StorefrontEditab
       Products: []
     }
   );
-}
-
-function toTitle(value: string) {
-  return value
-    .replace(/[-_]/g, " ")
-    .replace(/\b\w/g, (letter) => letter.toUpperCase());
 }

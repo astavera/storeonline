@@ -3,6 +3,7 @@
  */
 
 import { DepartmentCardGrid } from "@/components/commerce/department-card-grid";
+import { BalloonsLandingExperience } from "@/components/balloons/balloons-landing-experience";
 import { AddToCartButton } from "@/components/commerce/add-to-cart-button";
 import { PickupLocationInventory } from "@/components/commerce/pickup-location-inventory";
 import { WishlistButton } from "@/components/commerce/wishlist-button";
@@ -89,8 +90,20 @@ function primaryHeadingSectionIdForDocument(document: CmsPageDocument) {
   return (preferred ?? visibleSections.find((section) => heroSectionTypes.has(String(section.type))) ?? visibleSections[0])?.id;
 }
 
-export function renderStorefrontCmsSection(section: CmsSection, _context?: CmsSectionRenderContext, options: StorefrontCmsSectionRenderOptions = {}) {
+export function renderStorefrontCmsSection(section: CmsSection, context?: CmsSectionRenderContext, options: StorefrontCmsSectionRenderOptions = {}) {
   const isPrimaryHeading = options.primaryHeadingSectionId ? options.primaryHeadingSectionId === section.id : true;
+
+  if (section.id === "balloons.catalog-gate" || section.variant === "balloon-catalog-gate") {
+    return (
+      <BalloonsLandingExperience
+        body={String(section.content.body || "Choose balloons for pickup or local delivery.")}
+        embedded
+        previewMode={Boolean(context?.previewMode)}
+        title={String(section.content.title || "Balloons planned around your moment.")}
+      />
+    );
+  }
+
   if (globalSectionTypes.has(String(section.type))) {
     return options.includeGlobalFrame ? <EditableGlobalFrameSection section={section} /> : <></>;
   }

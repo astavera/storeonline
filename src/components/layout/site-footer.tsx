@@ -29,7 +29,7 @@ export function SiteFooter() {
           <p className="text-sm font-semibold uppercase tracking-[0.12em] text-secondary">Locations</p>
           <div className="mt-4 space-y-3 text-sm">
             {publicLocations.map((location) => (
-              <Link className="block hover:text-blue" href={`/locations/${location.slug}`} key={location.id}>
+              <Link className="block hover:text-blue" href="/locations" key={location.id}>
                 <span className="font-semibold">{location.name}</span>
                 <span className="block text-secondary">{location.phone}</span>
               </Link>

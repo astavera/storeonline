@@ -7,9 +7,14 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createCmsPageDocument, createCmsSection } from "@/lib/cms";
 
 const storefrontMocks = vi.hoisted(() => ({
+  isStorefrontPageDeleted: vi.fn(),
   readDepartmentBestSellers: vi.fn(),
   readLatestCmsDocument: vi.fn(),
   readResolvedSquareWebsiteCatalog: vi.fn()
+}));
+
+vi.mock("@/server/admin/storefront-page-deletion-service", () => ({
+  isStorefrontPageDeleted: storefrontMocks.isStorefrontPageDeleted
 }));
 
 vi.mock("@/server/admin/admin-cms-document-service", () => ({
@@ -28,6 +33,8 @@ import { DepartmentPageTemplate } from "@/components/templates/department-page-t
 
 describe("department storefront publishing", () => {
   beforeEach(() => {
+    storefrontMocks.isStorefrontPageDeleted.mockReset();
+    storefrontMocks.isStorefrontPageDeleted.mockResolvedValue(false);
     storefrontMocks.readLatestCmsDocument.mockReset();
     storefrontMocks.readResolvedSquareWebsiteCatalog.mockReset();
     storefrontMocks.readDepartmentBestSellers.mockResolvedValue({ source: "none", variationIds: [] });

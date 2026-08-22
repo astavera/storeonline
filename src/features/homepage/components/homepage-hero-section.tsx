@@ -31,7 +31,7 @@ export function HomepageHeroSection({
   const secondaryCtaHref =
     section.secondaryCtaHref ||
     (isBackToSchoolHero
-      ? "/stationery"
+      ? "/shop"
       : isSeasonalCardHero
         ? "/party-supplies"
         : "/balloons");
