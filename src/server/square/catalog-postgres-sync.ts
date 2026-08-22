@@ -330,7 +330,10 @@ export function compactSquareCatalogObject(object: CatalogObject): Prisma.InputJ
     return toPrismaJson({
       imageId: object.imageId,
       itemData: {
-        imageIds: object.itemData?.imageIds
+        imageIds: object.itemData?.imageIds,
+        isTaxable: object.itemData?.isTaxable,
+        taxIds: object.itemData?.taxIds,
+        productType: object.itemData?.productType
       }
     });
   }
@@ -357,6 +360,19 @@ export function compactSquareCatalogObject(object: CatalogObject): Prisma.InputJ
     return toPrismaJson({
       categoryData: {
         name: object.categoryData?.name
+      }
+    });
+  }
+
+  if (object.type === "TAX") {
+    return toPrismaJson({
+      taxData: {
+        name: object.taxData?.name,
+        calculationPhase: object.taxData?.calculationPhase,
+        inclusionType: object.taxData?.inclusionType,
+        percentage: object.taxData?.percentage,
+        appliesToCustomAmounts: object.taxData?.appliesToCustomAmounts,
+        enabled: object.taxData?.enabled
       }
     });
   }

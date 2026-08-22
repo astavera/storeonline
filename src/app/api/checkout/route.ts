@@ -6,6 +6,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createHash } from "node:crypto";
 import { z } from "zod";
 import { splitCheckoutRequestSchema, type SplitCheckoutRequest } from "@/features/checkout/contracts";
+import { env } from "@/lib/validation/env";
 import {
   CheckoutIdempotencyConflictError,
   getCheckoutAttemptRepository,
@@ -38,6 +39,12 @@ import {
   ShippingUnavailableError,
   validateShippingSelection
 } from "@/server/shipping/shipping-service";
+import { revalidateShippingTaxQuote, type RevalidatedShippingTaxQuote } from "@/server/tax/shipping-tax-quote-validation";
+import { TaxClassificationUnavailableError } from "@/server/tax/merchandise-taxability";
+import { TaxProviderError } from "@/server/tax/tax-provider";
+import { getTaxQuoteRepository, TaxQuoteConflictError } from "@/server/tax/tax-quote-repository";
+import { TaxQuoteTokenError } from "@/server/tax/tax-quote-token";
+import { SquareTaxMappingError } from "@/server/tax/square-tax-adapter";
 
 const checkoutRequestSchema = z.object({
   items: z.array(z.object({ squareVariationId: z.string().min(1), quantity: z.number().int().positive().max(99) })).max(50),
@@ -63,6 +70,7 @@ const checkoutRequestSchema = z.object({
     slotLabel: z.string().trim().min(3).max(80)
   }).optional(),
   shipping: shippingSelectionSchema.optional(),
+  taxQuoteToken: z.string().trim().min(100).max(4_000).optional(),
   customer: z.object({
     name: z.string().min(2),
     email: z.string().email(),
@@ -93,6 +101,8 @@ export async function POST(request: NextRequest) {
       };
     } | undefined;
     let verifiedShipping: Awaited<ReturnType<typeof validateShippingSelection>> | undefined;
+    let verifiedShippingTax: RevalidatedShippingTaxQuote | undefined;
+    const destinationTaxEnabled = env.DESTINATION_TAX_ENABLED === "true";
     const idempotencyKey = request.headers.get("idempotency-key")?.trim();
     if (!idempotencyKey || idempotencyKey.length < 8 || idempotencyKey.length > 200) {
       return NextResponse.json({ ok: false, status: "validation_only", errors: ["A valid Idempotency-Key header is required."] }, { status: 400 });
@@ -168,8 +178,25 @@ export async function POST(request: NextRequest) {
     if (parsed.fulfillmentMode !== "shipping" && parsed.shipping) {
       errors.push("Shipping rate details are not valid for the selected fulfillment method.");
     }
+    if (
+      parsed.fulfillmentMode === "shipping" &&
+      destinationTaxEnabled &&
+      env.STRIPE_TAX_REPORTING_ENABLED !== "true"
+    ) {
+      return NextResponse.json({
+        ok: false,
+        status: "tax_quote_not_available",
+        errors: ["Stripe Tax reporting must be enabled before destination-aware shipping checkout."]
+      }, { status: 503 });
+    }
+    if ((parsed.fulfillmentMode !== "shipping" || !destinationTaxEnabled) && parsed.taxQuoteToken) {
+      errors.push("A shipping tax quote is not valid for the selected fulfillment method.");
+    }
     if (parsed.fulfillmentMode === "shipping" && !parsed.shipping) {
       errors.push("A current Shippo shipping rate is required.");
+    }
+    if (parsed.fulfillmentMode === "shipping" && destinationTaxEnabled && !parsed.taxQuoteToken) {
+      errors.push("A current destination-tax quote is required.");
     }
     if (parsed.fulfillmentMode === "shipping" && parsed.shipping && errors.length === 0) {
       try {
@@ -180,6 +207,23 @@ export async function POST(request: NextRequest) {
         });
       } catch (error) {
         errors.push(error instanceof Error ? error.message : "The shipping rate could not be verified.");
+      }
+    }
+    if (
+      parsed.fulfillmentMode === "shipping" &&
+      destinationTaxEnabled &&
+      parsed.taxQuoteToken &&
+      verifiedShipping &&
+      errors.length === 0
+    ) {
+      try {
+        verifiedShippingTax = await revalidateShippingTaxQuote({
+          token: parsed.taxQuoteToken,
+          quote,
+          shipping: verifiedShipping
+        });
+      } catch (error) {
+        errors.push(error instanceof Error ? error.message : "The destination-tax quote could not be verified.");
       }
     }
     if (!quote.compatibleFulfillmentModes.includes(parsed.fulfillmentMode)) {
@@ -205,6 +249,20 @@ export async function POST(request: NextRequest) {
         paymentCaptured: false,
         squareOrderCreated: false
       }, { status: 400 });
+    }
+
+    if (parsed.fulfillmentMode === "shipping" && destinationTaxEnabled) {
+      if (!verifiedShippingTax) {
+        return NextResponse.json({
+          ok: false,
+          status: "tax_quote_not_available",
+          errors: ["The destination-tax quote is no longer valid. Please refresh shipping rates."]
+        }, { status: 409 });
+      }
+      await getTaxQuoteRepository().consumeForCheckout({
+        checkoutAttemptId: attempt.attemptId,
+        token: verifiedShippingTax.token
+      });
     }
 
     const location = (await readMappedOperationalStoreLocations())
@@ -265,7 +323,14 @@ export async function POST(request: NextRequest) {
             readyToShipDate: verifiedShipping.readyToShipDate,
             destinationHash: createHash("sha256")
               .update(JSON.stringify(verifiedShipping.address))
-              .digest("hex")
+              .digest("hex"),
+            ...(verifiedShippingTax ? {
+              taxQuoteId: verifiedShippingTax.token.taxQuoteId,
+              taxProvider: verifiedShippingTax.result.provider,
+              nexusDecision: verifiedShippingTax.result.nexusDecision,
+              estimatedTaxCents: verifiedShippingTax.result.totalTaxCents,
+              estimatedTotalCents: verifiedShippingTax.result.totalCents
+            } : {})
           }
         });
       } catch (error) {
@@ -291,7 +356,11 @@ export async function POST(request: NextRequest) {
         quote,
         ...(parsed.pickup ? { pickup: parsed.pickup } : {}),
         ...(verifiedLocalDelivery ? { localDelivery: verifiedLocalDelivery } : {}),
-        ...(verifiedShipping ? { shipping: verifiedShipping } : {})
+        ...(verifiedShipping ? { shipping: verifiedShipping } : {}),
+        ...(verifiedShippingTax ? {
+          taxApplicationMode: "EXPLICIT_DESTINATION_TAX" as const,
+          explicitTaxBreakdown: verifiedShippingTax.explicitTaxBreakdown
+        } : {})
       });
     } catch (error) {
       if (orderProShippingOrderId && shippingClient) {
@@ -387,6 +456,23 @@ export async function POST(request: NextRequest) {
           ? "The selected fulfillment time is no longer available. Choose another time."
           : "OrderPRO could not reserve fulfillment capacity. Please try again."]
       }, { status });
+    }
+    if (
+      error instanceof TaxQuoteTokenError ||
+      error instanceof TaxQuoteConflictError ||
+      error instanceof SquareTaxMappingError
+    ) {
+      return NextResponse.json({
+        ok: false,
+        status: "tax_quote_not_available",
+        errors: ["The destination-tax quote is no longer valid. Please refresh shipping rates."]
+      }, { status: 409 });
+    }
+    if (error instanceof TaxClassificationUnavailableError) {
+      return NextResponse.json({ ok: false, status: "tax_quote_not_available", errors: [error.message] }, { status: 422 });
+    }
+    if (error instanceof TaxProviderError) {
+      return NextResponse.json({ ok: false, status: "tax_quote_not_available", errors: [error.message] }, { status: 503 });
     }
     return NextResponse.json(
       { ok: false, status: "validation_only", errors: [error instanceof Error ? error.message : "Invalid checkout request."] },

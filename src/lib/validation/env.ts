@@ -40,9 +40,11 @@ const envSchema = z.object({
   SHIPPO_ORIGIN_NAME: z.string().optional(),
   SHIPPO_ORIGIN_COMPANY: z.string().optional(),
   SHIPPO_ORIGIN_STREET1: z.string().optional(),
+  SHIPPO_ORIGIN_STREET2: z.string().optional(),
   SHIPPO_ORIGIN_CITY: z.string().optional(),
   SHIPPO_ORIGIN_STATE: z.string().optional(),
   SHIPPO_ORIGIN_ZIP: z.string().optional(),
+  SHIPPO_ORIGIN_COUNTRY: z.string().optional(),
   SHIPPO_ORIGIN_PHONE: z.string().optional(),
   SHIPPO_ORIGIN_EMAIL: z.string().optional(),
   MAPBOX_ACCESS_TOKEN: z.string().optional(),
@@ -86,6 +88,18 @@ const envSchema = z.object({
   SQUARE_RETURNS_REFUNDS_ENABLED: z.enum(["true", "false"]).default("false"),
   ORDERPRO_LOCAL_DELIVERY_CHECKOUT_ENABLED: z.string().optional(),
   ORDERPRO_SHIPPING_CHECKOUT_ENABLED: z.string().optional(),
+  DESTINATION_TAX_ENABLED: z.enum(["true", "false"]).default("false"),
+  STRIPE_TAX_SECRET_KEY: z.preprocess((value) => value === "" ? undefined : value, z.string().min(1).optional()),
+  STRIPE_TAX_DEFAULT_PRODUCT_CODE: z.preprocess(
+    (value) => value === "" ? undefined : value,
+    z.string().regex(/^txcd_\d{8}$/).optional()
+  ),
+  STRIPE_TAX_SHIPPING_CODE: z.preprocess(
+    (value) => value === "" ? undefined : value,
+    z.string().regex(/^txcd_\d{8}$/).optional()
+  ),
+  STRIPE_TAX_REPORTING_ENABLED: z.enum(["true", "false"]).default("false"),
+  TAX_QUOTE_SIGNING_SECRET: z.preprocess((value) => value === "" ? undefined : value, z.string().min(32).optional()),
   ALLOW_LOCAL_PERSISTENCE_FALLBACK: z.enum(["true", "false"]).default("false"),
   CUSTOMER_SESSION_SECRET: z.preprocess((value) => value === "" ? undefined : value, z.string().min(32).optional()),
   CUSTOMER_AUTH_DEV_PREVIEW: z.enum(["true", "false"]).default("true"),

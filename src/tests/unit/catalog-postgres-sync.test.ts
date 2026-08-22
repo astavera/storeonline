@@ -33,6 +33,8 @@ describe("PostgreSQL Square catalog synchronization", () => {
       itemData: {
         name: "Pilot item",
         imageIds: ["image-secondary"],
+        isTaxable: false,
+        taxIds: ["tax-ny"],
         variations: [{
           id: "variation-nested",
           type: "ITEM_VARIATION",
@@ -43,7 +45,11 @@ describe("PostgreSQL Square catalog synchronization", () => {
 
     expect(compactItem).toEqual({
       imageId: "image-primary",
-      itemData: { imageIds: ["image-secondary"] }
+      itemData: {
+        imageIds: ["image-secondary"],
+        isTaxable: false,
+        taxIds: ["tax-ny"]
+      }
     });
     expect(JSON.stringify(compactItem)).not.toContain("do-not-copy");
     expect(JSON.stringify(compactItem)).not.toContain("variation-nested");

@@ -42,9 +42,12 @@ describe("PostgreSQL role bootstrap", () => {
       "SquareItemVariation",
       "SquareInventoryCount",
       "SquareCatalogSyncState",
+      "ProductOverride",
       "CmsContentVersion",
       "MediaAsset",
       "OrderMirror",
+      "TaxQuote",
+      "CheckoutAttempt",
       "WebhookInboxEvent",
       "AdminRateLimitBucket",
       "ReturnVerificationSession",
@@ -80,7 +83,10 @@ describe("PostgreSQL role bootstrap", () => {
       "AdminPasswordReset",
       "NotificationTemplateVersion",
       "NotificationDeliveryEvent",
-      "AuditLog"
+      "AuditLog",
+      "CheckoutAttempt",
+      "TaxQuote",
+      "OrderMirror"
     ];
     const expectedRuntimeUpdates = [
       "StoreLocation",
@@ -108,7 +114,12 @@ describe("PostgreSQL role bootstrap", () => {
       "CustomerPrivacyRequestType",
       "CustomerPrivacyRequestStatus",
       "CmsPublishStatus",
-      "WebhookInboxStatus"
+      "WebhookInboxStatus",
+      "CheckoutAttemptStatus",
+      "FulfillmentMode",
+      "TaxQuoteStatus",
+      "TaxApplicationMode",
+      "TaxNexusDecision"
     ];
 
     expect(sqlArray(bootstrap, "runtime_select_table_names")).toEqual(expectedRuntimeReads);
@@ -147,7 +158,6 @@ describe("PostgreSQL role bootstrap", () => {
     for (const deniedTable of [
       "Cart",
       "CartItem",
-      "CheckoutAttempt",
       "CustomerSession",
       "CustomerLoginChallenge",
       "CapacityHold",
@@ -160,8 +170,7 @@ describe("PostgreSQL role bootstrap", () => {
       "SquareCatalogObject",
       "SquareItemVariation",
       "SquareInventoryCount",
-      "SquareCatalogSyncState",
-      "OrderMirror"
+      "SquareCatalogSyncState"
     ]) {
       expect(expectedRuntimeInserts).not.toContain(squareOwnedTable);
       expect(expectedRuntimeUpdates).not.toContain(squareOwnedTable);

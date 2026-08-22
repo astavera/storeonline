@@ -32,6 +32,8 @@ DECLARE
     'SlotTemplate',
     'SlotHold',
     'ShippingRateQuote',
+    'TaxNexusRule',
+    'TaxQuote',
     'WebhookEvent',
     'CheckoutAttempt',
     'WebhookInboxEvent',
@@ -83,6 +85,9 @@ DECLARE
     'DescriptionSource',
     'DescriptionStatus',
     'CheckoutAttemptStatus',
+    'TaxQuoteStatus',
+    'TaxApplicationMode',
+    'TaxNexusDecision',
     'WebhookInboxStatus',
     'CapacityHoldStatus',
     'BalloonDraftStatus',
@@ -97,9 +102,12 @@ DECLARE
     'SquareItemVariation',
     'SquareInventoryCount',
     'SquareCatalogSyncState',
+    'ProductOverride',
     'CmsContentVersion',
     'MediaAsset',
     'OrderMirror',
+    'TaxQuote',
+    'CheckoutAttempt',
     'WebhookInboxEvent',
     'AdminRateLimitBucket',
     'ReturnVerificationSession',
@@ -135,7 +143,10 @@ DECLARE
     'AdminPasswordReset',
     'NotificationTemplateVersion',
     'NotificationDeliveryEvent',
-    'AuditLog'
+    'AuditLog',
+    'CheckoutAttempt',
+    'TaxQuote',
+    'OrderMirror'
   ];
   runtime_update_table_names CONSTANT text[] := ARRAY[
     'StoreLocation',
@@ -168,7 +179,12 @@ DECLARE
     'CustomerPrivacyRequestType',
     'CustomerPrivacyRequestStatus',
     'CmsPublishStatus',
-    'WebhookInboxStatus'
+    'WebhookInboxStatus',
+    'CheckoutAttemptStatus',
+    'FulfillmentMode',
+    'TaxQuoteStatus',
+    'TaxApplicationMode',
+    'TaxNexusDecision'
   ];
   sync_projection_table_names CONSTANT text[] := ARRAY[
     'SquareCatalogObject',
@@ -437,6 +453,36 @@ BEGIN
                   OR (
                     object_name = 'AdminRateLimitBucket'
                     AND column_record.column_name = ANY(ARRAY['count', 'expiresAt', 'updatedAt'])
+                  )
+                  OR (
+                    object_name = 'CheckoutAttempt'
+                    AND column_record.column_name = ANY(ARRAY[
+                      'status', 'fulfillmentMode', 'squareOrderId', 'squarePaymentLinkId',
+                      'orderproShippingOrderId', 'shippingContext', 'taxQuoteId', 'taxContext',
+                      'hostedCheckoutCreatedAt', 'updatedAt'
+                    ])
+                  )
+                  OR (
+                    object_name = 'TaxQuote'
+                    AND column_record.column_name = ANY(ARRAY[
+                      'status', 'consumedAt', 'invalidatedAt', 'providerTransactionId',
+                      'providerReportedAt', 'updatedAt'
+                    ])
+                  )
+                  OR (
+                    object_name = 'OrderMirror'
+                    AND column_record.column_name = ANY(ARRAY[
+                      'squarePaymentId', 'currency', 'totalMoney', 'status',
+                      'estimatedMerchandiseSubtotalCents', 'estimatedDiscountCents',
+                      'estimatedShippingFeeCents', 'estimatedDeliveryFeeCents',
+                      'estimatedMerchandiseTaxCents', 'estimatedShippingTaxCents',
+                      'estimatedDeliveryFeeTaxCents', 'estimatedTotalTaxCents', 'estimatedTotalCents',
+                      'finalMerchandiseSubtotalCents', 'finalDiscountCents', 'finalShippingFeeCents',
+                      'finalDeliveryFeeCents', 'finalMerchandiseTaxCents', 'finalShippingTaxCents',
+                      'finalDeliveryFeeTaxCents', 'finalTotalTaxCents', 'finalTotalCents',
+                      'taxProvider', 'taxApplicationMode', 'squareTaxSnapshot',
+                      'squareFinancialSnapshot', 'taxReconciledAt', 'updatedAt'
+                    ])
                   )
                 )
               );

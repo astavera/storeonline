@@ -16,7 +16,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { CheckoutClient, type CheckoutLocation } from "./checkout-client";
 
-export function CheckoutPageTemplate({ locations, deliveryTestMode = false, localDeliveryCheckoutEnabled = false, shippingCheckoutEnabled = false, splitCheckoutEnabled = false, squareCheckoutEnabled = false }: { locations: CheckoutLocation[]; deliveryTestMode?: boolean; localDeliveryCheckoutEnabled?: boolean; shippingCheckoutEnabled?: boolean; splitCheckoutEnabled?: boolean; squareCheckoutEnabled?: boolean }) {
+export function CheckoutPageTemplate({ locations, deliveryTestMode = false, localDeliveryCheckoutEnabled = false, shippingCheckoutEnabled = false, splitCheckoutEnabled = false, squareCheckoutEnabled = false, destinationTaxEnabled = false }: { locations: CheckoutLocation[]; deliveryTestMode?: boolean; localDeliveryCheckoutEnabled?: boolean; shippingCheckoutEnabled?: boolean; splitCheckoutEnabled?: boolean; squareCheckoutEnabled?: boolean; destinationTaxEnabled?: boolean }) {
   return (
     <main className="min-h-screen bg-white lg:bg-[linear-gradient(to_right,#ffffff_0%,#ffffff_61%,#f7f7f5_61%,#f7f7f5_100%)]" data-checkout-focus-page>
       <div aria-hidden="true" className="h-1.5 bg-[url('/assets/modern_state_top_stripe_1920x34.svg?v=20260709')] bg-[length:100%_100%] bg-no-repeat" />
@@ -53,6 +53,7 @@ export function CheckoutPageTemplate({ locations, deliveryTestMode = false, loca
 
       <CheckoutClient
         deliveryTestMode={deliveryTestMode}
+        destinationTaxEnabled={destinationTaxEnabled}
         localDeliveryCheckoutEnabled={localDeliveryCheckoutEnabled}
         locations={locations}
         shippingCheckoutEnabled={shippingCheckoutEnabled}
