@@ -5,6 +5,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   adminCapabilities,
+  adminAuthorizationResponse,
   adminSessionCookieName,
   authorizeAdminRequest,
   createAdminSessionToken,
@@ -26,6 +27,14 @@ describe("admin security", () => {
     }), adminCapabilities.read);
 
     expect(result).toMatchObject({ ok: false, status: 401, code: "ADMIN_SESSION_REQUIRED" });
+    if (result.ok) throw new Error("Expected authorization to fail.");
+    const response = adminAuthorizationResponse(result);
+    await expect(response.json()).resolves.toEqual({
+      ok: false,
+      error: "Authentication required.",
+      message: "Authentication required.",
+      errors: ["Authentication required."]
+    });
   });
 
   it("accepts an unexpired signed session with the required capability", async () => {

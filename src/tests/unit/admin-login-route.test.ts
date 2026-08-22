@@ -29,6 +29,7 @@ import { POST } from "@/app/api/admin/auth/login/route";
 
 afterEach(() => {
   vi.clearAllMocks();
+  vi.restoreAllMocks();
   vi.unstubAllEnvs();
 });
 
@@ -47,6 +48,27 @@ describe("admin login route", () => {
     expect(mocks.consume).toHaveBeenCalledWith(expect.objectContaining({ scope: "admin-login-attempt" }));
   });
 
+  it.each([
+    ["/admin", "/admin"],
+    ["/admin/products", "/admin/products"],
+    ["https://evil.example", "/admin"],
+    ["//evil.example", "/admin"],
+    ["%252F%252Fevil.example", "/admin"]
+  ])("returns only a safe internal destination for %s", async (returnTo, expected) => {
+    vi.stubEnv("ADMIN_SESSION_SECRET", "test-admin-session-secret-that-is-at-least-32-bytes");
+    mocks.isConfigured.mockReturnValue(true);
+    mocks.verifyCredentials.mockReturnValue(true);
+    mocks.consume.mockResolvedValue({ allowed: true, remaining: 19, retryAfterSeconds: 60 });
+
+    const response = await POST(loginRequest(JSON.stringify({
+      email: "owner@example.com",
+      password: "correct-password",
+      returnTo
+    })));
+
+    await expect(response.json()).resolves.toMatchObject({ ok: true, returnTo: expected });
+  });
+
   it("returns the lockout only after a failed credential check", async () => {
     mocks.isConfigured.mockReturnValue(true);
     mocks.verifyCredentials.mockReturnValue(false);
@@ -57,7 +79,7 @@ describe("admin login route", () => {
     const response = await POST(loginRequest());
 
     expect(response.status).toBe(429);
-    await expect(response.json()).resolves.toMatchObject({ ok: false, error: expect.stringContaining("failed login attempts") });
+    await expect(response.json()).resolves.toEqual({ ok: false, error: "Too many login attempts." });
     expect(mocks.consume).toHaveBeenCalledTimes(2);
   });
 
@@ -72,7 +94,26 @@ describe("admin login route", () => {
 
     expect(response.status).toBe(403);
     expect(response.headers.get("content-type")).toContain("application/json");
-    await expect(response.json()).resolves.toEqual({ ok: false, error: "Email or password is incorrect." });
+    await expect(response.json()).resolves.toEqual({ ok: false, error: "Invalid credentials." });
+  });
+
+  it("makes an unknown account, a wrong password, and invalid configuration equivalent to the client", async () => {
+    vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    mocks.verifyCredentials.mockReturnValue(false);
+    mocks.consume.mockResolvedValue({ allowed: true, remaining: 4, retryAfterSeconds: 60 });
+
+    mocks.isConfigured.mockReturnValueOnce(true);
+    const unknownAccount = await POST(loginRequest(JSON.stringify({ email: "unknown@example.com", password: "wrong-password", returnTo: "/admin" })));
+    mocks.isConfigured.mockReturnValueOnce(true);
+    const wrongPassword = await POST(loginRequest(JSON.stringify({ email: "owner@example.com", password: "wrong-password", returnTo: "/admin" })));
+    mocks.isConfigured.mockReturnValueOnce(false);
+    const invalidConfiguration = await POST(loginRequest(JSON.stringify({ email: "owner@example.com", password: "wrong-password", returnTo: "/admin" })));
+
+    const unknownBody = await unknownAccount.json();
+    expect(wrongPassword.status).toBe(unknownAccount.status);
+    expect(invalidConfiguration.status).toBe(unknownAccount.status);
+    await expect(wrongPassword.json()).resolves.toEqual(unknownBody);
+    await expect(invalidConfiguration.json()).resolves.toEqual(unknownBody);
   });
 
   it("rejects an abusive address before verifying its password", async () => {
@@ -111,7 +152,7 @@ describe("admin login route", () => {
     expect(response.status).toBe(413);
     await expect(response.json()).resolves.toEqual({
       ok: false,
-      error: "This login request is too large."
+      error: "Unable to sign in."
     });
     expect(mocks.consume).toHaveBeenCalledOnce();
     expect(mocks.isConfigured).not.toHaveBeenCalled();

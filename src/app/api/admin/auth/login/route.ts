@@ -28,7 +28,7 @@ export async function POST(request: Request) {
   if (previewResponse) return previewResponse;
 
   if (!isTrustedMutationOrigin(request)) {
-    return loginError("This login request could not be verified.", 403);
+    return loginError("Unable to sign in.", 403);
   }
 
   let attemptRateLimit;
@@ -39,13 +39,14 @@ export async function POST(request: Request) {
       limit: 20,
       windowMs: 60_000
     });
-  } catch {
-    return loginError("Admin login is temporarily unavailable.", 503);
+  } catch (error) {
+    logLoginSecurityEvent("RATE_LIMIT_UNAVAILABLE", error);
+    return loginError("Unable to sign in.", 503);
   }
 
   if (!attemptRateLimit.allowed) {
     return NextResponse.json(
-      { ok: false, error: "Too many login attempts. Try again later." },
+      { ok: false, error: "Too many login attempts." },
       {
         status: 429,
         headers: {
@@ -61,14 +62,14 @@ export async function POST(request: Request) {
 
   const parsed = loginSchema.safeParse(body.value);
   if (!parsed.success) {
-    return loginError("Enter a valid email and password.", 400);
+    return loginError("Invalid credentials.", 403);
   }
 
-  if (!isAdminLoginConfigured()) {
-    return loginError("Admin login has not been configured.", 503);
-  }
+  const configured = isAdminLoginConfigured();
+  const credentialsValid = verifyAdminCredentials(parsed.data.email, parsed.data.password);
+  if (!configured) logLoginSecurityEvent("AUTH_CONFIGURATION_INVALID");
 
-  if (!verifyAdminCredentials(parsed.data.email, parsed.data.password)) {
+  if (!configured || !credentialsValid) {
     let rateLimit;
     try {
       rateLimit = await getAdminRateLimiter().consume({
@@ -77,13 +78,14 @@ export async function POST(request: Request) {
         limit: 5,
         windowMs: 15 * 60 * 1000
       });
-    } catch {
-      return loginError("Admin login is temporarily unavailable.", 503);
+    } catch (error) {
+      logLoginSecurityEvent("FAILED_ATTEMPT_LIMIT_UNAVAILABLE", error);
+      return loginError("Unable to sign in.", 503);
     }
 
     if (!rateLimit.allowed) {
       return NextResponse.json(
-        { ok: false, error: "Too many failed login attempts. Enter the correct credentials or try again later." },
+        { ok: false, error: "Too many login attempts." },
         {
           status: 429,
           headers: {
@@ -97,11 +99,14 @@ export async function POST(request: Request) {
     // The private preview is also protected by HTTP Basic authentication.
     // Returning 401 here makes browsers discard those gateway credentials,
     // so the next attempt receives Caddy's non-JSON authentication challenge.
-    return loginError("Email or password is incorrect.", 403);
+    return loginError("Invalid credentials.", 403);
   }
 
   const secret = process.env.ADMIN_SESSION_SECRET;
-  if (!secret) return loginError("Admin login has not been configured.", 503);
+  if (!secret) {
+    logLoginSecurityEvent("SESSION_CONFIGURATION_INVALID");
+    return loginError("Invalid credentials.", 403);
+  }
 
   const expiresAt = Math.floor(Date.now() / 1000) + sessionLifetimeSeconds;
   const token = createAdminSessionToken({
@@ -137,10 +142,10 @@ async function readLoginBody(request: Request): Promise<LoginBodyResult> {
   if (declaredLength !== null) {
     const parsedLength = Number(declaredLength);
     if (!Number.isSafeInteger(parsedLength) || parsedLength < 0) {
-      return { ok: false, error: "Enter a valid email and password.", status: 400 };
+      return { ok: false, error: "Unable to sign in.", status: 400 };
     }
     if (parsedLength > maximumLoginBodyBytes) {
-      return { ok: false, error: "This login request is too large.", status: 413 };
+      return { ok: false, error: "Unable to sign in.", status: 413 };
     }
   }
 
@@ -158,12 +163,12 @@ async function readLoginBody(request: Request): Promise<LoginBodyResult> {
       totalBytes += chunk.value.byteLength;
       if (totalBytes > maximumLoginBodyBytes) {
         await reader.cancel().catch(() => undefined);
-        return { ok: false, error: "This login request is too large.", status: 413 };
+        return { ok: false, error: "Unable to sign in.", status: 413 };
       }
       chunks.push(chunk.value);
     }
   } catch {
-    return { ok: false, error: "Enter a valid email and password.", status: 400 };
+    return { ok: false, error: "Unable to sign in.", status: 400 };
   } finally {
     reader.releaseLock();
   }
@@ -180,4 +185,11 @@ async function readLoginBody(request: Request): Promise<LoginBodyResult> {
   } catch {
     return { ok: true, value: null };
   }
+}
+
+function logLoginSecurityEvent(event: string, error?: unknown) {
+  console.warn("[admin-login]", {
+    event,
+    errorType: error instanceof Error ? error.name : error === undefined ? undefined : typeof error
+  });
 }
