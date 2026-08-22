@@ -93,7 +93,10 @@ export function LocalDeliveryQuotePanel({
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
           context,
-          cartLines: items,
+          cartLines: items.map(({ squareVariationId, quantity }) => ({
+            squareVariationId,
+            quantity
+          })),
           address: {
             line1,
             ...(line2.trim() ? { line2 } : {}),

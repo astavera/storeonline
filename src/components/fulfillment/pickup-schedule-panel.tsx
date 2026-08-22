@@ -59,7 +59,15 @@ export function PickupSchedulePanel({
       const response = await fetch("/api/fulfillment/pickup-slots", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ context, locationId, requestedDate, cartLines: items })
+        body: JSON.stringify({
+          context,
+          locationId,
+          requestedDate,
+          cartLines: items.map(({ squareVariationId, quantity }) => ({
+            squareVariationId,
+            quantity
+          }))
+        })
       });
       const result = await response.json() as { availability?: OrderProPickupAvailability };
       if (version !== requestVersion.current) return;
