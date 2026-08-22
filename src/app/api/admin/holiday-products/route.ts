@@ -4,7 +4,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { z, ZodError } from "zod";
-import { applyBulkWebsiteMerchandisingToVariationIds, readWebsiteMerchandisingSnapshot } from "@/server/admin/website-merchandising-store";
+import { applyBulkWebsiteMerchandisingToVariationIds, readAdminWebsiteMerchandisingSnapshot } from "@/server/admin/website-merchandising-store";
 import { readSquareCatalogCachePage, readSquareVariationIdsByItemIds } from "@/server/square/catalog-test-cache-store";
 import { adminAuthorizationResponse, adminCapabilities, authorizeAdminRequest } from "@/server/admin/admin-security";
 import { storefrontAdminPreviewRouteResponse } from "@/server/storefront/admin-preview-response";
@@ -36,7 +36,7 @@ export async function GET(request: NextRequest) {
 
   try {
     const input = querySchema.parse(Object.fromEntries(request.nextUrl.searchParams.entries()));
-    const config = await readWebsiteMerchandisingSnapshot();
+    const config = await readAdminWebsiteMerchandisingSnapshot();
     const holiday = config.holidays.find((item) => item.id === input.holidayId);
 
     if (!holiday) {
@@ -83,7 +83,7 @@ export async function POST(request: NextRequest) {
 
   try {
     const input = mutationSchema.parse(await request.json());
-    const config = await readWebsiteMerchandisingSnapshot();
+    const config = await readAdminWebsiteMerchandisingSnapshot();
     const holiday = config.holidays.find((item) => item.id === input.holidayId);
 
     if (!holiday) {

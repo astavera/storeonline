@@ -5,7 +5,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z, ZodError } from "zod";
 import { prepareBrandGtinImport } from "@/features/catalog/services/brand-gtin-import-service";
-import { applyBulkWebsiteMerchandisingToVariationIds, readWebsiteMerchandisingSnapshot } from "@/server/admin/website-merchandising-store";
+import { applyBulkWebsiteMerchandisingToVariationIds, readAdminWebsiteMerchandisingSnapshot } from "@/server/admin/website-merchandising-store";
 import { readSquareVariationsByCanonicalGtins } from "@/server/square/catalog-test-cache-store";
 import { adminAuthorizationResponse, adminCapabilities, authorizeAdminRequest } from "@/server/admin/admin-security";
 import { storefrontAdminPreviewRouteResponse } from "@/server/storefront/admin-preview-response";
@@ -28,7 +28,7 @@ export async function POST(request: NextRequest) {
 
   try {
     const input = requestSchema.parse(await request.json());
-    const config = await readWebsiteMerchandisingSnapshot();
+    const config = await readAdminWebsiteMerchandisingSnapshot();
     const brand = config.brands.find((item) => item.id === input.brandId);
     if (!brand) {
       return NextResponse.json({ ok: false, error: "Save this brand before importing GTINs." }, { status: 404 });
@@ -91,7 +91,7 @@ export async function POST(request: NextRequest) {
       holidayMode: "keep",
       visibilityMode: "keep"
     });
-    const updatedConfig = await readWebsiteMerchandisingSnapshot();
+    const updatedConfig = await readAdminWebsiteMerchandisingSnapshot();
     const assignedVariationCount = updatedConfig.placements.filter((placement) => placement.brandIds.includes(brand.id)).length;
 
     return NextResponse.json({ ...baseResponse, variationIds, assignedVariationCount, ...result });

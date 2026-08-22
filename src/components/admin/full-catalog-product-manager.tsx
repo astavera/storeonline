@@ -83,6 +83,7 @@ export function FullCatalogProductManager({
   disabled = false,
   initialWebsiteCategoryId = "",
   onCategoryAssignmentsRemoved,
+  onDraftSaved,
   onWebsiteCategoryChange
 }: {
   brands: WebsiteBrand[];
@@ -92,6 +93,7 @@ export function FullCatalogProductManager({
   disabled?: boolean;
   initialWebsiteCategoryId?: string;
   onCategoryAssignmentsRemoved?: (categoryId: string, removedCount: number) => void;
+  onDraftSaved?: () => void;
   onWebsiteCategoryChange?: (categoryId: string) => void;
 }) {
   const [catalog, setCatalog] = useState<FullCatalogResponse | null>(null);
@@ -365,6 +367,7 @@ export function FullCatalogProductManager({
       setSelectedIds(new Set());
       setSuccess(`${formatCount(removedCount)} products removed from ${selectedWebsiteCategory.name}. They remain in Square and are now private for review.`);
       onCategoryAssignmentsRemoved?.(selectedWebsiteCategory.id, removedCount);
+      onDraftSaved?.();
       setIsLoading(true);
       setReloadKey((current) => current + 1);
     } catch (removeError) {
@@ -393,9 +396,10 @@ export function FullCatalogProductManager({
       });
       const result = await response.json() as { ok: boolean; error?: string; updatedCount?: number; publishedCount?: number; skippedPublishCount?: number };
       if (!response.ok || !result.ok) throw new Error(result.error || "The selected products could not be updated.");
-      const publishedMessage = result.publishedCount ? ` ${result.publishedCount} published.` : "";
+      const publishedMessage = result.publishedCount ? ` ${result.publishedCount} marked ready in the draft.` : "";
       const skippedMessage = result.skippedPublishCount ? ` ${result.skippedPublishCount} kept private because they need setup.` : "";
       setSuccess(`${result.updatedCount ?? selectedIds.size} products updated.${publishedMessage}${skippedMessage} Selection kept open for review.`);
+      onDraftSaved?.();
       setIsLoading(true);
       setReloadKey((current) => current + 1);
     } catch (bulkError) {
@@ -420,7 +424,8 @@ export function FullCatalogProductManager({
       const result = await response.json() as { ok: boolean; error?: string; placement?: WebsiteProductPlacement; issues?: string[] };
       if (!response.ok || !result.ok || !result.placement) throw new Error(result.error || "The product could not be saved.");
       setDraft(clonePlacement(result.placement));
-      setSuccess(result.placement.visible ? "Saved and visible on the website." : "Saved as a private website draft.");
+      setSuccess(result.placement.visible ? "Saved and marked ready in the private draft." : "Saved as a private website draft.");
+      onDraftSaved?.();
       setIsLoading(true);
       setReloadKey((current) => current + 1);
     } catch (saveError) {

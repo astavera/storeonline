@@ -4,7 +4,7 @@
 
 import { ProductPlacementManager } from "@/components/admin/product-placement-manager";
 import { websiteCategoryPath } from "@/features/catalog/services/website-merchandising-service";
-import { readWebsiteMerchandisingSnapshot } from "@/server/admin/website-merchandising-store";
+import { readAdminWebsiteMerchandisingWorkspace } from "@/server/admin/website-merchandising-store";
 import { readSquareCatalogPreview } from "@/server/square/catalog-preview-store";
 import { readPostgresAdminCatalogSummary } from "@/server/square/postgres-admin-catalog-store";
 import { isDevelopmentLocalPersistenceEnabled } from "@/server/db/persistence-policy";
@@ -13,11 +13,12 @@ export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
 export default async function AdminProductPlacementPage() {
-  const [catalog, fullConfig, catalogSummary] = await Promise.all([
+  const [catalog, workspace, catalogSummary] = await Promise.all([
     readSquareCatalogPreview(),
-    readWebsiteMerchandisingSnapshot(),
+    readAdminWebsiteMerchandisingWorkspace(),
     readAdminCatalogSummary()
   ]);
+  const fullConfig = workspace.config;
 
   const previewProducts = catalog?.products ?? [];
   const initialBrandProductCounts = Object.fromEntries(
@@ -34,7 +35,7 @@ export default async function AdminProductPlacementPage() {
     }
   }
   const initialCategoryProductCounts = Object.fromEntries(fullConfig.categories.map((category) => [category.id, variationIdsByCategory.get(category.id)?.size ?? 0]));
-  return <ProductPlacementManager fetchedAt={catalogSummary.updatedAt ?? fullConfig.updatedAt} hasMoreItems={catalogSummary.hasMore} initialBrandProductCounts={initialBrandProductCounts} initialCategoryProductCounts={initialCategoryProductCounts} initialConfig={fullConfig} products={previewProducts} squareInboxCount={catalogSummary.variationCount} squareVendors={[]} />;
+  return <ProductPlacementManager fetchedAt={catalogSummary.updatedAt ?? fullConfig.updatedAt} hasMoreItems={catalogSummary.hasMore} initialBrandProductCounts={initialBrandProductCounts} initialCategoryProductCounts={initialCategoryProductCounts} initialConfig={fullConfig} initialWorkspace={workspace} products={previewProducts} squareInboxCount={catalogSummary.variationCount} squareVendors={[]} />;
 }
 
 async function readAdminCatalogSummary() {
