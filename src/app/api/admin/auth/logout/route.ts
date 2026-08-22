@@ -11,7 +11,10 @@ export async function POST(request: Request) {
   if (previewResponse) return previewResponse;
 
   if (!isTrustedMutationOrigin(request)) {
-    return NextResponse.json({ ok: false, error: "This logout request could not be verified." }, { status: 403 });
+    return NextResponse.json(
+      { ok: false, error: "Unable to sign out." },
+      { status: 403, headers: { "Cache-Control": "private, no-store" } }
+    );
   }
 
   const response = NextResponse.json({ ok: true }, { headers: { "Cache-Control": "private, no-store" } });

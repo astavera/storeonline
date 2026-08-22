@@ -56,8 +56,13 @@ export async function authorizeAdminRequest(
 }
 
 export function adminAuthorizationResponse(result: Exclude<AdminAuthorizationResult, { ok: true }>) {
+  const message = result.status === 401
+    ? "Authentication required."
+    : result.status === 429
+      ? "Too many requests."
+      : "Forbidden.";
   return NextResponse.json(
-    { ok: false, error: result.code, message: result.message, errors: [result.message] },
+    { ok: false, error: message, message, errors: [message] },
     { status: result.status, headers: { "Cache-Control": "private, no-store" } }
   );
 }
