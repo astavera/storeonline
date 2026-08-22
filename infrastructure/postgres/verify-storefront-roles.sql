@@ -32,6 +32,8 @@ DECLARE
     'SlotTemplate',
     'SlotHold',
     'ShippingRateQuote',
+    'TaxNexusRule',
+    'TaxQuote',
     'WebhookEvent',
     'CheckoutAttempt',
     'WebhookInboxEvent',
@@ -65,6 +67,9 @@ DECLARE
     'DescriptionSource',
     'DescriptionStatus',
     'CheckoutAttemptStatus',
+    'TaxQuoteStatus',
+    'TaxApplicationMode',
+    'TaxNexusDecision',
     'WebhookInboxStatus',
     'CapacityHoldStatus',
     'BalloonDraftStatus',
@@ -79,13 +84,20 @@ DECLARE
     'SquareItemVariation',
     'SquareInventoryCount',
     'SquareCatalogSyncState',
+    'ProductOverride',
     'CmsContentVersion',
+    'OrderMirror',
+    'TaxQuote',
     'CheckoutAttempt',
     'AdminRateLimitBucket'
   ];
   runtime_usage_type_names CONSTANT text[] := ARRAY[
     'CmsPublishStatus',
-    'CheckoutAttemptStatus'
+    'CheckoutAttemptStatus',
+    'FulfillmentMode',
+    'TaxQuoteStatus',
+    'TaxApplicationMode',
+    'TaxNexusDecision'
   ];
   sync_projection_table_names CONSTANT text[] := ARRAY[
     'SquareCatalogObject',
@@ -342,12 +354,45 @@ BEGIN
               (privilege_name = 'SELECT' AND object_name = ANY(runtime_select_table_names))
               OR (
                 privilege_name = 'INSERT'
-                AND object_name = ANY(ARRAY['AdminRateLimitBucket', 'CheckoutAttempt'])
+                AND object_name = ANY(ARRAY['AdminRateLimitBucket', 'CheckoutAttempt', 'TaxQuote', 'OrderMirror'])
               )
               OR (
                 privilege_name = 'UPDATE'
                 AND object_name = 'AdminRateLimitBucket'
                 AND column_record.column_name = ANY(ARRAY['count', 'expiresAt', 'updatedAt'])
+              )
+              OR (
+                privilege_name = 'UPDATE'
+                AND object_name = 'CheckoutAttempt'
+                AND column_record.column_name = ANY(ARRAY[
+                  'status', 'fulfillmentMode', 'squareOrderId', 'squarePaymentLinkId',
+                  'orderproShippingOrderId', 'shippingContext', 'taxQuoteId', 'taxContext',
+                  'hostedCheckoutCreatedAt', 'updatedAt'
+                ])
+              )
+              OR (
+                privilege_name = 'UPDATE'
+                AND object_name = 'TaxQuote'
+                AND column_record.column_name = ANY(ARRAY[
+                  'status', 'consumedAt', 'invalidatedAt', 'providerTransactionId',
+                  'providerReportedAt', 'updatedAt'
+                ])
+              )
+              OR (
+                privilege_name = 'UPDATE'
+                AND object_name = 'OrderMirror'
+                AND column_record.column_name = ANY(ARRAY[
+                  'squarePaymentId', 'currency', 'totalMoney', 'status',
+                  'estimatedMerchandiseSubtotalCents', 'estimatedDiscountCents',
+                  'estimatedShippingFeeCents', 'estimatedDeliveryFeeCents',
+                  'estimatedMerchandiseTaxCents', 'estimatedShippingTaxCents',
+                  'estimatedDeliveryFeeTaxCents', 'estimatedTotalTaxCents', 'estimatedTotalCents',
+                  'finalMerchandiseSubtotalCents', 'finalDiscountCents', 'finalShippingFeeCents',
+                  'finalDeliveryFeeCents', 'finalMerchandiseTaxCents', 'finalShippingTaxCents',
+                  'finalDeliveryFeeTaxCents', 'finalTotalTaxCents', 'finalTotalCents',
+                  'taxProvider', 'taxApplicationMode', 'squareTaxSnapshot',
+                  'squareFinancialSnapshot', 'taxReconciledAt', 'updatedAt'
+                ])
               );
           ELSE
             expected_privilege :=

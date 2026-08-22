@@ -53,6 +53,7 @@ type ShippingConfiguration = {
     name: string;
     company: string;
     street1: string;
+    street2?: string;
     city: string;
     state: string;
     zip: string;
@@ -327,6 +328,7 @@ export async function validateShippingSelection(input: {
     carrier: liveRate.provider,
     serviceName: liveRate.servicelevel.name,
     readyToShipDate: allocation.readyToShipDate,
+    expiresAt: token.expiresAt,
     address: selection.address
   };
 }
@@ -339,6 +341,7 @@ function getShippingConfiguration(): ShippingConfiguration {
     name: env.SHIPPO_ORIGIN_NAME?.trim() ?? "",
     company: env.SHIPPO_ORIGIN_COMPANY?.trim() ?? "",
     street1: env.SHIPPO_ORIGIN_STREET1?.trim() ?? "",
+    street2: env.SHIPPO_ORIGIN_STREET2?.trim() ?? "",
     city: env.SHIPPO_ORIGIN_CITY?.trim() ?? "",
     state: env.SHIPPO_ORIGIN_STATE?.trim().toUpperCase() ?? "",
     zip: env.SHIPPO_ORIGIN_ZIP?.trim() ?? "",
@@ -366,6 +369,7 @@ function getShippingConfiguration(): ShippingConfiguration {
       name: values.name,
       company: values.company,
       street1: values.street1,
+      ...(values.street2 ? { street2: values.street2 } : {}),
       city: values.city,
       state: values.state,
       zip: values.zip,

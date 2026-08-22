@@ -11,6 +11,11 @@ import {
   getOrderProShippingOrderClient,
   type OrderProShippingDestination
 } from "@/server/orderpro/shipping-order-client";
+import { fingerprintTaxAddress } from "@/server/tax/tax-fingerprint";
+import { persistFinalShippingTaxReconciliation } from "@/server/tax/shipping-tax-finalization-repository";
+import { reconcileSquareOrderTax } from "@/server/tax/square-tax-reconciliation";
+import { getTaxQuoteRepository, type TaxQuoteRecord } from "@/server/tax/tax-quote-repository";
+import { reportCompletedSquareSaleToStripeTax } from "@/server/tax/stripe-tax-reporting";
 
 const storefrontSourceName = "Modern State NYC Website";
 
@@ -51,6 +56,7 @@ export async function confirmCompletedShippingPayment(paymentId: string) {
     throw new Error("SQUARE_ORDER_OWNERSHIP_MISMATCH");
   }
   if (order.metadata?.fulfillment_mode !== "shipping") return;
+  const explicitDestinationTax = order.metadata?.tax_application_mode === "EXPLICIT_DESTINATION_TAX";
 
   const checkoutAttemptId = order.metadata.checkout_attempt_id?.trim() || order.referenceId?.trim();
   const orderProShippingOrderId = order.metadata.orderpro_shipping_order_id?.trim();
@@ -82,6 +88,43 @@ export async function confirmCompletedShippingPayment(paymentId: string) {
 
   const shipment = order.fulfillments?.find((fulfillment) => fulfillment.type === "SHIPMENT");
   const destination = normalizeSquareDestination(shipment?.shipmentDetails?.recipient);
+  const paidAt = payment.createdAt ?? payment.updatedAt ?? new Date().toISOString();
+  if (explicitDestinationTax) {
+    const taxQuoteId = order.metadata.tax_quote_id?.trim();
+    if (!taxQuoteId) throw new Error("SQUARE_SHIPPING_TAX_QUOTE_MISSING");
+    const taxQuoteRepository = getTaxQuoteRepository();
+    const taxQuote = await taxQuoteRepository.findForCheckoutAttempt(checkoutAttemptId);
+    if (
+      !taxQuote ||
+      taxQuote.id !== taxQuoteId ||
+      taxQuote.status !== "CONSUMED" ||
+      taxQuote.checkoutAttemptId !== checkoutAttemptId
+    ) {
+      throw new Error("STOREFRONT_SHIPPING_TAX_CORRELATION_MISMATCH");
+    }
+    if (fingerprintTaxAddress(destination.address) !== taxQuote.destinationFingerprint) {
+      throw new Error("SQUARE_SHIPPING_TAX_DESTINATION_MISMATCH");
+    }
+    const finalTax = reconcileSquareOrderTax(order, {
+      hasNexus: taxQuote.nexusDecision === "COLLECT"
+    });
+    assertFinalTaxMatchesEstimate(finalTax, taxQuote);
+    await persistFinalShippingTaxReconciliation({
+      squareOrderId: order.id,
+      squarePaymentId: confirmedPaymentId,
+      quote: taxQuote,
+      final: finalTax
+    });
+    const stripeTransaction = await reportCompletedSquareSaleToStripeTax({
+      quote: taxQuote,
+      squareOrderId: order.id,
+      paidAt
+    });
+    await taxQuoteRepository.markProviderReported({
+      taxQuoteId: taxQuote.id,
+      providerTransactionId: stripeTransaction.id
+    });
+  }
   const orderPro = getOrderProShippingOrderClient();
   if (!orderPro) throw new Error("ORDERPRO_SHIPPING_CONFIRMATION_NOT_CONFIGURED");
 
@@ -92,10 +135,27 @@ export async function confirmCompletedShippingPayment(paymentId: string) {
     squareLocationId: payment.locationId,
     amountPaidCents,
     currency: "USD",
-    paidAt: payment.createdAt ?? payment.updatedAt ?? new Date().toISOString(),
+    paidAt,
     destination
   });
   await checkoutRepository.markShippingCheckoutCompleted(checkoutAttemptId);
+}
+
+function assertFinalTaxMatchesEstimate(
+  finalTax: ReturnType<typeof reconcileSquareOrderTax>,
+  quote: TaxQuoteRecord
+) {
+  if (
+    finalTax.merchandiseSubtotalCents - finalTax.discountCents !== quote.subtotalCents ||
+    finalTax.discountCents !== quote.discountCents ||
+    finalTax.shippingCents !== quote.shippingCents ||
+    finalTax.merchandiseTaxCents !== quote.merchandiseTaxCents ||
+    finalTax.shippingTaxCents !== quote.shippingTaxCents ||
+    finalTax.totalTaxCents !== quote.totalTaxCents ||
+    finalTax.totalCents !== quote.totalCents
+  ) {
+    throw new Error("SQUARE_FINAL_TAX_ESTIMATE_MISMATCH");
+  }
 }
 
 function safeMoneyAmount(value: bigint | null | undefined) {

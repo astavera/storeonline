@@ -14,7 +14,7 @@ BUSINESS LOGIC FILES: src/server/checkout/checkout-service.ts, src/server/square
 import { SectionFrame } from "../sections/section-frame";
 import { CheckoutClient, type CheckoutLocation } from "./checkout-client";
 
-export function CheckoutPageTemplate({ locations, deliveryTestMode = false, localDeliveryCheckoutEnabled = false, shippingCheckoutEnabled = false, shippingPilotVariationIds = [], squareCheckoutEnabled = false }: { locations: CheckoutLocation[]; deliveryTestMode?: boolean; localDeliveryCheckoutEnabled?: boolean; shippingCheckoutEnabled?: boolean; shippingPilotVariationIds?: string[]; squareCheckoutEnabled?: boolean }) {
+export function CheckoutPageTemplate({ locations, deliveryTestMode = false, localDeliveryCheckoutEnabled = false, shippingCheckoutEnabled = false, shippingPilotVariationIds = [], squareCheckoutEnabled = false, destinationTaxEnabled = false }: { locations: CheckoutLocation[]; deliveryTestMode?: boolean; localDeliveryCheckoutEnabled?: boolean; shippingCheckoutEnabled?: boolean; shippingPilotVariationIds?: string[]; squareCheckoutEnabled?: boolean; destinationTaxEnabled?: boolean }) {
   return (
     <main>
       <SectionFrame area="Checkout" className="py-16" component="CheckoutCustomerInfoSection" sectionId="checkout.customer-info" variant="form">
@@ -24,6 +24,7 @@ export function CheckoutPageTemplate({ locations, deliveryTestMode = false, loca
           <div className="mt-8">
             <CheckoutClient
               deliveryTestMode={deliveryTestMode}
+              destinationTaxEnabled={destinationTaxEnabled}
               localDeliveryCheckoutEnabled={localDeliveryCheckoutEnabled}
               locations={locations}
               shippingCheckoutEnabled={shippingCheckoutEnabled}

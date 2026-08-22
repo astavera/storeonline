@@ -26,6 +26,24 @@ type CartQuote = {
   locationName: string | null;
 };
 
+type ShippingTaxQuote = {
+  id: string;
+  token: string;
+  provider: "stripe_tax";
+  nexusDecision: "COLLECT" | "DO_NOT_COLLECT";
+  jurisdiction: { country: "US"; state: string; county: string | null; city: string | null } | null;
+  freightTaxable: boolean;
+  subtotalCents: number;
+  shippingCents: number;
+  taxableMerchandiseCents: number;
+  taxableShippingCents: number;
+  merchandiseTaxCents: number;
+  shippingTaxCents: number;
+  totalTaxCents: number;
+  totalCents: number;
+  expiresAt: string;
+};
+
 export type CheckoutLocation = {
   id: string;
   name: string;
@@ -41,7 +59,7 @@ const fulfillmentLabels = {
   shipping: "Shipping"
 };
 
-export function CheckoutClient({ locations, deliveryTestMode = false, localDeliveryCheckoutEnabled = false, shippingCheckoutEnabled = false, shippingPilotVariationIds = [], squareCheckoutEnabled = false }: { locations: CheckoutLocation[]; deliveryTestMode?: boolean; localDeliveryCheckoutEnabled?: boolean; shippingCheckoutEnabled?: boolean; shippingPilotVariationIds?: string[]; squareCheckoutEnabled?: boolean }) {
+export function CheckoutClient({ locations, deliveryTestMode = false, localDeliveryCheckoutEnabled = false, shippingCheckoutEnabled = false, shippingPilotVariationIds = [], squareCheckoutEnabled = false, destinationTaxEnabled = false }: { locations: CheckoutLocation[]; deliveryTestMode?: boolean; localDeliveryCheckoutEnabled?: boolean; shippingCheckoutEnabled?: boolean; shippingPilotVariationIds?: string[]; squareCheckoutEnabled?: boolean; destinationTaxEnabled?: boolean }) {
   const [cartState, setCartState] = useState<{ hydrated: boolean; items: StoredCartItem[] }>({ hydrated: false, items: [] });
   const [quote, setQuote] = useState<CartQuote | null>(null);
   const [isCartQuoteLoading, setIsCartQuoteLoading] = useState(true);
@@ -49,11 +67,14 @@ export function CheckoutClient({ locations, deliveryTestMode = false, localDeliv
   const [fulfillmentMode, setFulfillmentMode] = useState<"pickup" | "local-delivery" | "shipping">("pickup");
   const [localDeliverySelection, setLocalDeliverySelection] = useState<LocalDeliverySelection | null>(null);
   const [shippingSelection, setShippingSelection] = useState<ShippingSelection | null>(null);
+  const [shippingTaxQuote, setShippingTaxQuote] = useState<ShippingTaxQuote | null>(null);
+  const [shippingTaxStatus, setShippingTaxStatus] = useState<{ loading: boolean; error: string }>({ loading: false, error: "" });
   const [deliveryPrefill, setDeliveryPrefill] = useState<{ address?: LocalDeliveryAddress; postalCode?: string; requestedDate?: string } | null>(null);
   const [pickupSchedule, setPickupSchedule] = useState<{ requestedDate: string; slotId: string; slotLabel: string } | null>(null);
   const [message, setMessage] = useState<{ tone: "idle" | "success" | "error"; text: string }>({ tone: "idle", text: "" });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const idempotency = useRef<{ payload: string; key: string } | null>(null);
+  const taxQuoteRequestSequence = useRef(0);
   const items = cartState.items;
 
   useEffect(() => {
@@ -126,6 +147,46 @@ export function CheckoutClient({ locations, deliveryTestMode = false, localDeliv
     };
   }, [cartState.hydrated, items, localDeliveryCheckoutEnabled, locationId, shippingCheckoutEnabled, shippingPilotVariationIds]);
 
+  function handleShippingSelection(selection: ShippingSelection | null) {
+    setShippingSelection(selection);
+    setShippingTaxQuote(null);
+    const requestSequence = ++taxQuoteRequestSequence.current;
+    if (!selection) {
+      setShippingTaxStatus({ loading: false, error: "" });
+      return;
+    }
+    if (!destinationTaxEnabled) {
+      setShippingTaxStatus({ loading: false, error: "" });
+      return;
+    }
+    setShippingTaxStatus({ loading: true, error: "" });
+    void requestShippingTaxQuote(selection, requestSequence);
+  }
+
+  async function requestShippingTaxQuote(selection: ShippingSelection, requestSequence: number) {
+    try {
+      const response = await fetch("/api/checkout/tax-quote", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ items, locationId, shipping: selection })
+      });
+      const result = await response.json();
+      if (requestSequence !== taxQuoteRequestSequence.current) return;
+      if (!response.ok || !result.ok || !result.taxQuote) {
+        setShippingTaxStatus({
+          loading: false,
+          error: Array.isArray(result.errors) ? result.errors.join(" ") : "Estimated tax is unavailable."
+        });
+        return;
+      }
+      setShippingTaxQuote(result.taxQuote as ShippingTaxQuote);
+      setShippingTaxStatus({ loading: false, error: "" });
+    } catch {
+      if (requestSequence !== taxQuoteRequestSequence.current) return;
+      setShippingTaxStatus({ loading: false, error: "We couldnâ€™t calculate destination tax. Please check the rate again." });
+    }
+  }
+
   async function submitCheckout(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const formData = new FormData(event.currentTarget);
@@ -147,7 +208,10 @@ export function CheckoutClient({ locations, deliveryTestMode = false, localDeliv
           }
         } : {}),
         ...(fulfillmentMode === "pickup" && pickupSchedule ? { pickup: pickupSchedule } : {}),
-        ...(fulfillmentMode === "shipping" && shippingSelection ? { shipping: shippingSelection } : {}),
+        ...(fulfillmentMode === "shipping" && shippingSelection ? {
+          shipping: shippingSelection,
+          ...(shippingTaxQuote ? { taxQuoteToken: shippingTaxQuote.token } : {})
+        } : {}),
         customer: {
           name: String(formData.get("name") ?? ""),
           email: String(formData.get("email") ?? ""),
@@ -222,10 +286,16 @@ export function CheckoutClient({ locations, deliveryTestMode = false, localDeliv
   );
   const selectedLocation = locations.find((location) => location.id === locationId);
   const deliveryReady = fulfillmentMode !== "local-delivery" || Boolean(localDeliverySelection);
-  const shippingReady = fulfillmentMode !== "shipping" || Boolean(shippingSelection);
+  const shippingReady = fulfillmentMode !== "shipping" || Boolean(
+    shippingSelection && (!destinationTaxEnabled || (shippingTaxQuote && !shippingTaxStatus.loading))
+  );
   const canSubmit = squareCheckoutEnabled && Boolean(selectedLocation) && deliveryReady && shippingReady && quote.errors.length === 0 && availableFulfillmentModes.includes(fulfillmentMode);
   const deliveryFeeCents = fulfillmentMode === "local-delivery" ? localDeliverySelection?.quote.feeCents ?? 0 : 0;
   const shippingFeeCents = fulfillmentMode === "shipping" ? shippingSelection?.amountCents ?? 0 : 0;
+  const estimatedTaxCents = fulfillmentMode === "shipping" && destinationTaxEnabled
+    ? shippingTaxQuote?.totalTaxCents ?? 0
+    : quote.estimatedTaxCents;
+  const estimatedTotalCents = quote.subtotalCents + deliveryFeeCents + shippingFeeCents + estimatedTaxCents;
   const fulfillmentSummary = availableFulfillmentModes.includes(fulfillmentMode) ? fulfillmentLabels[fulfillmentMode] : "Not available";
 
   return (
@@ -248,7 +318,7 @@ export function CheckoutClient({ locations, deliveryTestMode = false, localDeliv
           {locations.length > 0 && fulfillmentMode !== "local-delivery" ? (
             <label className="mt-5 block text-sm font-semibold">
               Store fulfilling this order
-              <select className="mt-2 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm font-normal outline-none focus:border-primary" onChange={(event) => { setLocationId(event.target.value); setPickupSchedule(null); setShippingSelection(null); }} value={locationId}>
+              <select className="mt-2 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm font-normal outline-none focus:border-primary" onChange={(event) => { setLocationId(event.target.value); setPickupSchedule(null); handleShippingSelection(null); }} value={locationId}>
                 {locations.map((location) => <option key={location.id} value={location.id}>{location.name} — {location.address}</option>)}
               </select>
             </label>
@@ -259,7 +329,7 @@ export function CheckoutClient({ locations, deliveryTestMode = false, localDeliv
                 <input checked={fulfillmentMode === mode} className="sr-only" name="fulfillmentMode" onChange={() => {
                   setFulfillmentMode(mode);
                   if (mode !== "local-delivery") setLocalDeliverySelection(null);
-                  if (mode !== "shipping") setShippingSelection(null);
+                  if (mode !== "shipping") handleShippingSelection(null);
                 }} type="radio" value={mode} />
                 {fulfillmentLabels[mode]}
               </label>
@@ -302,8 +372,15 @@ export function CheckoutClient({ locations, deliveryTestMode = false, localDeliv
           <ShippingRatePanel
             items={items}
             locationId={locationId}
-            onSelectionChange={setShippingSelection}
+            onSelectionChange={handleShippingSelection}
           />
+        ) : null}
+
+        {fulfillmentMode === "shipping" && destinationTaxEnabled && shippingTaxStatus.loading ? (
+          <p className="rounded-md border border-border bg-surface-muted p-3 text-sm text-secondary" role="status">Calculating destination tax with Stripe Tax…</p>
+        ) : null}
+        {fulfillmentMode === "shipping" && destinationTaxEnabled && shippingTaxStatus.error ? (
+          <p className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-900" role="alert">{shippingTaxStatus.error}</p>
         ) : null}
 
         <section className="surface-card p-6" data-store-area="Checkout" data-store-component="CheckoutPaymentSection" data-store-section="checkout.payment" data-store-variant="square-web-payments">
@@ -325,14 +402,14 @@ export function CheckoutClient({ locations, deliveryTestMode = false, localDeliv
           <SummaryRow label="Items" value={String(quote.itemCount)} />
           <SummaryRow label="Store" value={fulfillmentMode === "local-delivery" && !localDeliverySelection ? "Assigned after address check" : selectedLocation?.name ?? "Unavailable"} />
           <SummaryRow label="Subtotal" value={formatMoney(quote.subtotalCents)} />
-          <SummaryRow label="Estimated tax" value={formatMoney(quote.estimatedTaxCents)} />
+          <SummaryRow label="Estimated tax" value={fulfillmentMode === "shipping" && destinationTaxEnabled && !shippingTaxQuote ? (shippingTaxStatus.loading ? "Calculatingâ€¦" : "Select a rate") : formatMoney(estimatedTaxCents)} />
           <SummaryRow label="Fulfillment" value={fulfillmentSummary} />
           {fulfillmentMode === "pickup" && pickupSchedule ? <SummaryRow label="Pickup time" value={`${formatPickupDate(pickupSchedule.requestedDate)} · ${pickupSchedule.slotLabel}`} /> : null}
           {fulfillmentMode === "local-delivery" ? <SummaryRow label="Delivery fee" value={localDeliverySelection ? formatMoney(deliveryFeeCents) : "Check address"} /> : null}
           {fulfillmentMode === "shipping" ? <SummaryRow label="Shipping" value={shippingSelection ? `${shippingSelection.carrier} · ${formatMoney(shippingFeeCents)}` : "Check address"} /> : null}
           {fulfillmentMode === "shipping" && shippingSelection ? <SummaryRow label="Ready at WH01" value={formatPickupDate(shippingSelection.readyToShipDate)} /> : null}
           <div className="border-t border-border pt-3">
-            <SummaryRow label="Estimated total" value={formatMoney(quote.totalCents + deliveryFeeCents + shippingFeeCents)} strong />
+            <SummaryRow label="Estimated total" value={fulfillmentMode === "shipping" && destinationTaxEnabled && !shippingTaxQuote ? "Pending tax" : formatMoney(estimatedTotalCents)} strong />
           </div>
         </div>
         <Button className="mt-6 w-full gap-2" disabled={!canSubmit || isSubmitting} type="submit">

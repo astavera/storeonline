@@ -95,6 +95,24 @@ enum CheckoutAttemptStatus {
   COMPLETED
 }
 
+enum TaxQuoteStatus {
+  ACTIVE
+  CONSUMED
+  EXPIRED
+  INVALIDATED
+}
+
+enum TaxApplicationMode {
+  SQUARE_CATALOG_AUTO
+  EXPLICIT_DESTINATION_TAX
+}
+
+enum TaxNexusDecision {
+  COLLECT
+  DO_NOT_COLLECT
+  UNKNOWN
+}
+
 enum WebhookInboxStatus {
   RECEIVED
   PROCESSING
@@ -400,6 +418,7 @@ model ProductOverride {
   isShippable                   Boolean                   @default(true)
   returnPolicyTags              String[]                  @default([])
   finalSale                     Boolean                   @default(false)
+  stripeTaxCode                 String?
   packageLengthIn               Decimal?
   packageWidthIn                Decimal?
   packageHeightIn               Decimal?
@@ -539,36 +558,69 @@ model CartItem {
 }
 
 model OrderMirror {
-  id               String            @id @default(cuid())
-  squareOrderId    String?           @unique
-  squarePaymentId  String?           @unique
-  customerEmail    String?
-  customerPhone    String?
-  currency         String            @default("USD")
-  totalMoney       Json
-  status           String
-  createdAt        DateTime          @default(now())
-  updatedAt        DateTime          @updatedAt
-  items            OrderItemMirror[]
-  fulfillmentTasks FulfillmentTask[]
-  slotHolds        SlotHold[]
-  capacityHolds    CapacityHold[]
+  id                                String              @id @default(cuid())
+  squareOrderId                     String?             @unique
+  squarePaymentId                   String?             @unique
+  customerEmail                     String?
+  customerPhone                     String?
+  currency                          String              @default("USD")
+  totalMoney                        Json
+  status                            String
+  estimatedMerchandiseSubtotalCents Int?
+  estimatedDiscountCents            Int?
+  estimatedShippingFeeCents         Int?
+  estimatedDeliveryFeeCents         Int?
+  estimatedMerchandiseTaxCents      Int?
+  estimatedShippingTaxCents         Int?
+  estimatedDeliveryFeeTaxCents      Int?
+  estimatedTotalTaxCents            Int?
+  estimatedTotalCents               Int?
+  finalMerchandiseSubtotalCents     Int?
+  finalDiscountCents                Int?
+  finalShippingFeeCents             Int?
+  finalDeliveryFeeCents             Int?
+  finalMerchandiseTaxCents          Int?
+  finalShippingTaxCents             Int?
+  finalDeliveryFeeTaxCents          Int?
+  finalTotalTaxCents                Int?
+  finalTotalCents                   Int?
+  taxProvider                       String?
+  taxApplicationMode                TaxApplicationMode?
+  squareTaxSnapshot                 Json?
+  squareFinancialSnapshot           Json?
+  taxReconciledAt                   DateTime?
+  createdAt                         DateTime            @default(now())
+  updatedAt                         DateTime            @updatedAt
+  items                             OrderItemMirror[]
+  fulfillmentTasks                  FulfillmentTask[]
+  slotHolds                         SlotHold[]
+  capacityHolds                     CapacityHold[]
 
   @@index([status, createdAt])
 }
 
 model OrderItemMirror {
-  id                String              @id @default(cuid())
-  orderId           String
-  squareVariationId String
-  name              String
-  quantity          Int
-  priceMoney        Json
-  order             OrderMirror         @relation(fields: [orderId], references: [id], onDelete: Restrict)
-  variation         SquareItemVariation @relation(fields: [squareVariationId], references: [id])
+  id                      String              @id @default(cuid())
+  orderId                 String
+  squareVariationId       String
+  squareLineItemUid       String?
+  name                    String
+  quantity                Int
+  priceMoney              Json
+  finalGrossSalesCents    Int?
+  finalDiscountCents      Int?
+  finalTaxableAmountCents Int?
+  finalTaxCents           Int?
+  finalNetTotalCents      Int?
+  squareAppliedTaxes      Json?
+  squareAppliedDiscounts  Json?
+  squareFinancialSnapshot Json?
+  order                   OrderMirror         @relation(fields: [orderId], references: [id], onDelete: Restrict)
+  variation               SquareItemVariation @relation(fields: [squareVariationId], references: [id])
 
   @@index([orderId])
   @@index([squareVariationId])
+  @@index([squareLineItemUid])
 }
 
 model FulfillmentTask {
@@ -674,6 +726,77 @@ model ShippingRateQuote {
   @@index([addressHash, expiresAt])
 }
 
+model TaxNexusRule {
+  id             String           @id @default(cuid())
+  countryCode    String
+  stateCode      String
+  decision       TaxNexusDecision
+  provider       String?
+  version        Int              @default(1)
+  source         String
+  effectiveFrom  DateTime
+  effectiveUntil DateTime?
+  enabled        Boolean          @default(true)
+  metadata       Json?
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+  taxQuotes      TaxQuote[]
+
+  @@unique([countryCode, stateCode, version], map: "TaxNexusRule_jurisdiction_version_key")
+  @@index([countryCode, stateCode, enabled, effectiveFrom, effectiveUntil], map: "TaxNexusRule_active_jurisdiction_idx")
+}
+
+model TaxQuote {
+  id                       String             @id @default(cuid())
+  version                  Int                @default(1)
+  signatureVersion         Int                @default(1)
+  status                   TaxQuoteStatus     @default(ACTIVE)
+  fulfillmentMode          FulfillmentMode
+  applicationMode          TaxApplicationMode
+  provider                 String
+  providerQuoteId          String?
+  providerTransactionId    String?            @unique
+  providerReportedAt       DateTime?
+  currency                 String             @default("USD")
+  nexusDecision            TaxNexusDecision
+  nexusRuleId              String?
+  originSnapshot           Json
+  destinationSnapshot      Json
+  jurisdictionSnapshot     Json?
+  cartHash                 String
+  destinationHash          String
+  originHash               String
+  calculationHash          String
+  shippingQuoteId          String?
+  shippingRateId           String?
+  merchandiseSubtotalCents Int
+  discountCents            Int
+  shippingFeeCents         Int
+  deliveryFeeCents         Int
+  taxableMerchandiseCents  Int
+  taxableShippingFeeCents  Int
+  taxableDeliveryFeeCents  Int
+  merchandiseTaxCents      Int
+  shippingTaxCents         Int
+  deliveryFeeTaxCents      Int
+  totalTaxCents            Int
+  totalCents               Int
+  requestSnapshot          Json
+  responseSnapshot         Json
+  expiresAt                DateTime
+  consumedAt               DateTime?
+  invalidatedAt            DateTime?
+  createdAt                DateTime           @default(now())
+  updatedAt                DateTime           @updatedAt
+  nexusRule                TaxNexusRule?      @relation(fields: [nexusRuleId], references: [id], onDelete: Restrict)
+  checkoutAttempt          CheckoutAttempt?
+
+  @@index([status, expiresAt])
+  @@index([cartHash, destinationHash, expiresAt])
+  @@index([provider, providerQuoteId])
+  @@index([nexusRuleId])
+}
+
 model WebhookEvent {
   id          String    @id
   provider    String
@@ -699,11 +822,14 @@ model CheckoutAttempt {
   squarePaymentLinkId     String?               @unique
   orderproShippingOrderId String?               @unique
   shippingContext         Json?
+  taxQuoteId              String?               @unique
+  taxContext              Json?
   hostedCheckoutCreatedAt DateTime?
   expiresAt               DateTime
   createdAt               DateTime              @default(now())
   updatedAt               DateTime              @updatedAt
   cart                    Cart?                 @relation(fields: [cartId], references: [id], onDelete: Restrict)
+  taxQuote                TaxQuote?             @relation(fields: [taxQuoteId], references: [id], onDelete: Restrict)
   capacityHolds           CapacityHold[]
 
   @@index([cartId])

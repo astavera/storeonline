@@ -35,18 +35,28 @@ describe("PostgreSQL role bootstrap", () => {
     expect(verifier).toContain("prisma_table_names || ARRAY['_prisma_migrations']");
   });
 
-  it("grants runtime only the reviewed catalog and pickup-checkout database surface", () => {
+  it("grants runtime only the reviewed catalog and checkout database surface", () => {
     const expectedRuntimeReads = [
       "StoreLocation",
       "SquareCatalogObject",
       "SquareItemVariation",
       "SquareInventoryCount",
       "SquareCatalogSyncState",
+      "ProductOverride",
       "CmsContentVersion",
+      "OrderMirror",
+      "TaxQuote",
       "CheckoutAttempt",
       "AdminRateLimitBucket"
     ];
-    const expectedRuntimeTypes = ["CmsPublishStatus", "CheckoutAttemptStatus"];
+    const expectedRuntimeTypes = [
+      "CmsPublishStatus",
+      "CheckoutAttemptStatus",
+      "FulfillmentMode",
+      "TaxQuoteStatus",
+      "TaxApplicationMode",
+      "TaxNexusDecision"
+    ];
 
     expect(sqlArray(bootstrap, "runtime_select_table_names")).toEqual(expectedRuntimeReads);
     expect(sqlArray(verifier, "runtime_select_table_names")).toEqual(expectedRuntimeReads);
@@ -85,7 +95,6 @@ describe("PostgreSQL role bootstrap", () => {
       "CartItem",
       "CustomerAccount",
       "CustomerSession",
-      "OrderMirror",
       "ReturnRequest",
       "WebhookInboxEvent"
     ]) {

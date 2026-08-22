@@ -36,6 +36,13 @@ export type OperationalStoreLocation = {
   shippingFulfillmentEnabled: boolean;
 };
 
+export type ProductTaxProfile = {
+  squareVariationId: string;
+  squareIsTaxable: boolean | null;
+  squareTaxIds: string[];
+  stripeTaxCode: string | null;
+};
+
 type CatalogSyncEvidence = Pick<
   SquareCatalogSyncState,
   | "environment"
@@ -238,6 +245,47 @@ export async function readPostgresStorefrontProductsByVariationIds(
   }
 }
 
+/**
+ * Reads only authoritative tax classification inputs. A missing Square
+ * `isTaxable` value remains null so destination tax can fail closed until a
+ * fresh catalog sync has populated the field.
+ */
+export async function readPostgresProductTaxProfilesByVariationIds(
+  variationIds: string[]
+): Promise<ProductTaxProfile[]> {
+  const normalizedIds = Array.from(new Set(variationIds.map((id) => id.trim()).filter(Boolean)));
+  if (normalizedIds.length === 0) return [];
+
+  try {
+    const catalogState = exactCompletedCatalogSync(
+      await readCatalogSyncEvidence(getPrismaClient()),
+      env.SQUARE_ENVIRONMENT
+    );
+    if (!catalogState) return [];
+
+    const variations = await getPrismaClient().squareItemVariation.findMany({
+      where: { id: { in: normalizedIds }, deletedAt: null, item: { deletedAt: null } },
+      select: {
+        id: true,
+        item: { select: { raw: true } },
+        productOverride: { select: { stripeTaxCode: true } }
+      }
+    });
+    const byId = new Map(variations.map((variation) => {
+      const itemData = jsonObject(variation.item.raw)?.itemData;
+      return [variation.id, {
+        squareVariationId: variation.id,
+        squareIsTaxable: jsonOptionalBoolean(itemData as Prisma.JsonValue, "isTaxable"),
+        squareTaxIds: jsonStringArray(itemData as Prisma.JsonValue, "taxIds"),
+        stripeTaxCode: variation.productOverride?.stripeTaxCode?.trim() || null
+      } satisfies ProductTaxProfile] as const;
+    }));
+    return normalizedIds.map((id) => byId.get(id)).filter((profile): profile is ProductTaxProfile => Boolean(profile));
+  } catch (error) {
+    throw new PersistenceUnavailableError("PostgreSQL product tax classification", { cause: error });
+  }
+}
+
 async function readCatalogSyncEvidence(prisma = getPrismaClient()): Promise<CatalogSyncEvidence[]> {
   return prisma.squareCatalogSyncState.findMany({
     where: { environment: { in: [...catalogSyncEnvironments] } },
@@ -338,6 +386,11 @@ function jsonStringArray(value: Prisma.JsonValue | Record<string, Prisma.JsonVal
 
 function jsonBoolean(value: Prisma.JsonValue | Record<string, Prisma.JsonValue> | null | undefined, key: string) {
   return jsonObject(value as Prisma.JsonValue | undefined)?.[key] === true;
+}
+
+function jsonOptionalBoolean(value: Prisma.JsonValue | Record<string, Prisma.JsonValue> | null | undefined, key: string) {
+  const nested = jsonObject(value as Prisma.JsonValue | undefined)?.[key];
+  return typeof nested === "boolean" ? nested : null;
 }
 
 function jsonString(value: Prisma.JsonValue | Record<string, Prisma.JsonValue> | null | undefined, key: string) {

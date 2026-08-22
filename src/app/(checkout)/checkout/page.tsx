@@ -3,6 +3,7 @@
  */
 
 import { CheckoutPageTemplate } from "@/components/checkout/checkout-page-template";
+import { env } from "@/lib/validation/env";
 import { isOrderProLocalDeliveryCheckoutEnabled } from "@/server/orderpro/config";
 import { isOrderProDeliveryTestMode } from "@/server/orderpro/orderpro-local-delivery-service";
 import { readMappedOperationalStoreLocations } from "@/server/square/postgres-catalog-store";
@@ -16,6 +17,7 @@ export default async function CheckoutPage() {
   const deliveryTestMode = isOrderProDeliveryTestMode();
   return <CheckoutPageTemplate
     deliveryTestMode={deliveryTestMode}
+    destinationTaxEnabled={env.DESTINATION_TAX_ENABLED === "true"}
     localDeliveryCheckoutEnabled={deliveryTestMode || isOrderProLocalDeliveryCheckoutEnabled()}
     locations={locations}
     shippingCheckoutEnabled={isOrderProShippingCheckoutEnabled()}

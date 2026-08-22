@@ -167,6 +167,8 @@ DECLARE
     'SlotTemplate',
     'SlotHold',
     'ShippingRateQuote',
+    'TaxNexusRule',
+    'TaxQuote',
     'WebhookEvent',
     'CheckoutAttempt',
     'WebhookInboxEvent',
@@ -200,6 +202,9 @@ DECLARE
     'DescriptionSource',
     'DescriptionStatus',
     'CheckoutAttemptStatus',
+    'TaxQuoteStatus',
+    'TaxApplicationMode',
+    'TaxNexusDecision',
     'WebhookInboxStatus',
     'CapacityHoldStatus',
     'BalloonDraftStatus',
@@ -214,13 +219,20 @@ DECLARE
     'SquareItemVariation',
     'SquareInventoryCount',
     'SquareCatalogSyncState',
+    'ProductOverride',
     'CmsContentVersion',
+    'OrderMirror',
+    'TaxQuote',
     'CheckoutAttempt',
     'AdminRateLimitBucket'
   ];
   runtime_usage_type_names CONSTANT text[] := ARRAY[
     'CmsPublishStatus',
-    'CheckoutAttemptStatus'
+    'CheckoutAttemptStatus',
+    'FulfillmentMode',
+    'TaxQuoteStatus',
+    'TaxApplicationMode',
+    'TaxNexusDecision'
   ];
   sync_projection_table_names CONSTANT text[] := ARRAY[
     'SquareCatalogObject',
@@ -549,6 +561,35 @@ BEGIN
 
   IF to_regclass('public."CheckoutAttempt"') IS NOT NULL THEN
     GRANT INSERT ON TABLE public."CheckoutAttempt" TO storefront_runtime;
+    GRANT UPDATE (
+      "status", "fulfillmentMode", "squareOrderId", "squarePaymentLinkId",
+      "orderproShippingOrderId", "shippingContext", "taxQuoteId", "taxContext",
+      "hostedCheckoutCreatedAt", "updatedAt"
+    ) ON TABLE public."CheckoutAttempt" TO storefront_runtime;
+  END IF;
+
+  IF to_regclass('public."TaxQuote"') IS NOT NULL THEN
+    GRANT INSERT ON TABLE public."TaxQuote" TO storefront_runtime;
+    GRANT UPDATE (
+      "status", "consumedAt", "invalidatedAt", "providerTransactionId",
+      "providerReportedAt", "updatedAt"
+    ) ON TABLE public."TaxQuote" TO storefront_runtime;
+  END IF;
+
+  IF to_regclass('public."OrderMirror"') IS NOT NULL THEN
+    GRANT INSERT ON TABLE public."OrderMirror" TO storefront_runtime;
+    GRANT UPDATE (
+      "squarePaymentId", "currency", "totalMoney", "status",
+      "estimatedMerchandiseSubtotalCents", "estimatedDiscountCents",
+      "estimatedShippingFeeCents", "estimatedDeliveryFeeCents",
+      "estimatedMerchandiseTaxCents", "estimatedShippingTaxCents",
+      "estimatedDeliveryFeeTaxCents", "estimatedTotalTaxCents", "estimatedTotalCents",
+      "finalMerchandiseSubtotalCents", "finalDiscountCents", "finalShippingFeeCents",
+      "finalDeliveryFeeCents", "finalMerchandiseTaxCents", "finalShippingTaxCents",
+      "finalDeliveryFeeTaxCents", "finalTotalTaxCents", "finalTotalCents",
+      "taxProvider", "taxApplicationMode", "squareTaxSnapshot",
+      "squareFinancialSnapshot", "taxReconciledAt", "updatedAt"
+    ) ON TABLE public."OrderMirror" TO storefront_runtime;
   END IF;
 
   FOREACH object_name IN ARRAY runtime_usage_type_names LOOP
