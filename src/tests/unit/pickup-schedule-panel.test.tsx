@@ -10,7 +10,7 @@ afterEach(() => {
 });
 
 describe("PickupSchedulePanel", () => {
-  it("confirms that ASAP is selected and does not require a time slot", async () => {
+  it("confirms the two-hour preparation window for ASAP pickup", async () => {
     const onSelectionChange = vi.fn();
 
     render(
@@ -23,7 +23,8 @@ describe("PickupSchedulePanel", () => {
     );
 
     expect(screen.getByRole("status").textContent).toContain("ASAP pickup selected.");
-    expect(screen.getByRole("status").textContent).toContain("No time slot is required.");
+    expect(screen.getByRole("status").textContent).toContain("prepared within the next 2 hours");
+    expect(screen.getByRole("status").textContent).toContain("notify you when it's ready for pickup");
     await waitFor(() => expect(onSelectionChange).toHaveBeenCalledWith({ timing: "ASAP" }));
   });
 
