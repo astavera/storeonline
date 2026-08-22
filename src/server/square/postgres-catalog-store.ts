@@ -307,9 +307,9 @@ export async function readPublishedStorefrontShippingPoliciesByVariationIds(
 }
 
 /**
- * Reads only authoritative tax classification inputs. A missing Square
- * `isTaxable` value remains null so destination tax can fail closed until a
- * fresh catalog sync has populated the field.
+ * Reads only authoritative tax classification inputs. Square documents a
+ * missing `isTaxable` field as taxable by default; malformed item payloads
+ * still remain null so destination tax fails closed.
  */
 export async function readPostgresProductTaxProfilesByVariationIds(
   variationIds: string[]
@@ -334,9 +334,12 @@ export async function readPostgresProductTaxProfilesByVariationIds(
     });
     const byId = new Map(variations.map((variation) => {
       const itemData = jsonObject(variation.item.raw)?.itemData;
+      const itemDataObject = jsonObject(itemData as Prisma.JsonValue | undefined);
       return [variation.id, {
         squareVariationId: variation.id,
-        squareIsTaxable: jsonOptionalBoolean(itemData as Prisma.JsonValue, "isTaxable"),
+        squareIsTaxable: itemDataObject
+          ? jsonOptionalBoolean(itemDataObject, "isTaxable") ?? true
+          : null,
         squareTaxIds: jsonStringArray(itemData as Prisma.JsonValue, "taxIds"),
         stripeTaxCode: variation.productOverride?.stripeTaxCode?.trim() || null
       } satisfies ProductTaxProfile] as const;

@@ -324,5 +324,23 @@ describe("PostgreSQL catalog storefront contract", () => {
     expect(source.readPostgresInventorySyncSummary).toBeTypeOf("function");
     expect(source.readMappedOperationalStoreLocations).toBeTypeOf("function");
     expect(source.readPostgresStorefrontProductsByVariationIds).toBeTypeOf("function");
+    expect(source.readPostgresProductTaxProfilesByVariationIds).toBeTypeOf("function");
+  });
+
+  it("uses Square's documented taxable default when isTaxable is omitted", async () => {
+    prisma.squareItemVariation.findMany.mockResolvedValue([{
+      id: "variation-1",
+      item: { raw: { itemData: { name: "Taxable by default" } } },
+      productOverride: null
+    }]);
+    const source = await loadStore("production");
+
+    await expect(source.readPostgresProductTaxProfilesByVariationIds(["variation-1"]))
+      .resolves.toEqual([{
+        squareVariationId: "variation-1",
+        squareIsTaxable: true,
+        squareTaxIds: [],
+        stripeTaxCode: null
+      }]);
   });
 });
