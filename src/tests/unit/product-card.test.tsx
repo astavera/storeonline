@@ -89,4 +89,40 @@ describe("product card", () => {
     expect(stockLine.className).toContain("text-secondary");
     expect((screen.getByRole("button", { name: "Out of stock" }) as HTMLButtonElement).disabled).toBe(true);
   });
+
+  it("shows exact low stock and caps the selector to one store's fulfillable quantity", () => {
+    render(
+      <ProductCard
+        product={{
+          squareVariationId: "variation-low-stock",
+          slug: "low-stock-product",
+          name: "Low-stock product",
+          department: "Toys",
+          shortDescription: "",
+          imageUrl: "/images/product-fallback.svg",
+          priceCents: 2_498,
+          fulfillmentModes: ["pickup", "local-delivery"],
+          inventoryStatus: "limited",
+          inventoryTracked: true,
+          availableQuantity: 5,
+          fulfillableQuantity: 2,
+          priceAvailable: true
+        }}
+      />
+    );
+
+    expect(screen.getByText("Up to 2 available from one store")).not.toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Add to cart" }));
+    const quantity = screen.getByRole("group", { name: "Quantity in cart" });
+    const increase = within(quantity).getByRole("button", { name: "Increase quantity in cart" });
+    fireEvent.click(increase);
+
+    expect(within(quantity).getByText("2")).not.toBeNull();
+    expect((increase as HTMLButtonElement).disabled).toBe(true);
+    expect(readCartItems()).toEqual([{
+      squareVariationId: "variation-low-stock",
+      quantity: 2,
+      source: "storefront"
+    }]);
+  });
 });

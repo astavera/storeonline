@@ -16,7 +16,11 @@ import {
   wishlistSnapshot,
   writeWishlistIds
 } from "@/components/commerce/wishlist-store";
-import type { StorefrontProduct } from "@/features/catalog/product-catalog";
+import {
+  storefrontFulfillableQuantity,
+  storefrontInventoryLabel,
+  type StorefrontProduct
+} from "@/features/catalog/product-catalog";
 import { formatMoney } from "@/lib/utils";
 
 type WishlistResponse = {
@@ -173,7 +177,8 @@ export function WishlistDrawer() {
 }
 
 function WishlistItem({ onRemove, product }: { onRemove: () => void; product: StorefrontProduct }) {
-  const purchaseDisabled = product.previewOnly || product.inventoryStatus === "out-of-stock" || product.priceAvailable === false;
+  const maxQuantity = storefrontFulfillableQuantity(product);
+  const purchaseDisabled = product.previewOnly || product.inventoryStatus === "out-of-stock" || maxQuantity === 0 || product.priceAvailable === false;
   const disabledReason = product.previewOnly ? "Unavailable online" : product.priceAvailable === false ? "Price unavailable" : "Out of stock";
 
   return (
@@ -188,10 +193,10 @@ function WishlistItem({ onRemove, product }: { onRemove: () => void; product: St
             <Trash2 aria-hidden="true" size={17} />
           </button>
         </div>
-        <p className={product.inventoryStatus === "out-of-stock" ? "text-[11px] font-bold text-secondary" : "text-[11px] font-bold text-green"}>{product.inventoryStatus === "out-of-stock" ? "Sold out" : "In stock"}</p>
+        <p className={product.inventoryStatus === "out-of-stock" ? "text-[11px] font-bold text-secondary" : maxQuantity !== null && maxQuantity <= 3 ? "text-[11px] font-bold text-red" : "text-[11px] font-bold text-green"}>{storefrontInventoryLabel(product)}</p>
         <p className="mt-1 text-base font-black">{product.priceAvailable === false ? "Price unavailable" : formatMoney(product.priceCents)}</p>
         <div className="mt-2 [&_.add-to-cart-submit]:!min-h-10 [&_.add-to-cart-submit]:!rounded-md [&_.add-to-cart-submit]:!py-2 [&_.add-to-cart-submit]:!text-xs [&_.add-to-cart-stepper]:!min-h-10 [&_.add-to-cart-stepper]:!rounded-md">
-          <AddToCartButton disabled={purchaseDisabled} disabledReason={disabledReason} label="Add to cart" showQuantitySelector squareVariationId={product.squareVariationId} />
+          <AddToCartButton disabled={purchaseDisabled} disabledReason={disabledReason} label="Add to cart" maxQuantity={maxQuantity} showQuantitySelector squareVariationId={product.squareVariationId} />
         </div>
       </div>
     </li>

@@ -205,6 +205,12 @@ export async function readPostgresStorefrontProductsByVariationIds(
       const inventoryQuantity = variation.inventoryCounts
         .filter((count) => count.state === "IN_STOCK")
         .reduce((sum, count) => sum + count.quantity.toNumber(), 0);
+      const fulfillableQuantity = squareLocationIds.reduce((largest, squareLocationId) => {
+        const locationQuantity = variation.inventoryCounts
+          .filter((count) => count.squareLocationId === squareLocationId && count.state === "IN_STOCK")
+          .reduce((sum, count) => sum + count.quantity.toNumber(), 0);
+        return Math.max(largest, Math.max(0, Math.trunc(locationQuantity)));
+      }, 0);
       const pickupInventory = trackInventory
         ? pickupLocations.flatMap((location) => {
             const locationCounts = variation.inventoryCounts.filter((count) => count.squareLocationId === location.squareLocationId && count.state === "IN_STOCK");
@@ -241,6 +247,7 @@ export async function readPostgresStorefrontProductsByVariationIds(
         fulfillmentModes: [],
         inventoryTracked: trackInventory,
         availableQuantity: trackInventory ? inventoryQuantity : null,
+        fulfillableQuantity: trackInventory ? fulfillableQuantity : null,
         ...(pickupInventory.length > 0 ? { pickupInventory } : {}),
         inventoryStatus: trackInventory
           ? inventoryQuantity <= 0

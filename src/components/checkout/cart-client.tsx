@@ -20,6 +20,8 @@ type CartQuoteLine = {
   unitPriceCents: number;
   quantity: number;
   lineTotalCents: number;
+  inventoryTracked: boolean;
+  availableQuantity: number | null;
 };
 
 type CartQuote = {
@@ -110,8 +112,12 @@ export function CartClient({ mode = "cart" }: { mode?: "cart" | "summary" }) {
   }, [isHydrated, items]);
 
   function updateQuantity(squareVariationId: string, quantity: number) {
+    const line = quote.lines.find((candidate) => candidate.squareVariationId === squareVariationId);
+    const maximum = line?.inventoryTracked && line.availableQuantity !== null
+      ? Math.max(0, Math.floor(line.availableQuantity))
+      : 99;
     const nextItems = items
-      .map((item) => (item.squareVariationId === squareVariationId ? { ...item, quantity: Math.max(0, Math.min(99, quantity)) } : item))
+      .map((item) => (item.squareVariationId === squareVariationId ? { ...item, quantity: Math.max(0, Math.min(maximum, quantity)) } : item))
       .filter((item) => item.quantity > 0);
     writeCartItems(nextItems);
     setItems(nextItems);
@@ -175,6 +181,11 @@ export function CartClient({ mode = "cart" }: { mode?: "cart" | "summary" }) {
                       <Link className="transition hover:text-blue" href={`/products/${line.slug}`}>{line.name}</Link>
                     </h2>
                     <p className="mt-2 text-xs text-secondary">{formatMoney(line.unitPriceCents)} each</p>
+                    {line.inventoryTracked && line.availableQuantity !== null && line.availableQuantity <= 3 ? (
+                      <p className="mt-1 text-xs font-bold text-red">
+                        {line.availableQuantity === 1 ? "Only 1 available" : `Only ${line.availableQuantity} available`}
+                      </p>
+                    ) : null}
                   </div>
                   <p className="shrink-0 font-black text-primary">{formatMoney(line.lineTotalCents)}</p>
                 </div>
@@ -185,7 +196,7 @@ export function CartClient({ mode = "cart" }: { mode?: "cart" | "summary" }) {
                       <Minus aria-hidden="true" size={15} />
                     </button>
                     <span aria-label={`${line.quantity} items`} className="w-8 text-center text-sm font-black">{line.quantity}</span>
-                    <button aria-label={`Increase ${line.name} quantity`} className="grid h-10 w-10 place-items-center rounded-full transition hover:bg-surface-muted disabled:opacity-40" disabled={line.quantity >= 99} onClick={() => updateQuantity(line.squareVariationId, line.quantity + 1)} type="button">
+                    <button aria-label={`Increase ${line.name} quantity`} className="grid h-10 w-10 place-items-center rounded-full transition hover:bg-surface-muted disabled:opacity-40" disabled={line.quantity >= (line.inventoryTracked && line.availableQuantity !== null ? line.availableQuantity : 99)} onClick={() => updateQuantity(line.squareVariationId, line.quantity + 1)} type="button">
                       <Plus aria-hidden="true" size={15} />
                     </button>
                   </div>

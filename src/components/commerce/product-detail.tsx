@@ -6,14 +6,19 @@ import { MapPin, PackageCheck, Truck } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import type { ReactNode } from "react";
-import type { StorefrontProduct } from "@/features/catalog/product-catalog";
+import {
+  storefrontFulfillableQuantity,
+  storefrontInventoryLabel,
+  type StorefrontProduct
+} from "@/features/catalog/product-catalog";
 import { formatMoney } from "@/lib/utils";
 import { AddToCartButton } from "./add-to-cart-button";
 import { PickupLocationInventory } from "./pickup-location-inventory";
 import { WishlistButton } from "./wishlist-button";
 
 export function ProductDetail({ product }: { product: StorefrontProduct }) {
-  const purchaseDisabled = product.inventoryStatus === "out-of-stock" || product.priceAvailable === false;
+  const maxQuantity = storefrontFulfillableQuantity(product);
+  const purchaseDisabled = product.inventoryStatus === "out-of-stock" || maxQuantity === 0 || product.priceAvailable === false;
   const secondaryDescription = product.description.trim() !== product.shortDescription.trim()
     ? product.description
     : "";
@@ -61,7 +66,7 @@ export function ProductDetail({ product }: { product: StorefrontProduct }) {
             </p>
             <p className={`mt-3 flex items-center gap-2 text-sm font-bold ${inventoryTextClass(product.inventoryStatus)}`}>
               <span aria-hidden="true" className="h-2 w-2 rounded-full bg-current" />
-              {inventoryStatusLabel(product.inventoryStatus)}
+              {product.inventoryStatus === "out-of-stock" ? "Out of stock" : storefrontInventoryLabel(product)}
             </p>
           </section>
 
@@ -83,6 +88,7 @@ export function ProductDetail({ product }: { product: StorefrontProduct }) {
               <AddToCartButton
                 disabled={purchaseDisabled}
                 disabledReason={product.priceAvailable === false ? "Price unavailable" : "Out of stock"}
+                maxQuantity={maxQuantity}
                 showQuantitySelector
                 squareVariationId={product.squareVariationId}
               />
@@ -131,13 +137,6 @@ function FulfillmentRow({ mode }: { mode: StorefrontProduct["fulfillmentModes"][
       </div>
     </div>
   );
-}
-
-function inventoryStatusLabel(status: StorefrontProduct["inventoryStatus"]) {
-  if (status === "limited") return "Limited availability";
-  if (status === "special-order") return "Available by special order";
-  if (status === "out-of-stock") return "Out of stock";
-  return "In stock";
 }
 
 function inventoryTextClass(status: StorefrontProduct["inventoryStatus"]) {

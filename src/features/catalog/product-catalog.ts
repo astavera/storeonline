@@ -40,7 +40,10 @@ export type StorefrontProduct = {
   fulfillmentModes: FulfillmentMode[];
   inventoryStatus: "in-stock" | "limited" | "special-order" | "out-of-stock";
   inventoryTracked?: boolean;
+  /** Total inventory across every location included in the catalog query. */
   availableQuantity?: number | null;
+  /** Largest integer quantity that one included location can fulfill by itself. */
+  fulfillableQuantity?: number | null;
   pickupInventory?: PickupLocationInventory[];
   priceAvailable?: boolean;
   ageGroups?: ProductAgeGroup[];
@@ -51,6 +54,41 @@ export type StorefrontProduct = {
   squareVendorNames?: string[];
   previewOnly?: boolean;
 };
+
+export const storefrontLowStockThreshold = 3;
+
+export type StorefrontInventorySummary = Pick<
+  StorefrontProduct,
+  "availableQuantity" | "fulfillableQuantity" | "inventoryStatus" | "inventoryTracked"
+>;
+
+/**
+ * Returns the safe storefront quantity ceiling for one fulfillment location.
+ * Untracked products keep the existing cart ceiling and return null.
+ */
+export function storefrontFulfillableQuantity(product: StorefrontInventorySummary) {
+  if (product.inventoryTracked !== true) return null;
+
+  const quantity = product.fulfillableQuantity ?? product.availableQuantity ?? 0;
+  return Number.isFinite(quantity) ? Math.max(0, Math.floor(quantity)) : 0;
+}
+
+export function storefrontInventoryLabel(product: StorefrontInventorySummary) {
+  const fulfillableQuantity = storefrontFulfillableQuantity(product);
+
+  if (product.inventoryStatus === "out-of-stock" || fulfillableQuantity === 0) return "Sold out";
+  if (fulfillableQuantity !== null && fulfillableQuantity <= storefrontLowStockThreshold) {
+    const combinedQuantity = typeof product.availableQuantity === "number"
+      ? Math.max(0, Math.floor(product.availableQuantity))
+      : fulfillableQuantity;
+    return combinedQuantity > fulfillableQuantity
+      ? `Up to ${fulfillableQuantity} available from one store`
+      : `Only ${fulfillableQuantity} left`;
+  }
+  if (product.inventoryStatus === "limited") return "Limited availability";
+  if (product.inventoryStatus === "special-order") return "Available by special order";
+  return "In stock";
+}
 
 export const storefrontProducts: StorefrontProduct[] = [
   {
@@ -96,7 +134,10 @@ export const storefrontProducts: StorefrontProduct[] = [
     badge: "Pickup or delivery",
     ageGroups: ["3-4", "5-7", "8-10", "11-12", "13+"],
     fulfillmentModes: ["pickup", "local-delivery"],
-    inventoryStatus: "limited"
+    inventoryStatus: "limited",
+    inventoryTracked: true,
+    availableQuantity: 2,
+    fulfillableQuantity: 2
   },
   {
     id: "art-project-essentials",

@@ -24,6 +24,9 @@ const product: StorefrontProduct = {
   priceCents: 2499,
   fulfillmentModes: ["pickup", "local-delivery", "shipping"],
   inventoryStatus: "limited",
+  inventoryTracked: true,
+  availableQuantity: 2,
+  fulfillableQuantity: 2,
   pickupInventory: [{ locationId: "third-avenue", locationName: "3rd Avenue Store", quantity: 2 }]
 };
 
@@ -33,7 +36,7 @@ describe("ProductDetail", () => {
 
     expect(screen.getByRole("heading", { level: 1, name: "Square product" })).not.toBeNull();
     expect(screen.getByText("$24.99")).not.toBeNull();
-    expect(screen.getByText("Limited availability")).not.toBeNull();
+    expect(screen.getByText("Only 2 left")).not.toBeNull();
     expect(screen.getByText("Store pickup")).not.toBeNull();
     expect(screen.getByText("Local delivery")).not.toBeNull();
     expect(screen.getByText("Shipping")).not.toBeNull();

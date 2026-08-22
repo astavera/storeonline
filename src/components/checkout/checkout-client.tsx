@@ -140,7 +140,7 @@ export function CheckoutClient({ locations, deliveryTestMode = false, localDeliv
       headers: {
         "content-type": "application/json"
       },
-      body: JSON.stringify({ items })
+      body: JSON.stringify({ items, ...(locationId ? { locationId } : {}) })
     })
       .then((response) => response.json())
       .then((result) => {

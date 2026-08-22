@@ -7,7 +7,11 @@ import Link from "next/link";
 
 import { AddToCartButton } from "@/components/commerce/add-to-cart-button";
 import { WishlistButton } from "@/components/commerce/wishlist-button";
-import type { StorefrontProduct } from "@/features/catalog/product-catalog";
+import {
+  storefrontFulfillableQuantity,
+  storefrontInventoryLabel,
+  type StorefrontProduct
+} from "@/features/catalog/product-catalog";
 import type { HomepageSectionConfig } from "@/features/homepage/config/homepage.config";
 
 export function HomepageToysFeaturedGrid({
@@ -34,9 +38,11 @@ export function HomepageToysFeaturedGrid({
 
       <div className="mt-4 grid grid-cols-2 gap-3 lg:flex-1 lg:grid-cols-4 lg:grid-rows-2">
         {products.slice(0, 8).map((product) => {
+          const maxQuantity = storefrontFulfillableQuantity(product);
           const purchaseDisabled =
             product.previewOnly ||
             product.inventoryStatus === "out-of-stock" ||
+            maxQuantity === 0 ||
             product.priceAvailable === false;
           const disabledReason = product.previewOnly
             ? "Preview only"
@@ -68,12 +74,16 @@ export function HomepageToysFeaturedGrid({
                   {product.name}
                 </Link>
               </h3>
+              <p className={`mt-1 text-[10px] font-bold leading-tight ${product.inventoryStatus === "out-of-stock" ? "text-secondary" : maxQuantity !== null && maxQuantity <= 3 ? "text-red" : "text-green"}`}>
+                {storefrontInventoryLabel(product)}
+              </p>
               <div className="mt-auto flex items-stretch gap-1.5 pt-1.5">
                 <div className="min-w-0 flex-1 [&_button]:!min-h-8 [&_button]:!py-1.5 [&_button]:!text-[11px]">
                   <AddToCartButton
                     disabled={purchaseDisabled}
                     disabledReason={disabledReason}
                     label="Add to cart"
+                    maxQuantity={maxQuantity}
                     squareVariationId={product.squareVariationId}
                   />
                 </div>

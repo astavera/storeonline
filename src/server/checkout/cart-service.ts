@@ -6,6 +6,7 @@ import "server-only";
 import { z } from "zod";
 import {
   fulfillmentModeLabel,
+  storefrontFulfillableQuantity,
   storefrontProducts,
   type FulfillmentMode,
   type StorefrontProduct
@@ -78,7 +79,7 @@ export type CartQuote = {
   inventoryAsOf: string | null;
   locationId: string | null;
   locationName: string | null;
-  availabilityScope: "selected-location" | "mapped-locations" | "static-preview";
+  availabilityScope: "selected-location" | "single-location-ceiling" | "static-preview";
 };
 
 type CartQuoteMetadata = Pick<CartQuote, "catalogSource" | "inventoryAsOf" | "warnings"> & {
@@ -141,7 +142,7 @@ export async function quoteCartFromOperationalCatalog(input: z.infer<typeof cart
   const warnings: string[] = [];
   let inventoryAsOf: string | null = null;
 
-  if (products.some((product) => product.inventoryTracked)) {
+  if (source.source !== "static-preview" && products.some((product) => product.inventoryTracked)) {
     const inventory = await readPostgresInventorySyncSummary();
     const completedAt = inventory.lastCompletedAt ? Date.parse(inventory.lastCompletedAt) : Number.NaN;
     if (!inventory.available || Number.isNaN(completedAt) || completedAt < Date.now() - 30 * 60_000) {
@@ -149,10 +150,10 @@ export async function quoteCartFromOperationalCatalog(input: z.infer<typeof cart
     }
     inventoryAsOf = inventory.latestTime ?? inventory.lastCompletedAt;
     if (!selectedLocation && inventory.mappedOperationalLocations > 1) {
-      warnings.push("Availability is combined across mapped stores until a fulfillment location is selected.");
+      warnings.push("Quantity is capped to what one mapped store can fulfill until a fulfillment location is selected.");
     }
     if (inventory.totalOperationalLocations === 0 || inventory.mappedOperationalLocations < inventory.totalOperationalLocations) {
-      warnings.push("Availability is aggregated across Square locations until every operational store has a Square location mapping.");
+      warnings.push("Inventory from operational stores without a Square location mapping is excluded from online availability.");
     }
   }
 
@@ -189,7 +190,7 @@ export function quoteCartWithProducts(
       errors.push("One or more items do not currently have a purchasable Square price.");
       return [];
     }
-    const availableQuantity = product.inventoryTracked ? Math.max(0, product.availableQuantity ?? 0) : null;
+    const availableQuantity = storefrontFulfillableQuantity(product);
     if (product.inventoryTracked && availableQuantity! < item.quantity) {
       errors.push("One or more items do not have enough current Square inventory for the requested quantity.");
     }
@@ -247,7 +248,7 @@ export function quoteCartWithProducts(
       ? "selected-location"
       : metadata.catalogSource === "static-preview"
         ? "static-preview"
-        : "mapped-locations"
+        : "single-location-ceiling"
   };
 }
 

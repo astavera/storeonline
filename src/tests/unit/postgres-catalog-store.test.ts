@@ -327,6 +327,66 @@ describe("PostgreSQL catalog storefront contract", () => {
     expect(source.readPostgresProductTaxProfilesByVariationIds).toBeTypeOf("function");
   });
 
+  it("keeps total inventory separate from the quantity one store can fulfill", async () => {
+    prisma.squareCatalogSyncState.findMany
+      .mockResolvedValueOnce([completedState()])
+      .mockResolvedValueOnce([completedInventoryState()]);
+    prisma.storeLocation.findMany.mockResolvedValue([
+      {
+        id: "store-3rd-avenue",
+        name: "3rd Avenue Store",
+        address: "1243 3rd Ave.",
+        squareLocationId: "location-1",
+        pickupEnabled: true,
+        localDeliveryEnabled: true,
+        shippingFulfillmentEnabled: false
+      },
+      {
+        id: "store-86th-street",
+        name: "86th Street Store",
+        address: "112 East 86th Street",
+        squareLocationId: "location-2",
+        pickupEnabled: true,
+        localDeliveryEnabled: true,
+        shippingFulfillmentEnabled: false
+      }
+    ]);
+    prisma.squareItemVariation.findMany.mockResolvedValue([{
+      id: "variation-1",
+      itemId: "item-1",
+      name: "Default",
+      sku: "SKU-1",
+      upc: null,
+      priceMoney: { amount: "1299", currency: "USD" },
+      raw: { itemVariationData: { trackInventory: true } },
+      item: {
+        name: "Two-store item",
+        descriptionPlaintext: "Inventory test product.",
+        categoryIds: [],
+        raw: {}
+      },
+      inventoryCounts: [
+        { squareLocationId: "location-1", state: "IN_STOCK", quantity: { toNumber: () => 2 } },
+        { squareLocationId: "location-2", state: "IN_STOCK", quantity: { toNumber: () => 1 } }
+      ]
+    }]);
+    prisma.squareCatalogObject.findMany.mockResolvedValue([]);
+    const source = await loadStore("production");
+
+    const products = await source.readPostgresStorefrontProductsByVariationIds(["variation-1"]);
+
+    expect(products[0]).toMatchObject({
+      availableQuantity: 3,
+      fulfillableQuantity: 2,
+      inventoryStatus: "limited",
+      inventoryTracked: true
+    });
+    expect(products[0].pickupInventory).toEqual([
+      { locationId: "store-3rd-avenue", locationName: "3rd Avenue Store", quantity: 2 },
+      { locationId: "store-86th-street", locationName: "86th Street Store", quantity: 1 }
+    ]);
+  });
+
   it("uses Square's documented taxable default when isTaxable is omitted", async () => {
     prisma.squareItemVariation.findMany.mockResolvedValue([{
       id: "variation-1",

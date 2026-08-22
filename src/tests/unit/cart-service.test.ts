@@ -51,7 +51,7 @@ describe("cart service", () => {
     const base = storefrontProducts[0];
     const insufficient = quoteCartWithProducts(
       { items: [{ squareVariationId: base.squareVariationId, quantity: 3 }] },
-      [{ ...base, inventoryTracked: true, availableQuantity: 2 }]
+      [{ ...base, inventoryTracked: true, availableQuantity: 5, fulfillableQuantity: 2 }]
     );
     const missingPrice = quoteCartWithProducts(
       { items: [{ squareVariationId: base.squareVariationId, quantity: 1 }] },
@@ -62,6 +62,23 @@ describe("cart service", () => {
     expect(insufficient.lines[0]).toMatchObject({ inventoryTracked: true, availableQuantity: 2 });
     expect(missingPrice.errors).toContain("One or more items do not currently have a purchasable Square price.");
     expect(missingPrice.lines).toEqual([]);
+  });
+
+  it("does not combine two stores into a quantity that no single store can fulfill", () => {
+    const base = storefrontProducts[0];
+    const quote = quoteCartWithProducts(
+      { items: [{ squareVariationId: base.squareVariationId, quantity: 3 }] },
+      [{ ...base, inventoryTracked: true, availableQuantity: 4, fulfillableQuantity: 2 }],
+      {
+        catalogSource: "postgres",
+        inventoryAsOf: "2026-08-22T12:00:00.000Z",
+        warnings: ["Quantity is capped to what one mapped store can fulfill until a fulfillment location is selected."]
+      }
+    );
+
+    expect(quote.errors).toContain("One or more items do not have enough current Square inventory for the requested quantity.");
+    expect(quote.lines[0].availableQuantity).toBe(2);
+    expect(quote.availabilityScope).toBe("single-location-ceiling");
   });
 
   it("limits fulfillment methods to the selected operational store", () => {

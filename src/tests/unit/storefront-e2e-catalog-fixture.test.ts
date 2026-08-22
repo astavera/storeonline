@@ -59,4 +59,17 @@ describe("storefront E2E catalog fixture", () => {
     });
     expect(quote.errors).toEqual([]);
   });
+
+  it("simulates low stock without requiring a live Square inventory sync", async () => {
+    const available = await quoteCartFromOperationalCatalog({
+      items: [{ squareVariationId: "seed-mylar-balloon-pick", quantity: 2 }]
+    });
+
+    expect(available).toMatchObject({
+      catalogSource: "static-preview",
+      inventoryAsOf: null,
+      errors: [],
+      lines: [expect.objectContaining({ availableQuantity: 2, quantity: 2 })]
+    });
+  });
 });

@@ -12,7 +12,12 @@ BUSINESS LOGIC FILES: src/features/catalog/services/product-display-service.ts, 
 */
 
 import { cardPresets, type ProductCardVariant } from "@/design/presets/card-presets";
-import type { FulfillmentMode, ProductAgeGroup } from "@/features/catalog/product-catalog";
+import {
+  storefrontFulfillableQuantity,
+  storefrontInventoryLabel,
+  type FulfillmentMode,
+  type ProductAgeGroup
+} from "@/features/catalog/product-catalog";
 import { cn, formatMoney } from "@/lib/utils";
 import Image from "next/image";
 import { AddToCartButton } from "./add-to-cart-button";
@@ -30,6 +35,9 @@ export type ProductCardData = {
   badge?: string;
   fulfillmentModes: FulfillmentMode[];
   inventoryStatus: "in-stock" | "limited" | "special-order" | "out-of-stock";
+  inventoryTracked?: boolean;
+  availableQuantity?: number | null;
+  fulfillableQuantity?: number | null;
   priceAvailable?: boolean;
   ageGroups?: ProductAgeGroup[];
   previewOnly?: boolean;
@@ -45,7 +53,9 @@ export function ProductCard({
   variant?: ProductCardVariant;
 }) {
   const productImage = product.imageUrl || "/images/product-fallback.svg";
-  const purchaseDisabled = product.previewOnly || product.inventoryStatus === "out-of-stock" || product.priceAvailable === false;
+  const maxQuantity = storefrontFulfillableQuantity(product);
+  const inventoryLabel = storefrontInventoryLabel(product);
+  const purchaseDisabled = product.previewOnly || product.inventoryStatus === "out-of-stock" || maxQuantity === 0 || product.priceAvailable === false;
   const disabledReason = product.previewOnly ? "Unavailable online" : product.priceAvailable === false ? "Price unavailable" : "Out of stock";
   const productImageElement = (
     <span className="product-card-image-frame">
@@ -80,8 +90,8 @@ export function ProductCard({
             )}
           </h3>
         </div>
-        <p className={cn("product-card-stock text-[11px] font-bold leading-none", product.inventoryStatus === "out-of-stock" ? "text-secondary" : "text-green")}>
-          {product.inventoryStatus === "out-of-stock" ? "Sold out" : "In stock"}
+        <p className={cn("product-card-stock text-[11px] font-bold leading-none", product.inventoryStatus === "out-of-stock" ? "text-secondary" : maxQuantity !== null && maxQuantity <= 3 ? "text-red" : "text-green")}>
+          {inventoryLabel}
         </p>
         <p className="product-card-price text-xl font-black text-primary">{product.priceAvailable === false ? "Price unavailable" : formatMoney(product.priceCents)}</p>
         <div className="product-card-actions flex items-stretch gap-2">
@@ -89,6 +99,7 @@ export function ProductCard({
             <AddToCartButton
               disabled={purchaseDisabled}
               disabledReason={disabledReason}
+              maxQuantity={maxQuantity}
               showQuantitySelector={showQuantitySelector}
               squareVariationId={product.squareVariationId}
             />

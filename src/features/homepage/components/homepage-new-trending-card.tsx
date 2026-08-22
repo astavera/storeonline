@@ -11,7 +11,11 @@ import Link from "next/link";
 import { AddToCartButton } from "@/components/commerce/add-to-cart-button";
 import { WishlistButton } from "@/components/commerce/wishlist-button";
 import { ButtonLink } from "@/components/ui/button";
-import type { StorefrontProduct } from "@/features/catalog/product-catalog";
+import {
+  storefrontFulfillableQuantity,
+  storefrontInventoryLabel,
+  type StorefrontProduct
+} from "@/features/catalog/product-catalog";
 import type { HomepageSectionConfig } from "@/features/homepage/config/homepage.config";
 import { resolveHomepageCarouselProducts } from "@/features/homepage/utils/homepage-carousel-products";
 import { formatMoney } from "@/lib/utils";
@@ -106,12 +110,14 @@ export function HomepageNewTrendingCard({
                 style={{ transform: `translateX(-${displayIndex * 50}%)` }}
               >
                 {visibleProducts.map((product, index) => {
+                  const maxQuantity = storefrontFulfillableQuantity(product);
                   const isProductVisible =
                     index >= displayIndex &&
                     index < displayIndex + CAROUSEL_ITEMS_PER_VIEW;
                   const purchaseDisabled =
                     product.previewOnly ||
                     product.inventoryStatus === "out-of-stock" ||
+                    maxQuantity === 0 ||
                     product.priceAvailable === false;
                   const disabledReason = product.previewOnly
                     ? "Preview only"
@@ -158,6 +164,9 @@ export function HomepageNewTrendingCard({
                           <p className="mt-2 text-base font-black sm:text-lg">
                             {product.priceAvailable === false ? "Price unavailable" : formatMoney(product.priceCents)}
                           </p>
+                          <p className={`mt-1 text-[11px] font-bold ${product.inventoryStatus === "out-of-stock" ? "text-secondary" : maxQuantity !== null && maxQuantity <= 3 ? "text-red" : "text-green"}`}>
+                            {storefrontInventoryLabel(product)}
+                          </p>
                           {isProductVisible ? (
                             <div className="mt-auto flex items-stretch gap-1.5 pt-3">
                               <div className="min-w-0 flex-1 [&_button]:!min-h-9 [&_button]:!py-2 [&_button]:!text-xs">
@@ -165,6 +174,7 @@ export function HomepageNewTrendingCard({
                                   disabled={purchaseDisabled}
                                   disabledReason={disabledReason}
                                   label="Add to cart"
+                                  maxQuantity={maxQuantity}
                                   squareVariationId={product.squareVariationId}
                                 />
                               </div>

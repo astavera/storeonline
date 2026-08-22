@@ -11,7 +11,7 @@ import { ProductGrid } from "@/components/commerce/product-grid";
 import { SiteFooter } from "@/components/layout/site-footer";
 import { SiteHeader } from "@/components/layout/site-header";
 import { storeLocations } from "@/config/locations.config";
-import { fulfillmentModeLabel, getProductBySlug, getProductsByDepartment, getProductsBySlugs, getVisibleProducts, type StorefrontProduct } from "@/features/catalog/product-catalog";
+import { fulfillmentModeLabel, getProductBySlug, getProductsByDepartment, getProductsBySlugs, getVisibleProducts, storefrontFulfillableQuantity, type StorefrontProduct } from "@/features/catalog/product-catalog";
 import type { ProductGridPresetId } from "@/design/presets/product-grid-presets";
 import type { CmsPageDocument, CmsSection, SectionContentItem } from "@/lib/cms";
 import { cn, formatMoney } from "@/lib/utils";
@@ -258,6 +258,7 @@ function EditableHeroSection({ isPrimaryHeading, section }: { isPrimaryHeading: 
 
 function EditableProductDetailSection({ isPrimaryHeading, product: providedProduct, section }: { isPrimaryHeading: boolean; product?: StorefrontProduct; section: CmsSection }) {
   const product = providedProduct ?? fixtureProductBySlug(section.dataSource.id);
+  const maxQuantity = product ? storefrontFulfillableQuantity(product) : null;
   const title = String(section.content.title || product?.name || section.label);
   const body = String(section.content.body || product?.description || "");
   const image = section.media.image || product?.imageUrl || "";
@@ -293,7 +294,7 @@ function EditableProductDetailSection({ isPrimaryHeading, product: providedProdu
           <div className="mt-8 flex max-w-sm items-stretch gap-2" data-cms-edit-field="primaryCta">
             <div className="min-w-0 flex-1">
               {product && !product.previewOnly ? (
-                <AddToCartButton disabled={product.inventoryStatus === "out-of-stock" || product.priceAvailable === false} disabledReason={product.priceAvailable === false ? "Price unavailable" : "Out of stock"} label={String(section.content.primaryCtaLabel || "Add to cart")} showQuantitySelector squareVariationId={product.squareVariationId} />
+                <AddToCartButton disabled={product.inventoryStatus === "out-of-stock" || maxQuantity === 0 || product.priceAvailable === false} disabledReason={product.priceAvailable === false ? "Price unavailable" : "Out of stock"} label={String(section.content.primaryCtaLabel || "Add to cart")} maxQuantity={maxQuantity} showQuantitySelector squareVariationId={product.squareVariationId} />
               ) : product?.previewOnly ? (
                 <div className="rounded-pill border border-blue/30 bg-cyan px-5 py-3 text-center font-black text-primary">Read-only Square preview</div>
               ) : (
@@ -312,6 +313,7 @@ function EditableProductDetailSection({ isPrimaryHeading, product: providedProdu
 
 function EditableProductModuleSection({ isPrimaryHeading, product: providedProduct, section }: { isPrimaryHeading: boolean; product?: StorefrontProduct; section: CmsSection }) {
   const product = providedProduct ?? fixtureProductBySlug(section.dataSource.id);
+  const maxQuantity = product ? storefrontFulfillableQuantity(product) : null;
   const title = String(section.content.title || product?.name || section.label);
   const type = String(section.type);
   const Heading = isPrimaryHeading ? "h1" : "h2";
@@ -327,7 +329,7 @@ function EditableProductModuleSection({ isPrimaryHeading, product: providedProdu
     return <section className="container-shell py-4" data-cms-component="ProductPrice"><p className="text-2xl font-semibold">{product ? (product.priceAvailable === false ? "Price unavailable" : formatMoney(product.priceCents)) : "Price unavailable"}</p></section>;
   }
   if (type === "addToCartButton" || type === "buyNowButton") {
-    return <section className="container-shell py-4" data-cms-component="ProductPurchaseAction">{product ? <div className="flex max-w-sm items-stretch gap-2"><div className="min-w-0 flex-1">{!product.previewOnly ? <AddToCartButton disabled={product.inventoryStatus === "out-of-stock" || product.priceAvailable === false} disabledReason={product.priceAvailable === false ? "Price unavailable" : "Out of stock"} label={String(section.content.primaryCtaLabel || "Add to cart")} showQuantitySelector squareVariationId={product.squareVariationId} /> : <p className="text-secondary">Purchasing is unavailable for this preview.</p>}</div><WishlistButton productName={product.name} squareVariationId={product.squareVariationId} /></div> : <p className="text-secondary">Product unavailable.</p>}</section>;
+    return <section className="container-shell py-4" data-cms-component="ProductPurchaseAction">{product ? <div className="flex max-w-sm items-stretch gap-2"><div className="min-w-0 flex-1">{!product.previewOnly ? <AddToCartButton disabled={product.inventoryStatus === "out-of-stock" || maxQuantity === 0 || product.priceAvailable === false} disabledReason={product.priceAvailable === false ? "Price unavailable" : "Out of stock"} label={String(section.content.primaryCtaLabel || "Add to cart")} maxQuantity={maxQuantity} showQuantitySelector squareVariationId={product.squareVariationId} /> : <p className="text-secondary">Purchasing is unavailable for this preview.</p>}</div><WishlistButton productName={product.name} squareVariationId={product.squareVariationId} /></div> : <p className="text-secondary">Product unavailable.</p>}</section>;
   }
   if (type === "productDescription") {
     return <section className="container-shell py-6" data-cms-component="ProductDescription"><h2 className="font-display text-2xl font-semibold">{title}</h2><p className="mt-3 max-w-3xl text-secondary">{String(section.content.body || product?.description || "Product details are being prepared.")}</p></section>;

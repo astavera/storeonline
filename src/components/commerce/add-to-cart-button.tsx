@@ -20,27 +20,41 @@ export function AddToCartButton({
   squareVariationId,
   label = "Add to cart",
   showQuantitySelector = false,
+  maxQuantity = null,
   disabled = false,
   disabledReason = "This item is not currently available to add to cart."
 }: {
   squareVariationId: string;
   label?: string;
   showQuantitySelector?: boolean;
+  maxQuantity?: number | null;
   disabled?: boolean;
   disabledReason?: string;
 }) {
   const [message, setMessage] = useState("");
   const [quantity, setQuantity] = useState(0);
   const [quantityControlVisible, setQuantityControlVisible] = useState(false);
+  const quantityLimit = normalizeQuantityLimit(maxQuantity);
   const isProductionDemo = process.env.NODE_ENV === "production" && isDemoVariationId(squareVariationId);
-  const isDisabled = disabled || isProductionDemo;
-  const effectiveDisabledReason = isProductionDemo ? "This demo item is not available." : disabledReason;
+  const isDisabled = disabled || isProductionDemo || quantityLimit === 0;
+  const effectiveDisabledReason = isProductionDemo
+    ? "This demo item is not available."
+    : quantityLimit === 0
+      ? "Out of stock"
+      : disabledReason;
 
   function addToCart() {
     if (isDisabled) return;
     const items = readCartItems();
     const existingItem = items.find((item) => item.squareVariationId === squareVariationId);
-    const nextQuantity = Math.min((existingItem?.quantity ?? 0) + 1, 99);
+    const currentQuantity = existingItem?.quantity ?? 0;
+    if (currentQuantity >= quantityLimit) {
+      setQuantity(currentQuantity);
+      setQuantityControlVisible(showQuantitySelector && currentQuantity > 0);
+      setMessage(quantityLimitMessage(quantityLimit));
+      return;
+    }
+    const nextQuantity = Math.min(currentQuantity + 1, quantityLimit);
 
     if (existingItem) {
       existingItem.quantity = nextQuantity;
@@ -61,7 +75,11 @@ export function AddToCartButton({
     const items = readCartItems();
     const existingItem = items.find((item) => item.squareVariationId === squareVariationId);
     const currentQuantity = existingItem?.quantity ?? quantity;
-    const nextQuantity = Math.min(Math.max(currentQuantity + delta, 0), 99);
+    if (delta === 1 && currentQuantity >= quantityLimit) {
+      setMessage(quantityLimitMessage(quantityLimit));
+      return;
+    }
+    const nextQuantity = Math.min(Math.max(currentQuantity + delta, 0), quantityLimit);
     const nextItems = nextQuantity === 0
       ? items.filter((item) => item.squareVariationId !== squareVariationId)
       : items;
@@ -102,7 +120,7 @@ export function AddToCartButton({
           <button
             aria-label="Increase quantity in cart"
             className="product-card-quantity-control grid min-h-11 w-11 place-items-center rounded-full bg-transparent p-0 text-white transition hover:bg-white/15 disabled:opacity-35"
-            disabled={isDisabled || quantity === 99}
+            disabled={isDisabled || quantity >= quantityLimit}
             onClick={() => changeCartQuantity(1)}
             type="button"
           >
@@ -116,7 +134,7 @@ export function AddToCartButton({
         </Button>
       )}
       <span className="sr-only" role="status">
-        {message ? "Item added to cart." : ""}
+        {message}
       </span>
     </div>
   );
@@ -166,4 +184,13 @@ export function clearCartItems() {
 
 function isDemoVariationId(squareVariationId: string) {
   return squareVariationId.startsWith("seed-");
+}
+
+function normalizeQuantityLimit(maxQuantity: number | null) {
+  if (maxQuantity === null || !Number.isFinite(maxQuantity)) return 99;
+  return Math.max(0, Math.min(99, Math.floor(maxQuantity)));
+}
+
+function quantityLimitMessage(quantityLimit: number) {
+  return quantityLimit === 1 ? "Only 1 is available." : `Only ${quantityLimit} are available.`;
 }
